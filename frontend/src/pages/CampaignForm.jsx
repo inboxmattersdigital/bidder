@@ -30,7 +30,16 @@ export default function CampaignForm() {
       daily_budget: 0,
       total_budget: 0,
       daily_spend: 0,
-      total_spend: 0
+      total_spend: 0,
+      pacing_type: "even"
+    },
+    bid_shading: {
+      enabled: false,
+      min_shade_factor: 0.5,
+      max_shade_factor: 0.95,
+      target_win_rate: 0.3,
+      learning_rate: 0.1,
+      current_shade_factor: 0.85
     },
     targeting: {
       geo: { countries: [], regions: [], cities: [] },
@@ -150,6 +159,9 @@ export default function CampaignForm() {
             </TabsTrigger>
             <TabsTrigger value="budget" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
               Budget
+            </TabsTrigger>
+            <TabsTrigger value="shading" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
+              Bid Shading
             </TabsTrigger>
             <TabsTrigger value="geo" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
               Geo Targeting
@@ -288,6 +300,113 @@ export default function CampaignForm() {
                       <p className="text-lg font-mono text-[#10B981]">${form.budget.total_spend?.toFixed(2) || '0.00'}</p>
                     </div>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Bid Shading Tab */}
+          <TabsContent value="shading">
+            <Card className="surface-primary border-panel">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#F8FAFC]">Bid Shading Configuration</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 surface-secondary rounded border border-[#2D3B55]">
+                  <p className="text-sm text-[#94A3B8] mb-3">
+                    Bid shading automatically adjusts your bid prices to optimize win rate and reduce costs. 
+                    The algorithm learns from win/loss data to find the optimal bid level.
+                  </p>
+                </div>
+                
+                <div className="flex items-center justify-between py-3 border-b border-[#2D3B55]">
+                  <div>
+                    <Label className="text-[#F8FAFC]">Enable Bid Shading</Label>
+                    <p className="text-xs text-[#64748B]">Automatically optimize bid prices</p>
+                  </div>
+                  <Switch
+                    checked={form.bid_shading?.enabled || false}
+                    onCheckedChange={(v) => updateField('bid_shading.enabled', v)}
+                  />
+                </div>
+                
+                {form.bid_shading?.enabled && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Target Win Rate</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.1"
+                          max="0.9"
+                          value={form.bid_shading?.target_win_rate || 0.3}
+                          onChange={(e) => updateField('bid_shading.target_win_rate', parseFloat(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">0.3 = 30% target win rate</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Learning Rate</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          max="0.5"
+                          value={form.bid_shading?.learning_rate || 0.1}
+                          onChange={(e) => updateField('bid_shading.learning_rate', parseFloat(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">How fast to adjust (0.1 = 10%)</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Min Shade Factor</Label>
+                        <Input
+                          type="number"
+                          step="0.05"
+                          min="0.3"
+                          max="0.9"
+                          value={form.bid_shading?.min_shade_factor || 0.5}
+                          onChange={(e) => updateField('bid_shading.min_shade_factor', parseFloat(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">0.5 = min 50% of bid</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Max Shade Factor</Label>
+                        <Input
+                          type="number"
+                          step="0.05"
+                          min="0.5"
+                          max="1.0"
+                          value={form.bid_shading?.max_shade_factor || 0.95}
+                          onChange={(e) => updateField('bid_shading.max_shade_factor', parseFloat(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">0.95 = max 95% of bid</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Current Factor</Label>
+                        <Input
+                          type="number"
+                          step="0.05"
+                          value={form.bid_shading?.current_shade_factor || 0.85}
+                          onChange={(e) => updateField('bid_shading.current_shade_factor', parseFloat(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">Starting shade factor</p>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 surface-secondary rounded border border-[#3B82F6]/30">
+                      <p className="text-xs text-[#3B82F6]">
+                        With current settings: A $3.00 bid will be shaded to ${(3.00 * (form.bid_shading?.current_shade_factor || 0.85)).toFixed(2)}
+                      </p>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

@@ -6,7 +6,9 @@ import {
   Server, 
   ScrollText, 
   ArrowRightLeft,
-  Zap
+  Zap,
+  BarChart3,
+  Gauge
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -16,6 +18,8 @@ const navItems = [
   { to: "/creatives", icon: Image, label: "Creatives" },
   { to: "/ssp-endpoints", icon: Server, label: "SSP Endpoints" },
   { to: "/bid-logs", icon: ScrollText, label: "Bid Logs" },
+  { to: "/reports", icon: BarChart3, label: "Reports" },
+  { to: "/pacing", icon: Gauge, label: "Budget Pacing" },
   { to: "/migration-matrix", icon: ArrowRightLeft, label: "Migration Matrix" },
 ];
 

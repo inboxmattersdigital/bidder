@@ -21,7 +21,9 @@ from models import (
     Creative, CreativeCreate, CreativeType,
     SSPEndpoint, SSPEndpointCreate,
     BidLog, DashboardStats,
-    CampaignTargeting, BudgetConfig,
+    CampaignTargeting, BudgetConfig, BidShadingConfig,
+    CampaignReport, ReportSummary,
+    WinNotification, BillingNotification,
     OPENRTB_MIGRATION_MATRIX
 )
 from openrtb_handler import OpenRTBParser, OpenRTBResponseBuilder, BiddingEngine
@@ -499,12 +501,16 @@ async def handle_bid_request(
     if x_openrtb_version:
         headers["x-openrtb-version"] = x_openrtb_version
     
+    # Get base URL for nurl/burl callbacks
+    nurl_base = os.environ.get('NURL_BASE_URL', request.base_url.scheme + "://" + request.headers.get('host', ''))
+    
     # Process bid request
     try:
         response, log_data = await bidding_engine.process_bid_request(
             bid_request,
             headers=headers,
-            ssp_id=ssp_id
+            ssp_id=ssp_id,
+            nurl_base=nurl_base
         )
     except Exception as e:
         logger.error(f"Bid processing error: {e}")
@@ -729,6 +735,420 @@ async def seed_sample_data():
         "creatives": len(creatives),
         "campaigns": len(campaigns),
         "ssp_endpoints": 1
+    }
+
+
+# ==================== WIN/BILLING NOTIFICATIONS ====================
+
+@api_router.post("/notify/win/{bid_id}")
+async def win_notification(bid_id: str, price: float = 0.0):
+    """
+    Handle win notification (nurl callback)
+    Called by SSP when our bid wins the auction
+    """
+    # Find the bid log
+    bid_log = await db.bid_logs.find_one({"id": bid_id}, {"_id": 0})
+    if not bid_log:
+        # Try finding by request_id as fallback
+        bid_log = await db.bid_logs.find_one(
+            {"request_id": bid_id, "bid_made": True},
+            {"_id": 0}
+        )
+    
+    if not bid_log:
+        raise HTTPException(status_code=404, detail="Bid not found")
+    
+    if bid_log.get("win_notified"):
+        return {"status": "already_notified", "bid_id": bid_id}
+    
+    campaign_id = bid_log.get("campaign_id")
+    ssp_id = bid_log.get("ssp_id")
+    bid_price = bid_log.get("shaded_price") or bid_log.get("bid_price", 0)
+    
+    # Use clearing price if provided, otherwise use bid price
+    win_price = price if price > 0 else bid_price
+    
+    # Update bid log
+    await db.bid_logs.update_one(
+        {"id": bid_log["id"]},
+        {"$set": {
+            "win_notified": True,
+            "win_price": win_price
+        }}
+    )
+    
+    # Update campaign stats
+    if campaign_id:
+        # Calculate spend (CPM / 1000 = cost per impression)
+        impression_cost = win_price / 1000
+        
+        await db.campaigns.update_one(
+            {"id": campaign_id},
+            {
+                "$inc": {
+                    "wins": 1,
+                    "impressions": 1,
+                    "budget.daily_spend": impression_cost,
+                    "budget.total_spend": impression_cost
+                }
+            }
+        )
+        
+        # Update win rate and avg win price for bid shading
+        campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+        if campaign:
+            total_bids = campaign.get("bids", 1)
+            total_wins = campaign.get("wins", 0)
+            new_win_rate = total_wins / max(total_bids, 1)
+            
+            # Calculate moving average win price
+            old_avg = campaign.get("avg_win_price", 0)
+            new_avg = (old_avg * (total_wins - 1) + win_price) / total_wins if total_wins > 0 else win_price
+            
+            await db.campaigns.update_one(
+                {"id": campaign_id},
+                {"$set": {
+                    "recent_win_rate": new_win_rate,
+                    "avg_win_price": new_avg
+                }}
+            )
+            
+            # Adjust bid shading based on win rate
+            await adjust_bid_shading(campaign_id, new_win_rate, campaign.get("bid_shading", {}))
+    
+    # Update SSP stats
+    if ssp_id:
+        impression_cost = win_price / 1000
+        await db.ssp_endpoints.update_one(
+            {"id": ssp_id},
+            {"$inc": {"total_wins": 1, "total_spend": impression_cost}}
+        )
+    
+    logger.info(f"Win notification processed: bid_id={bid_id}, price={win_price}")
+    
+    return {
+        "status": "success",
+        "bid_id": bid_id,
+        "win_price": win_price,
+        "campaign_id": campaign_id
+    }
+
+
+@api_router.post("/notify/billing/{bid_id}")
+async def billing_notification(bid_id: str, price: float = 0.0):
+    """
+    Handle billing notification (burl callback)
+    Called by SSP when the impression is billable
+    """
+    bid_log = await db.bid_logs.find_one({"id": bid_id}, {"_id": 0})
+    if not bid_log:
+        bid_log = await db.bid_logs.find_one(
+            {"request_id": bid_id, "bid_made": True},
+            {"_id": 0}
+        )
+    
+    if not bid_log:
+        raise HTTPException(status_code=404, detail="Bid not found")
+    
+    if bid_log.get("billing_notified"):
+        return {"status": "already_notified", "bid_id": bid_id}
+    
+    await db.bid_logs.update_one(
+        {"id": bid_log["id"]},
+        {"$set": {"billing_notified": True}}
+    )
+    
+    logger.info(f"Billing notification processed: bid_id={bid_id}")
+    
+    return {"status": "success", "bid_id": bid_id}
+
+
+async def adjust_bid_shading(campaign_id: str, current_win_rate: float, shading_config: dict):
+    """Adjust bid shading factor based on win rate"""
+    if not shading_config.get("enabled", False):
+        return
+    
+    target_win_rate = shading_config.get("target_win_rate", 0.3)
+    learning_rate = shading_config.get("learning_rate", 0.1)
+    current_factor = shading_config.get("current_shade_factor", 0.85)
+    min_factor = shading_config.get("min_shade_factor", 0.5)
+    max_factor = shading_config.get("max_shade_factor", 0.95)
+    
+    # If win rate is too high, reduce bids (lower factor)
+    # If win rate is too low, increase bids (higher factor)
+    rate_diff = current_win_rate - target_win_rate
+    adjustment = -rate_diff * learning_rate  # Negative because higher win rate means we can bid lower
+    
+    new_factor = current_factor + adjustment
+    new_factor = max(min_factor, min(max_factor, new_factor))
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"bid_shading.current_shade_factor": new_factor}}
+    )
+
+
+# ==================== BUDGET PACING ====================
+
+@api_router.post("/campaigns/{campaign_id}/reset-daily-spend")
+async def reset_daily_spend(campaign_id: str):
+    """Reset daily spend for a campaign (typically called at midnight)"""
+    result = await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {
+            "budget.daily_spend": 0,
+            "budget.current_hour_spend": 0,
+            "budget.last_hour_reset": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    return {"status": "reset", "campaign_id": campaign_id}
+
+
+@api_router.post("/pacing/reset-all")
+async def reset_all_daily_spend():
+    """Reset daily spend for all campaigns"""
+    result = await db.campaigns.update_many(
+        {},
+        {"$set": {
+            "budget.daily_spend": 0,
+            "budget.current_hour_spend": 0,
+            "budget.last_hour_reset": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {"status": "reset", "campaigns_updated": result.modified_count}
+
+
+@api_router.get("/pacing/status")
+async def get_pacing_status():
+    """Get pacing status for all active campaigns"""
+    campaigns = await db.campaigns.find(
+        {"status": "active"},
+        {"_id": 0, "id": 1, "name": 1, "budget": 1, "bid_shading": 1}
+    ).to_list(1000)
+    
+    now = datetime.now(timezone.utc)
+    current_hour = now.hour
+    hours_remaining = 24 - current_hour
+    
+    status = []
+    for c in campaigns:
+        budget = c.get("budget", {})
+        daily_budget = budget.get("daily_budget", 0)
+        daily_spend = budget.get("daily_spend", 0)
+        
+        if daily_budget > 0:
+            pacing_percentage = (daily_spend / daily_budget) * 100
+            ideal_percentage = (current_hour / 24) * 100
+            pacing_status = "on_track"
+            
+            if pacing_percentage > ideal_percentage + 10:
+                pacing_status = "overpacing"
+            elif pacing_percentage < ideal_percentage - 10:
+                pacing_status = "underpacing"
+        else:
+            pacing_percentage = 0
+            ideal_percentage = 0
+            pacing_status = "unlimited"
+        
+        status.append({
+            "campaign_id": c["id"],
+            "campaign_name": c["name"],
+            "daily_budget": daily_budget,
+            "daily_spend": daily_spend,
+            "pacing_percentage": round(pacing_percentage, 1),
+            "ideal_percentage": round(ideal_percentage, 1),
+            "pacing_status": pacing_status,
+            "hours_remaining": hours_remaining,
+            "bid_shading_enabled": c.get("bid_shading", {}).get("enabled", False),
+            "current_shade_factor": c.get("bid_shading", {}).get("current_shade_factor", 1.0)
+        })
+    
+    return {"current_hour": current_hour, "campaigns": status}
+
+
+# ==================== REPORTING ====================
+
+@api_router.get("/reports/campaign/{campaign_id}")
+async def get_campaign_report(
+    campaign_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Get performance report for a specific campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Default to last 7 days
+    if not end_date:
+        end_dt = datetime.now(timezone.utc)
+        end_date = end_dt.strftime("%Y-%m-%d")
+    else:
+        end_dt = datetime.fromisoformat(end_date)
+    
+    if not start_date:
+        start_dt = end_dt - timedelta(days=7)
+        start_date = start_dt.strftime("%Y-%m-%d")
+    else:
+        start_dt = datetime.fromisoformat(start_date)
+    
+    # Aggregate bid logs by date
+    pipeline = [
+        {
+            "$match": {
+                "campaign_id": campaign_id,
+                "timestamp": {
+                    "$gte": start_dt.isoformat(),
+                    "$lte": (end_dt + timedelta(days=1)).isoformat()
+                }
+            }
+        },
+        {
+            "$group": {
+                "_id": {"$substr": ["$timestamp", 0, 10]},
+                "bids": {"$sum": 1},
+                "wins": {"$sum": {"$cond": ["$win_notified", 1, 0]}},
+                "total_bid_price": {"$sum": {"$ifNull": ["$shaded_price", "$bid_price"]}},
+                "total_win_price": {"$sum": {"$ifNull": ["$win_price", 0]}}
+            }
+        },
+        {"$sort": {"_id": 1}}
+    ]
+    
+    daily_data = await db.bid_logs.aggregate(pipeline).to_list(100)
+    
+    # Calculate totals
+    total_bids = sum(d["bids"] for d in daily_data)
+    total_wins = sum(d["wins"] for d in daily_data)
+    total_bid_value = sum(d["total_bid_price"] for d in daily_data)
+    total_win_value = sum(d["total_win_price"] for d in daily_data)
+    
+    # Get impressions and clicks from campaign
+    impressions = campaign.get("impressions", 0)
+    clicks = campaign.get("clicks", 0)
+    spend = campaign.get("budget", {}).get("total_spend", 0)
+    
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.get("name"),
+        "start_date": start_date,
+        "end_date": end_date,
+        "summary": {
+            "impressions": impressions,
+            "clicks": clicks,
+            "bids": total_bids,
+            "wins": total_wins,
+            "spend": spend,
+            "ctr": (clicks / impressions * 100) if impressions > 0 else 0,
+            "win_rate": (total_wins / total_bids * 100) if total_bids > 0 else 0,
+            "avg_cpm": (spend / impressions * 1000) if impressions > 0 else 0,
+            "avg_bid_price": (total_bid_value / total_bids) if total_bids > 0 else 0,
+            "avg_win_price": (total_win_value / total_wins) if total_wins > 0 else 0
+        },
+        "daily_data": [
+            {
+                "date": d["_id"],
+                "bids": d["bids"],
+                "wins": d["wins"],
+                "win_rate": (d["wins"] / d["bids"] * 100) if d["bids"] > 0 else 0,
+                "avg_bid_price": (d["total_bid_price"] / d["bids"]) if d["bids"] > 0 else 0,
+                "avg_win_price": (d["total_win_price"] / d["wins"]) if d["wins"] > 0 else 0
+            }
+            for d in daily_data
+        ],
+        "bid_shading": {
+            "enabled": campaign.get("bid_shading", {}).get("enabled", False),
+            "current_factor": campaign.get("bid_shading", {}).get("current_shade_factor", 1.0),
+            "target_win_rate": campaign.get("bid_shading", {}).get("target_win_rate", 0.3),
+            "actual_win_rate": campaign.get("recent_win_rate", 0)
+        }
+    }
+
+
+@api_router.get("/reports/summary")
+async def get_report_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Get overall performance report summary"""
+    # Default to last 7 days
+    if not end_date:
+        end_dt = datetime.now(timezone.utc)
+        end_date = end_dt.strftime("%Y-%m-%d")
+    else:
+        end_dt = datetime.fromisoformat(end_date)
+    
+    if not start_date:
+        start_dt = end_dt - timedelta(days=7)
+        start_date = start_dt.strftime("%Y-%m-%d")
+    else:
+        start_dt = datetime.fromisoformat(start_date)
+    
+    # Aggregate across all campaigns
+    pipeline = [
+        {
+            "$match": {
+                "timestamp": {
+                    "$gte": start_dt.isoformat(),
+                    "$lte": (end_dt + timedelta(days=1)).isoformat()
+                }
+            }
+        },
+        {
+            "$group": {
+                "_id": {"$substr": ["$timestamp", 0, 10]},
+                "total_bids": {"$sum": {"$cond": ["$bid_made", 1, 0]}},
+                "no_bids": {"$sum": {"$cond": ["$bid_made", 0, 1]}},
+                "wins": {"$sum": {"$cond": ["$win_notified", 1, 0]}},
+                "total_spend": {"$sum": {"$ifNull": ["$win_price", 0]}}
+            }
+        },
+        {"$sort": {"_id": 1}}
+    ]
+    
+    daily_data = await db.bid_logs.aggregate(pipeline).to_list(100)
+    
+    # Get campaign totals
+    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(1000)
+    
+    total_impressions = sum(c.get("impressions", 0) for c in campaigns)
+    total_clicks = sum(c.get("clicks", 0) for c in campaigns)
+    total_spend = sum(c.get("budget", {}).get("total_spend", 0) for c in campaigns)
+    
+    total_bids = sum(d["total_bids"] for d in daily_data)
+    total_wins = sum(d["wins"] for d in daily_data)
+    
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "summary": {
+            "total_impressions": total_impressions,
+            "total_clicks": total_clicks,
+            "total_bids": total_bids,
+            "total_wins": total_wins,
+            "total_spend": total_spend,
+            "ctr": (total_clicks / total_impressions * 100) if total_impressions > 0 else 0,
+            "win_rate": (total_wins / total_bids * 100) if total_bids > 0 else 0,
+            "avg_cpm": (total_spend / total_impressions * 1000) if total_impressions > 0 else 0
+        },
+        "daily_data": [
+            {
+                "date": d["_id"],
+                "bids": d["total_bids"],
+                "no_bids": d["no_bids"],
+                "wins": d["wins"],
+                "spend": d["total_spend"] / 1000,  # Convert from CPM
+                "win_rate": (d["wins"] / d["total_bids"] * 100) if d["total_bids"] > 0 else 0
+            }
+            for d in daily_data
+        ],
+        "campaigns": len(campaigns),
+        "active_campaigns": len([c for c in campaigns if c.get("status") == "active"])
     }
 
 

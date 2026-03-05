@@ -9,6 +9,8 @@ import CreativeForm from "./pages/CreativeForm";
 import SSPEndpoints from "./pages/SSPEndpoints";
 import BidLogs from "./pages/BidLogs";
 import MigrationMatrix from "./pages/MigrationMatrix";
+import Reports from "./pages/Reports";
+import Pacing from "./pages/Pacing";
 import "./App.css";
 
 function App() {
@@ -35,6 +37,8 @@ function App() {
           <Route path="creatives/new" element={<CreativeForm />} />
           <Route path="ssp-endpoints" element={<SSPEndpoints />} />
           <Route path="bid-logs" element={<BidLogs />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="pacing" element={<Pacing />} />
           <Route path="migration-matrix" element={<MigrationMatrix />} />
         </Route>
       </Routes>

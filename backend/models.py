@@ -192,6 +192,23 @@ class BudgetConfig(BaseModel):
     total_budget: float = Field(default=0.0)
     daily_spend: float = Field(default=0.0)
     total_spend: float = Field(default=0.0)
+    
+    # Pacing configuration
+    pacing_type: str = Field(default="even", description="even, asap, or custom")
+    hourly_budget: float = Field(default=0.0, description="Auto-calculated for even pacing")
+    current_hour_spend: float = Field(default=0.0)
+    last_hour_reset: Optional[str] = None
+
+
+class BidShadingConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    enabled: bool = Field(default=False)
+    min_shade_factor: float = Field(default=0.5, description="Minimum bid reduction (50%)")
+    max_shade_factor: float = Field(default=0.95, description="Maximum bid (95% of original)")
+    target_win_rate: float = Field(default=0.3, description="Target 30% win rate")
+    learning_rate: float = Field(default=0.1, description="How fast to adjust shading")
+    current_shade_factor: float = Field(default=0.85, description="Current shading multiplier")
 
 
 class Campaign(BaseModel):
@@ -208,6 +225,9 @@ class Campaign(BaseModel):
     
     # Budget
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
+    
+    # Bid Shading
+    bid_shading: BidShadingConfig = Field(default_factory=BidShadingConfig)
     
     # Creative
     creative_id: str
@@ -228,6 +248,10 @@ class Campaign(BaseModel):
     clicks: int = Field(default=0)
     wins: int = Field(default=0)
     bids: int = Field(default=0)
+    
+    # Win rate tracking for bid shading
+    recent_win_rate: float = Field(default=0.0)
+    avg_win_price: float = Field(default=0.0)
 
 
 # ==================== SSP & API KEY MODELS ====================
@@ -267,8 +291,16 @@ class BidLog(BaseModel):
     # Response
     bid_made: bool = Field(default=False)
     bid_price: Optional[float] = None
+    shaded_price: Optional[float] = None  # Actual bid price after shading
     campaign_id: Optional[str] = None
     creative_id: Optional[str] = None
+    
+    # Win notification tracking
+    nurl: Optional[str] = None
+    burl: Optional[str] = None
+    win_notified: bool = Field(default=False)
+    win_price: Optional[float] = None
+    billing_notified: bool = Field(default=False)
     
     # Matching info
     matched_campaigns: List[str] = Field(default_factory=list)
@@ -289,6 +321,7 @@ class CampaignCreate(BaseModel):
     priority: int = 1
     creative_id: str
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
+    bid_shading: BidShadingConfig = Field(default_factory=BidShadingConfig)
     targeting: CampaignTargeting = Field(default_factory=CampaignTargeting)
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -302,6 +335,7 @@ class CampaignUpdate(BaseModel):
     priority: Optional[int] = None
     creative_id: Optional[str] = None
     budget: Optional[BudgetConfig] = None
+    bid_shading: Optional[BidShadingConfig] = None
     targeting: Optional[CampaignTargeting] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -334,6 +368,53 @@ class DashboardStats(BaseModel):
     total_wins: int = 0
     win_rate: float = 0.0
     avg_cpm: float = 0.0
+
+
+# ==================== REPORTING MODELS ====================
+
+class CampaignReport(BaseModel):
+    campaign_id: str
+    campaign_name: str
+    date: str
+    impressions: int = 0
+    clicks: int = 0
+    bids: int = 0
+    wins: int = 0
+    spend: float = 0.0
+    ctr: float = 0.0
+    win_rate: float = 0.0
+    avg_cpm: float = 0.0
+    avg_bid_price: float = 0.0
+    avg_win_price: float = 0.0
+
+
+class ReportSummary(BaseModel):
+    start_date: str
+    end_date: str
+    total_impressions: int = 0
+    total_clicks: int = 0
+    total_bids: int = 0
+    total_wins: int = 0
+    total_spend: float = 0.0
+    avg_ctr: float = 0.0
+    avg_win_rate: float = 0.0
+    avg_cpm: float = 0.0
+    daily_data: List[Dict[str, Any]] = Field(default_factory=list)
+    campaign_breakdown: List[CampaignReport] = Field(default_factory=list)
+
+
+class WinNotification(BaseModel):
+    bid_id: str
+    imp_id: str
+    price: float  # Clearing price
+    seat: Optional[str] = None
+    adid: Optional[str] = None
+
+
+class BillingNotification(BaseModel):
+    bid_id: str
+    price: float
+    timestamp: Optional[str] = None
 
 
 # ==================== OpenRTB 2.5/2.6 Migration Matrix ====================

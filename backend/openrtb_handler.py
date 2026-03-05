@@ -383,17 +383,27 @@ class OpenRTBResponseBuilder:
         price: float,
         creative: Dict[str, Any],
         campaign: Dict[str, Any],
-        seat_id: str = "default"
+        seat_id: str = "default",
+        nurl_base: str = None,
+        burl_base: str = None
     ) -> Dict[str, Any]:
         """Build a complete bid response"""
+        
+        # Generate nurl and burl with macros
+        nurl = None
+        burl = None
+        if nurl_base:
+            nurl = f"{nurl_base}/api/notify/win/{bid_id}?price=${{AUCTION_PRICE}}"
+        if burl_base:
+            burl = f"{burl_base}/api/notify/billing/{bid_id}?price=${{AUCTION_PRICE}}"
         
         bid = {
             "id": bid_id,
             "impid": imp_id,
             "price": round(price, 6),
             "adid": creative.get("id"),
-            "nurl": None,  # Win notice URL - can be set by caller
-            "burl": None,  # Billing URL - can be set by caller
+            "nurl": nurl,
+            "burl": burl,
             "adomain": creative.get("adomain", []),
             "iurl": creative.get("iurl"),
             "cid": campaign.get("id"),
@@ -493,10 +503,12 @@ class BiddingEngine:
         self,
         request: Dict[str, Any],
         headers: Dict[str, str] = None,
-        ssp_id: str = None
+        ssp_id: str = None,
+        nurl_base: str = None
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Process a bid request and return (response, log_data)
+        Includes bid shading and budget pacing
         """
         start_time = time.time()
         
@@ -524,7 +536,7 @@ class BiddingEngine:
             log_data["processing_time_ms"] = (time.time() - start_time) * 1000
             return self.response_builder.build_no_bid_response(parsed["id"]), log_data
         
-        # Match campaigns to impressions
+        # Match campaigns to impressions with budget pacing check
         winning_bids = []
         
         for imp in parsed.get("imp", []):
@@ -534,22 +546,44 @@ class BiddingEngine:
                 log_data["matched_campaigns"].append(campaign["id"])
             
             if matched:
+                # Filter by budget pacing
+                pacing_eligible = []
+                for campaign, creative, score in matched:
+                    if self._check_budget_pacing(campaign):
+                        pacing_eligible.append((campaign, creative, score))
+                    else:
+                        log_data["rejection_reasons"].append(
+                            f"Campaign {campaign['id'][:8]}... budget exhausted or overpacing"
+                        )
+                
+                if not pacing_eligible:
+                    continue
+                
                 # Select best match (highest priority * bid price)
-                best_match = max(matched, key=lambda x: x[0]["priority"] * x[0]["bid_price"])
+                best_match = max(pacing_eligible, key=lambda x: x[0]["priority"] * x[0]["bid_price"])
                 campaign, creative, score = best_match
                 
-                # Check bid floor
-                if campaign["bid_price"] < imp.get("bidfloor", 0):
-                    log_data["rejection_reasons"].append(
-                        f"Bid price {campaign['bid_price']} below floor {imp.get('bidfloor')}"
-                    )
-                    continue
+                # Apply bid shading
+                original_price = campaign["bid_price"]
+                shaded_price = self._apply_bid_shading(campaign, original_price)
+                
+                # Check bid floor after shading
+                if shaded_price < imp.get("bidfloor", 0):
+                    # Try original price if shaded price is too low
+                    if original_price >= imp.get("bidfloor", 0):
+                        shaded_price = imp.get("bidfloor", 0) * 1.01  # Bid slightly above floor
+                    else:
+                        log_data["rejection_reasons"].append(
+                            f"Bid price {shaded_price:.2f} below floor {imp.get('bidfloor')}"
+                        )
+                        continue
                 
                 winning_bids.append({
                     "imp": imp,
                     "campaign": campaign,
                     "creative": creative,
-                    "price": campaign["bid_price"]
+                    "price": shaded_price,
+                    "original_price": original_price
                 })
         
         if not winning_bids:
@@ -569,16 +603,68 @@ class BiddingEngine:
             bid_id=bid_id,
             price=winning["price"],
             creative=winning["creative"],
-            campaign=winning["campaign"]
+            campaign=winning["campaign"],
+            nurl_base=nurl_base,
+            burl_base=nurl_base
         )
         
         log_data["bid_made"] = True
-        log_data["bid_price"] = winning["price"]
+        log_data["bid_price"] = winning["original_price"]
+        log_data["shaded_price"] = winning["price"]
         log_data["campaign_id"] = winning["campaign"]["id"]
         log_data["creative_id"] = winning["creative"]["id"]
+        log_data["nurl"] = response["seatbid"][0]["bid"][0].get("nurl") if response.get("seatbid") else None
+        log_data["burl"] = response["seatbid"][0]["bid"][0].get("burl") if response.get("seatbid") else None
         log_data["processing_time_ms"] = (time.time() - start_time) * 1000
         
         return response, log_data
+    
+    def _check_budget_pacing(self, campaign: Dict[str, Any]) -> bool:
+        """Check if campaign can bid based on budget and pacing"""
+        budget = campaign.get("budget", {})
+        
+        # Check total budget
+        total_budget = budget.get("total_budget", 0)
+        total_spend = budget.get("total_spend", 0)
+        if total_budget > 0 and total_spend >= total_budget:
+            return False
+        
+        # Check daily budget
+        daily_budget = budget.get("daily_budget", 0)
+        daily_spend = budget.get("daily_spend", 0)
+        if daily_budget > 0 and daily_spend >= daily_budget:
+            return False
+        
+        # Check pacing (even distribution)
+        pacing_type = budget.get("pacing_type", "even")
+        if pacing_type == "even" and daily_budget > 0:
+            from datetime import datetime, timezone
+            current_hour = datetime.now(timezone.utc).hour
+            ideal_spend = (daily_budget / 24) * (current_hour + 1)
+            
+            # Allow 20% over-pacing buffer
+            if daily_spend > ideal_spend * 1.2:
+                return False
+        
+        return True
+    
+    def _apply_bid_shading(self, campaign: Dict[str, Any], original_price: float) -> float:
+        """Apply bid shading to reduce bid price while maintaining win rate"""
+        bid_shading = campaign.get("bid_shading", {})
+        
+        if not bid_shading.get("enabled", False):
+            return original_price
+        
+        shade_factor = bid_shading.get("current_shade_factor", 1.0)
+        min_factor = bid_shading.get("min_shade_factor", 0.5)
+        max_factor = bid_shading.get("max_shade_factor", 0.95)
+        
+        # Ensure factor is within bounds
+        shade_factor = max(min_factor, min(max_factor, shade_factor))
+        
+        shaded_price = original_price * shade_factor
+        
+        return round(shaded_price, 6)
     
     async def _get_active_campaigns(self) -> List[Dict[str, Any]]:
         """Get all active campaigns with their creatives"""

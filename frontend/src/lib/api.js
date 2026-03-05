@@ -47,6 +47,21 @@ export const getBidLog = (id) => api.get(`/bid-logs/${id}`);
 // Migration Matrix
 export const getMigrationMatrix = () => api.get('/migration-matrix');
 
+// Reporting
+export const getReportSummary = (startDate, endDate) => 
+  api.get('/reports/summary', { params: { start_date: startDate, end_date: endDate } });
+export const getCampaignReport = (campaignId, startDate, endDate) => 
+  api.get(`/reports/campaign/${campaignId}`, { params: { start_date: startDate, end_date: endDate } });
+
+// Pacing
+export const getPacingStatus = () => api.get('/pacing/status');
+export const resetDailySpend = (campaignId) => api.post(`/campaigns/${campaignId}/reset-daily-spend`);
+export const resetAllDailySpend = () => api.post('/pacing/reset-all');
+
+// Win/Billing Notifications (for testing)
+export const sendWinNotification = (bidId, price) => 
+  api.post(`/notify/win/${bidId}`, null, { params: { price } });
+
 // Seed Data
 export const seedData = () => api.post('/seed-data');
 

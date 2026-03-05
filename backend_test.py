@@ -269,8 +269,97 @@ class OpenRTBBidderTester:
         
         return success
 
+    def test_win_notification_endpoint(self):
+        """Test win notification callback endpoint"""
+        print("\n🎯 Testing Win Notification Endpoint:")
+        
+        # Create a test bid ID
+        bid_id = "test-bid-12345"
+        price = 2.5
+        
+        success, response = self.run_test("Win Notification", "POST", f"notify/win/{bid_id}?price={price}", [200, 404])
+        if success and response.get('status') in ['success', 'already_notified']:
+            print(f"   💰 Win notification processed for bid {bid_id}")
+        elif response.get('status') == 'already_notified':
+            print(f"   ⚠️  Bid {bid_id} already notified")
+        else:
+            print(f"   ℹ️  Bid {bid_id} not found (expected for test)")
+        
+        return True
+
+    def test_billing_notification_endpoint(self):
+        """Test billing notification callback endpoint"""
+        print("\n💳 Testing Billing Notification Endpoint:")
+        
+        # Create a test bid ID
+        bid_id = "test-bid-12345"
+        price = 2.5
+        
+        success, response = self.run_test("Billing Notification", "POST", f"notify/billing/{bid_id}?price={price}", [200, 404])
+        if success and response.get('status') in ['success', 'already_notified']:
+            print(f"   💳 Billing notification processed for bid {bid_id}")
+        elif response.get('status') == 'already_notified':
+            print(f"   ⚠️  Bid {bid_id} already billed")
+        else:
+            print(f"   ℹ️  Bid {bid_id} not found (expected for test)")
+        
+        return True
+
+    def test_reports_endpoints(self):
+        """Test campaign performance reporting endpoints"""
+        print("\n📊 Testing Reports Endpoints:")
+        
+        # Test report summary
+        success, response = self.run_test("Report Summary", "GET", "reports/summary", 200)
+        if success:
+            summary = response.get('summary', {})
+            print(f"   📈 Total Bids: {summary.get('total_bids', 0)}")
+            print(f"   📈 Total Wins: {summary.get('total_wins', 0)}")
+            print(f"   📈 Win Rate: {summary.get('win_rate', 0):.2f}%")
+            print(f"   💰 Total Spend: ${summary.get('total_spend', 0):.2f}")
+        
+        # Test campaign report (with existing campaign if any)
+        campaigns_success, campaigns = self.run_test("Get Campaigns for Report", "GET", "campaigns?status=active", 200)
+        if campaigns_success and campaigns:
+            campaign_id = campaigns[0]['id']
+            success, response = self.run_test("Campaign Report", "GET", f"reports/campaign/{campaign_id}", 200)
+            if success:
+                print(f"   📊 Campaign '{response.get('campaign_name')}' report generated")
+                bid_shading = response.get('bid_shading', {})
+                print(f"   🎯 Bid Shading: {'Enabled' if bid_shading.get('enabled') else 'Disabled'}")
+                if bid_shading.get('enabled'):
+                    print(f"   📉 Current Factor: {bid_shading.get('current_factor', 1.0):.2f}")
+        
+        return True
+
+    def test_pacing_endpoints(self):
+        """Test budget pacing endpoints"""
+        print("\n⏱️ Testing Budget Pacing Endpoints:")
+        
+        # Test pacing status
+        success, response = self.run_test("Pacing Status", "GET", "pacing/status", 200)
+        if success:
+            campaigns = response.get('campaigns', [])
+            print(f"   📊 Found {len(campaigns)} campaigns in pacing status")
+            current_hour = response.get('current_hour', 0)
+            print(f"   🕐 Current hour: {current_hour}")
+            
+            # Show pacing status breakdown
+            on_track = len([c for c in campaigns if c.get('pacing_status') == 'on_track'])
+            overpacing = len([c for c in campaigns if c.get('pacing_status') == 'overpacing'])
+            underpacing = len([c for c in campaigns if c.get('pacing_status') == 'underpacing'])
+            print(f"   ✅ On Track: {on_track}, 🔴 Overpacing: {overpacing}, 🟡 Underpacing: {underpacing}")
+        
+        # Test reset all daily spend
+        success, response = self.run_test("Reset All Daily Spend", "POST", "pacing/reset-all", 200)
+        if success:
+            campaigns_updated = response.get('campaigns_updated', 0)
+            print(f"   🔄 Reset daily spend for {campaigns_updated} campaigns")
+        
+        return True
+
     def test_openrtb_bid_endpoint(self):
-        """Test OpenRTB 2.5/2.6 bid endpoint"""
+        """Test OpenRTB 2.5/2.6 bid endpoint with nurl/burl callbacks"""
         print("\n🎯 Testing OpenRTB Bid Endpoint:")
         
         if not self.api_key:
@@ -329,6 +418,13 @@ class OpenRTBBidderTester:
                     bid = response['seatbid'][0]['bid'][0]
                     print(f"   📊 Bid ID: {bid.get('id')}")
                     print(f"   💵 Bid Price: ${bid.get('price', 0):.2f}")
+                    # Check for nurl and burl callbacks
+                    nurl = bid.get('nurl')
+                    burl = bid.get('burl')
+                    if nurl:
+                        print(f"   📞 Win Notification URL (nurl): {nurl[:50]}...")
+                    if burl:
+                        print(f"   💳 Billing URL (burl): {burl[:50]}...")
             else:
                 print("   🚫 No bid (204 response)")
         
@@ -395,12 +491,19 @@ class OpenRTBBidderTester:
                     # Check for 2.6 specific fields
                     if 'mtype' in bid:
                         print(f"   🔧 Media Type (2.6): {bid['mtype']}")
+                    # Check for nurl and burl callbacks
+                    nurl = bid.get('nurl')
+                    burl = bid.get('burl')
+                    if nurl:
+                        print(f"   📞 Win Notification URL (nurl): {nurl[:50]}...")
+                    if burl:
+                        print(f"   💳 Billing URL (burl): {burl[:50]}...")
             else:
                 print("   🚫 No bid (204 response)")
         
         # Test invalid API key
         invalid_headers = {"X-API-Key": "invalid-key-12345"}
-        success, _ = self.run_test("Invalid API Key", "POST", "bid", [200, 204], bid_request_25, invalid_headers)
+        success, _ = self.run_test("Invalid API Key", "POST", "bid", 401, bid_request_25, invalid_headers)
         
         return True
 
@@ -455,6 +558,12 @@ def main():
         
         # Core OpenRTB bidding functionality
         tester.test_openrtb_bid_endpoint()
+        
+        # Advanced features
+        tester.test_win_notification_endpoint()
+        tester.test_billing_notification_endpoint()
+        tester.test_reports_endpoints()
+        tester.test_pacing_endpoints()
         
     except KeyboardInterrupt:
         print("\n\n⚠️  Test interrupted by user")
