@@ -162,4 +162,33 @@ export const validateCreative = (creativeData) => api.post('/creatives/validate'
 // Real-time Bid Stream
 export const getBidStream = (limit = 20) => api.get(`/bid-stream?limit=${limit}`);
 
+// SSP Analytics
+export const getSSPAnalyticsOverview = () => api.get('/ssp-analytics/overview');
+export const getSSPAnalyticsDetails = (sspId) => api.get(`/ssp-analytics/${sspId}/details`);
+export const regenerateEndpointToken = (endpointId) => api.post(`/ssp-endpoints/${endpointId}/regenerate-token`);
+
+// Bid Optimization
+export const getBidOptimizationStatus = () => api.get('/bid-optimization/status');
+export const enableBidOptimization = (campaignId, targetWinRate = 30, autoAdjust = true) => 
+  api.post(`/bid-optimization/${campaignId}/enable?target_win_rate=${targetWinRate}&auto_adjust=${autoAdjust}`);
+export const disableBidOptimization = (campaignId) => api.post(`/bid-optimization/${campaignId}/disable`);
+export const runBidOptimization = (campaignId) => api.post(`/bid-optimization/${campaignId}/run`);
+export const getBidOptimizationHistory = (campaignId) => api.get(`/bid-optimization/${campaignId}/history`);
+
+// Cross-Campaign Attribution
+export const trackAttributionEvent = (userId, campaignId, eventType, eventValue = 0) => 
+  api.post(`/attribution/track?user_id=${userId}&campaign_id=${campaignId}&event_type=${eventType}&event_value=${eventValue}`);
+export const getUserJourney = (userId) => api.get(`/attribution/user/${userId}`);
+export const getAttributionAnalysis = (model = 'last_touch') => api.get(`/attribution/analysis?model=${model}`);
+
+// File Upload
+export const uploadImage = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/upload/image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+export const deleteUploadedFile = (filename) => api.delete(`/uploads/${filename}`);
+
 export default api;

@@ -216,16 +216,16 @@ export default function SSPEndpoints() {
                       <p className="text-xs text-[#64748B] mb-3">{endpoint.description}</p>
                     )}
                     
-                    {/* Unique Endpoint URL */}
+                    {/* Unique Endpoint URL with Token */}
                     <div className="flex items-center gap-2 mb-3 p-2 bg-[#020408] rounded">
                       <code className="text-xs font-mono text-[#10B981] flex-1">
-                        POST {BACKEND_URL}/api/bid/{endpoint.name.toLowerCase().replace(/\s+/g, '-')}
+                        POST {BACKEND_URL}/api/bid/{endpoint.endpoint_token || endpoint.id.substring(0, 16)}
                       </code>
                       <Button 
                         variant="ghost" 
                         size="sm"
                         onClick={() => {
-                          navigator.clipboard.writeText(`${BACKEND_URL}/api/bid/${endpoint.name.toLowerCase().replace(/\s+/g, '-')}`);
+                          navigator.clipboard.writeText(`${BACKEND_URL}/api/bid/${endpoint.endpoint_token || endpoint.id.substring(0, 16)}`);
                           toast.success("Endpoint URL copied");
                         }}
                         className="text-[#64748B] hover:text-[#F8FAFC] p-1 h-auto"

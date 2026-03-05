@@ -2,8 +2,9 @@
 OpenRTB 2.5/2.6 Bidder with Campaign Manager
 High-performance DSP for programmatic advertising
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Depends, Response
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Depends, Response, UploadFile, File
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -15,6 +16,8 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import time
+import shutil
+import base64
 
 from models import (
     Campaign, CampaignCreate, CampaignUpdate, CampaignStatus,
@@ -737,22 +740,6 @@ async def create_ssp_endpoint(input: SSPEndpointCreate):
     return endpoint
 
 
-@api_router.post("/ssp-endpoints/{endpoint_id}/regenerate-key")
-async def regenerate_api_key(endpoint_id: str):
-    """Regenerate API key for an SSP endpoint"""
-    new_key = f"ssp_{uuid.uuid4().hex}"
-    
-    result = await db.ssp_endpoints.update_one(
-        {"id": endpoint_id},
-        {"$set": {"api_key": new_key, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Endpoint not found")
-    
-    return {"api_key": new_key}
-
-
 @api_router.delete("/ssp-endpoints/{endpoint_id}")
 async def delete_ssp_endpoint(endpoint_id: str):
     """Delete an SSP endpoint"""
@@ -777,6 +764,136 @@ async def update_ssp_status(endpoint_id: str, status: str):
         raise HTTPException(status_code=404, detail="Endpoint not found")
     
     return {"status": status}
+
+
+# ==================== SSP PERFORMANCE ANALYTICS ====================
+
+@api_router.get("/ssp-analytics/overview")
+async def get_ssp_analytics_overview():
+    """Get SSP performance analytics overview"""
+    endpoints = await db.ssp_endpoints.find({}, {"_id": 0}).to_list(100)
+    
+    total_requests = sum(e.get("total_requests", 0) for e in endpoints)
+    total_bids = sum(e.get("total_bids", 0) for e in endpoints)
+    total_wins = sum(e.get("total_wins", 0) for e in endpoints)
+    total_spend = sum(e.get("total_spend", 0) for e in endpoints)
+    
+    # Calculate overall metrics
+    overall_bid_rate = (total_bids / total_requests * 100) if total_requests > 0 else 0
+    overall_win_rate = (total_wins / total_bids * 100) if total_bids > 0 else 0
+    
+    # SSP rankings
+    ssp_rankings = []
+    for e in endpoints:
+        requests = e.get("total_requests", 0)
+        bids = e.get("total_bids", 0)
+        wins = e.get("total_wins", 0)
+        spend = e.get("total_spend", 0)
+        
+        ssp_rankings.append({
+            "id": e.get("id"),
+            "name": e.get("name"),
+            "status": e.get("status"),
+            "requests": requests,
+            "bids": bids,
+            "wins": wins,
+            "spend": spend,
+            "bid_rate": round((bids / requests * 100) if requests > 0 else 0, 2),
+            "win_rate": round((wins / bids * 100) if bids > 0 else 0, 2),
+            "avg_response_time_ms": e.get("avg_response_time_ms", 0),
+            "last_request_at": e.get("last_request_at")
+        })
+    
+    # Sort by requests (highest first)
+    ssp_rankings.sort(key=lambda x: x["requests"], reverse=True)
+    
+    return {
+        "overview": {
+            "total_ssps": len(endpoints),
+            "active_ssps": len([e for e in endpoints if e.get("status") == "active"]),
+            "total_requests": total_requests,
+            "total_bids": total_bids,
+            "total_wins": total_wins,
+            "total_spend": round(total_spend, 2),
+            "overall_bid_rate": round(overall_bid_rate, 2),
+            "overall_win_rate": round(overall_win_rate, 2)
+        },
+        "ssp_rankings": ssp_rankings,
+        "top_performers": {
+            "by_requests": ssp_rankings[:3] if ssp_rankings else [],
+            "by_win_rate": sorted([s for s in ssp_rankings if s["bids"] > 0], key=lambda x: x["win_rate"], reverse=True)[:3],
+            "by_spend": sorted(ssp_rankings, key=lambda x: x["spend"], reverse=True)[:3]
+        }
+    }
+
+
+@api_router.get("/ssp-analytics/{ssp_id}/details")
+async def get_ssp_analytics_details(ssp_id: str):
+    """Get detailed analytics for a specific SSP"""
+    endpoint = await db.ssp_endpoints.find_one({"id": ssp_id}, {"_id": 0})
+    if not endpoint:
+        raise HTTPException(status_code=404, detail="SSP endpoint not found")
+    
+    # Get recent bid logs for this SSP
+    recent_logs = await db.bid_logs.find(
+        {"ssp_id": ssp_id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(100).to_list(100)
+    
+    # Calculate hourly distribution
+    hourly_dist = {}
+    for log in recent_logs:
+        try:
+            ts = log.get("timestamp")
+            if isinstance(ts, str):
+                hour = datetime.fromisoformat(ts.replace("Z", "+00:00")).hour
+            else:
+                hour = ts.hour
+            hourly_dist[hour] = hourly_dist.get(hour, 0) + 1
+        except:
+            pass
+    
+    # Response time distribution
+    response_times = [log.get("response_time_ms", 0) for log in recent_logs if log.get("response_time_ms")]
+    
+    # Campaign distribution
+    campaign_dist = {}
+    for log in recent_logs:
+        if log.get("bid_made") and log.get("campaign_id"):
+            cid = log.get("campaign_id")
+            cname = log.get("campaign_name", "Unknown")
+            if cid not in campaign_dist:
+                campaign_dist[cid] = {"name": cname, "bids": 0, "wins": 0}
+            campaign_dist[cid]["bids"] += 1
+            if log.get("win_notified"):
+                campaign_dist[cid]["wins"] += 1
+    
+    return {
+        "ssp": {
+            "id": endpoint.get("id"),
+            "name": endpoint.get("name"),
+            "status": endpoint.get("status"),
+            "endpoint_token": endpoint.get("endpoint_token"),
+            "ortb_version": endpoint.get("ortb_version")
+        },
+        "metrics": {
+            "total_requests": endpoint.get("total_requests", 0),
+            "total_bids": endpoint.get("total_bids", 0),
+            "total_wins": endpoint.get("total_wins", 0),
+            "total_spend": endpoint.get("total_spend", 0),
+            "avg_response_time_ms": endpoint.get("avg_response_time_ms", 0),
+            "bid_rate": round((endpoint.get("total_bids", 0) / endpoint.get("total_requests", 1)) * 100, 2),
+            "win_rate": round((endpoint.get("total_wins", 0) / max(endpoint.get("total_bids", 1), 1)) * 100, 2)
+        },
+        "hourly_distribution": [{"hour": h, "requests": c} for h, c in sorted(hourly_dist.items())],
+        "campaign_distribution": list(campaign_dist.values()),
+        "response_time_stats": {
+            "avg": round(sum(response_times) / len(response_times), 2) if response_times else 0,
+            "min": min(response_times) if response_times else 0,
+            "max": max(response_times) if response_times else 0
+        },
+        "recent_activity": recent_logs[:10]
+    }
 
 
 # ==================== BID LOGS ====================
@@ -896,35 +1013,55 @@ async def _process_bid_request_internal(
     return JSONResponse(content=response, status_code=200)
 
 
-@bid_router.post("/{ssp_name}")
-async def handle_bid_request_by_ssp(
+@bid_router.post("/{endpoint_token}")
+async def handle_bid_request_by_token(
     request: Request,
-    ssp_name: str,
+    endpoint_token: str,
     x_openrtb_version: str = Header(None)
 ):
     """
-    Handle OpenRTB bid requests for a specific SSP by name
-    URL: /api/bid/{ssp_name} (e.g., /api/bid/google, /api/bid/pubmatic)
-    No authentication required - SSP identified by URL path
+    Handle OpenRTB bid requests for a specific SSP by unique token
+    URL: /api/bid/{endpoint_token} (e.g., /api/bid/a1b2c3d4e5f6g7h8)
+    No authentication required - SSP identified by unique token
     """
-    # Look up SSP by name (case-insensitive, URL-friendly)
-    ssp_name_clean = ssp_name.lower().replace("-", " ").replace("_", " ")
+    import time as time_module
+    start_time = time_module.time()
+    
+    # Look up SSP by endpoint_token
     endpoint = await db.ssp_endpoints.find_one(
-        {"name": {"$regex": f"^{ssp_name_clean}$", "$options": "i"}},
+        {"endpoint_token": endpoint_token},
         {"_id": 0}
     )
     
     if not endpoint:
-        # Also try exact match on id
-        endpoint = await db.ssp_endpoints.find_one({"id": ssp_name}, {"_id": 0})
-    
-    if not endpoint:
-        raise HTTPException(status_code=404, detail=f"SSP endpoint '{ssp_name}' not found")
+        raise HTTPException(status_code=404, detail=f"SSP endpoint not found")
     
     if endpoint.get("status") != "active":
         raise HTTPException(status_code=403, detail="SSP endpoint is inactive")
     
-    return await _process_bid_request_internal(request, x_openrtb_version, endpoint.get("id"))
+    # Process the bid request
+    response = await _process_bid_request_internal(request, x_openrtb_version, endpoint.get("id"))
+    
+    # Update performance metrics
+    response_time_ms = (time_module.time() - start_time) * 1000
+    await db.ssp_endpoints.update_one(
+        {"id": endpoint.get("id")},
+        {
+            "$set": {"last_request_at": datetime.now(timezone.utc).isoformat()},
+            "$inc": {"total_requests": 1}
+        }
+    )
+    
+    # Update avg response time (rolling average)
+    current_avg = endpoint.get("avg_response_time_ms", 0)
+    total_reqs = endpoint.get("total_requests", 0) + 1
+    new_avg = ((current_avg * (total_reqs - 1)) + response_time_ms) / total_reqs
+    await db.ssp_endpoints.update_one(
+        {"id": endpoint.get("id")},
+        {"$set": {"avg_response_time_ms": round(new_avg, 2)}}
+    )
+    
+    return response
 
 
 @bid_router.post("")
@@ -954,16 +1091,30 @@ async def get_ssp_endpoint_url(endpoint_id: str, request: Request):
     if not endpoint:
         raise HTTPException(status_code=404, detail="Endpoint not found")
     
-    # Generate URL-friendly name
-    ssp_name = endpoint.get("name", "").lower().replace(" ", "-")
     base_url = os.environ.get('REACT_APP_BACKEND_URL', str(request.base_url).rstrip('/'))
     
     return {
-        "endpoint_url": f"{base_url}/api/bid/{ssp_name}",
+        "endpoint_url": f"{base_url}/api/bid/{endpoint.get('endpoint_token')}",
         "generic_url": f"{base_url}/api/bid",
-        "ssp_name": ssp_name,
+        "endpoint_token": endpoint.get("endpoint_token"),
         "ortb_version": endpoint.get("ortb_version", "2.5")
     }
+
+
+@api_router.post("/ssp-endpoints/{endpoint_id}/regenerate-token")
+async def regenerate_endpoint_token(endpoint_id: str):
+    """Regenerate the unique endpoint token for an SSP"""
+    new_token = uuid.uuid4().hex[:16]
+    
+    result = await db.ssp_endpoints.update_one(
+        {"id": endpoint_id},
+        {"$set": {"endpoint_token": new_token, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    
+    return {"endpoint_token": new_token}
 
 
 # ==================== MIGRATION MATRIX ====================
@@ -1926,6 +2077,192 @@ async def predict_bid_price(campaign_id: str, features: BidPredictionFeatures):
     }
 
 
+# ==================== AUTOMATED BID OPTIMIZATION ====================
+
+@api_router.get("/bid-optimization/status")
+async def get_bid_optimization_status():
+    """Get status of automated bid optimization for all campaigns"""
+    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(1000)
+    
+    optimization_status = []
+    for campaign in campaigns:
+        opt_config = campaign.get("bid_optimization", {})
+        budget = campaign.get("budget", {})
+        
+        optimization_status.append({
+            "campaign_id": campaign["id"],
+            "campaign_name": campaign["name"],
+            "status": campaign.get("status"),
+            "bid_price": campaign.get("bid_price", 0),
+            "optimization_enabled": opt_config.get("enabled", False),
+            "target_win_rate": opt_config.get("target_win_rate", 30),
+            "current_win_rate": round((campaign.get("wins", 0) / max(campaign.get("bids", 1), 1)) * 100, 2),
+            "auto_adjust": opt_config.get("auto_adjust", False),
+            "last_adjustment": opt_config.get("last_adjustment"),
+            "adjustment_history": opt_config.get("history", [])[-5:]  # Last 5 adjustments
+        })
+    
+    return {
+        "total_campaigns": len(campaigns),
+        "optimization_enabled_count": len([c for c in optimization_status if c["optimization_enabled"]]),
+        "campaigns": optimization_status
+    }
+
+
+@api_router.post("/bid-optimization/{campaign_id}/enable")
+async def enable_bid_optimization(campaign_id: str, target_win_rate: float = 30.0, auto_adjust: bool = True):
+    """Enable automated bid optimization for a campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    opt_config = {
+        "enabled": True,
+        "target_win_rate": target_win_rate,
+        "auto_adjust": auto_adjust,
+        "min_bid_price": campaign.get("bid_price", 1.0) * 0.5,  # Floor at 50% of base
+        "max_bid_price": campaign.get("bid_price", 1.0) * 2.0,  # Ceiling at 200% of base
+        "adjustment_step": 0.05,  # 5% adjustment per iteration
+        "evaluation_window_hours": 24,
+        "min_bids_for_adjustment": 100,
+        "history": [],
+        "last_adjustment": None
+    }
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"bid_optimization": opt_config}}
+    )
+    
+    return {"status": "enabled", "config": opt_config}
+
+
+@api_router.post("/bid-optimization/{campaign_id}/disable")
+async def disable_bid_optimization(campaign_id: str):
+    """Disable automated bid optimization for a campaign"""
+    result = await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": {"bid_optimization.enabled": False}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    return {"status": "disabled"}
+
+
+@api_router.post("/bid-optimization/{campaign_id}/run")
+async def run_bid_optimization(campaign_id: str):
+    """Manually trigger bid optimization for a campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    opt_config = campaign.get("bid_optimization", {})
+    if not opt_config.get("enabled"):
+        raise HTTPException(status_code=400, detail="Bid optimization not enabled for this campaign")
+    
+    current_bid = campaign.get("bid_price", 1.0)
+    bids = campaign.get("bids", 0)
+    wins = campaign.get("wins", 0)
+    current_win_rate = (wins / bids * 100) if bids > 0 else 0
+    target_win_rate = opt_config.get("target_win_rate", 30)
+    
+    # Check if enough data
+    if bids < opt_config.get("min_bids_for_adjustment", 100):
+        return {
+            "status": "skipped",
+            "reason": f"Not enough bids ({bids}) for adjustment. Need at least {opt_config.get('min_bids_for_adjustment', 100)}",
+            "current_bid": current_bid,
+            "current_win_rate": round(current_win_rate, 2)
+        }
+    
+    # Calculate adjustment
+    adjustment_step = opt_config.get("adjustment_step", 0.05)
+    min_bid = opt_config.get("min_bid_price", current_bid * 0.5)
+    max_bid = opt_config.get("max_bid_price", current_bid * 2.0)
+    
+    new_bid = current_bid
+    adjustment_reason = ""
+    
+    if current_win_rate < target_win_rate - 5:  # Below target by 5%+
+        # Increase bid to win more
+        new_bid = min(current_bid * (1 + adjustment_step), max_bid)
+        adjustment_reason = f"Win rate ({current_win_rate:.1f}%) below target ({target_win_rate}%), increasing bid"
+    elif current_win_rate > target_win_rate + 10:  # Above target by 10%+
+        # Decrease bid to save budget
+        new_bid = max(current_bid * (1 - adjustment_step), min_bid)
+        adjustment_reason = f"Win rate ({current_win_rate:.1f}%) above target ({target_win_rate}%), decreasing bid to optimize cost"
+    else:
+        return {
+            "status": "no_change",
+            "reason": f"Win rate ({current_win_rate:.1f}%) within acceptable range of target ({target_win_rate}%)",
+            "current_bid": current_bid,
+            "current_win_rate": round(current_win_rate, 2)
+        }
+    
+    # Record adjustment
+    adjustment_record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "old_bid": current_bid,
+        "new_bid": round(new_bid, 4),
+        "win_rate_at_change": round(current_win_rate, 2),
+        "target_win_rate": target_win_rate,
+        "reason": adjustment_reason
+    }
+    
+    # Apply if auto_adjust is enabled
+    if opt_config.get("auto_adjust"):
+        await db.campaigns.update_one(
+            {"id": campaign_id},
+            {
+                "$set": {
+                    "bid_price": round(new_bid, 4),
+                    "bid_optimization.last_adjustment": datetime.now(timezone.utc).isoformat()
+                },
+                "$push": {"bid_optimization.history": adjustment_record}
+            }
+        )
+        
+        return {
+            "status": "adjusted",
+            "old_bid": current_bid,
+            "new_bid": round(new_bid, 4),
+            "adjustment_percent": round((new_bid - current_bid) / current_bid * 100, 2),
+            "reason": adjustment_reason,
+            "current_win_rate": round(current_win_rate, 2),
+            "target_win_rate": target_win_rate
+        }
+    else:
+        # Just recommend, don't apply
+        return {
+            "status": "recommendation",
+            "current_bid": current_bid,
+            "recommended_bid": round(new_bid, 4),
+            "reason": adjustment_reason,
+            "note": "Auto-adjust is disabled. Enable to apply automatically."
+        }
+
+
+@api_router.get("/bid-optimization/{campaign_id}/history")
+async def get_optimization_history(campaign_id: str):
+    """Get bid optimization history for a campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    opt_config = campaign.get("bid_optimization", {})
+    
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.get("name"),
+        "current_bid": campaign.get("bid_price"),
+        "optimization_enabled": opt_config.get("enabled", False),
+        "target_win_rate": opt_config.get("target_win_rate"),
+        "history": opt_config.get("history", [])
+    }
+
+
 # ==================== SPO (Supply Path Optimization) ====================
 
 @api_router.get("/spo/analyze/{campaign_id}")
@@ -1994,6 +2331,183 @@ async def analyze_supply_paths(campaign_id: str):
         "recommended_paths": paths[:10],  # Top 10 by efficiency
         "underperforming_paths": [p for p in paths if p["win_rate"] < 10][-10:],  # Bottom performers
         "paths": paths
+    }
+
+
+# ==================== CROSS-CAMPAIGN ATTRIBUTION ====================
+
+@api_router.post("/attribution/track")
+async def track_attribution_event(
+    user_id: str,
+    campaign_id: str,
+    event_type: str,  # impression, click, conversion
+    event_value: float = 0.0
+):
+    """Track an attribution event for cross-campaign analysis"""
+    event = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "campaign_id": campaign_id,
+        "event_type": event_type,
+        "event_value": event_value,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.attribution_events.insert_one(event)
+    
+    return {"status": "tracked", "event_id": event["id"]}
+
+
+@api_router.get("/attribution/user/{user_id}")
+async def get_user_journey(user_id: str):
+    """Get the complete attribution journey for a user"""
+    events = await db.attribution_events.find(
+        {"user_id": user_id},
+        {"_id": 0}
+    ).sort("timestamp", 1).to_list(1000)
+    
+    if not events:
+        return {"user_id": user_id, "journey": [], "campaigns_touched": []}
+    
+    # Build journey
+    campaigns_touched = list(set(e["campaign_id"] for e in events))
+    
+    # Get campaign names
+    campaign_names = {}
+    for cid in campaigns_touched:
+        campaign = await db.campaigns.find_one({"id": cid}, {"_id": 0, "name": 1})
+        if campaign:
+            campaign_names[cid] = campaign.get("name", "Unknown")
+    
+    journey = []
+    for event in events:
+        journey.append({
+            "campaign_id": event["campaign_id"],
+            "campaign_name": campaign_names.get(event["campaign_id"], "Unknown"),
+            "event_type": event["event_type"],
+            "event_value": event.get("event_value", 0),
+            "timestamp": event["timestamp"]
+        })
+    
+    return {
+        "user_id": user_id,
+        "campaigns_touched": len(campaigns_touched),
+        "total_events": len(events),
+        "journey": journey,
+        "first_touch": journey[0] if journey else None,
+        "last_touch": journey[-1] if journey else None
+    }
+
+
+@api_router.get("/attribution/analysis")
+async def get_attribution_analysis(model: str = "last_touch"):
+    """
+    Get cross-campaign attribution analysis
+    Models: first_touch, last_touch, linear, time_decay
+    """
+    # Get all conversion events
+    conversions = await db.attribution_events.find(
+        {"event_type": "conversion"},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    if not conversions:
+        return {
+            "model": model,
+            "total_conversions": 0,
+            "attribution": [],
+            "message": "No conversion data available"
+        }
+    
+    # Group by user to build journeys
+    user_journeys = {}
+    all_events = await db.attribution_events.find({}, {"_id": 0}).sort("timestamp", 1).to_list(100000)
+    
+    for event in all_events:
+        uid = event["user_id"]
+        if uid not in user_journeys:
+            user_journeys[uid] = []
+        user_journeys[uid].append(event)
+    
+    # Calculate attribution based on model
+    campaign_attribution = {}
+    
+    for uid, journey in user_journeys.items():
+        conversions_in_journey = [e for e in journey if e["event_type"] == "conversion"]
+        if not conversions_in_journey:
+            continue
+        
+        touchpoints = [e for e in journey if e["event_type"] in ["impression", "click"]]
+        if not touchpoints:
+            continue
+        
+        total_conversion_value = sum(c.get("event_value", 1) for c in conversions_in_journey)
+        
+        if model == "first_touch":
+            # 100% credit to first touchpoint
+            cid = touchpoints[0]["campaign_id"]
+            if cid not in campaign_attribution:
+                campaign_attribution[cid] = {"conversions": 0, "value": 0, "impressions": 0, "clicks": 0}
+            campaign_attribution[cid]["conversions"] += len(conversions_in_journey)
+            campaign_attribution[cid]["value"] += total_conversion_value
+            
+        elif model == "last_touch":
+            # 100% credit to last touchpoint before conversion
+            cid = touchpoints[-1]["campaign_id"]
+            if cid not in campaign_attribution:
+                campaign_attribution[cid] = {"conversions": 0, "value": 0, "impressions": 0, "clicks": 0}
+            campaign_attribution[cid]["conversions"] += len(conversions_in_journey)
+            campaign_attribution[cid]["value"] += total_conversion_value
+            
+        elif model == "linear":
+            # Equal credit to all touchpoints
+            credit_per_touch = total_conversion_value / len(touchpoints)
+            for tp in touchpoints:
+                cid = tp["campaign_id"]
+                if cid not in campaign_attribution:
+                    campaign_attribution[cid] = {"conversions": 0, "value": 0, "impressions": 0, "clicks": 0}
+                campaign_attribution[cid]["conversions"] += len(conversions_in_journey) / len(touchpoints)
+                campaign_attribution[cid]["value"] += credit_per_touch
+                
+        elif model == "time_decay":
+            # More credit to recent touchpoints (exponential decay)
+            decay_factor = 0.7  # 30% decay per step back
+            total_weight = sum(decay_factor ** i for i in range(len(touchpoints)))
+            
+            for idx, tp in enumerate(reversed(touchpoints)):
+                weight = (decay_factor ** idx) / total_weight
+                cid = tp["campaign_id"]
+                if cid not in campaign_attribution:
+                    campaign_attribution[cid] = {"conversions": 0, "value": 0, "impressions": 0, "clicks": 0}
+                campaign_attribution[cid]["conversions"] += len(conversions_in_journey) * weight
+                campaign_attribution[cid]["value"] += total_conversion_value * weight
+    
+    # Get campaign names and build results
+    results = []
+    for cid, stats in campaign_attribution.items():
+        campaign = await db.campaigns.find_one({"id": cid}, {"_id": 0, "name": 1})
+        results.append({
+            "campaign_id": cid,
+            "campaign_name": campaign.get("name", "Unknown") if campaign else "Unknown",
+            "attributed_conversions": round(stats["conversions"], 2),
+            "attributed_value": round(stats["value"], 2),
+            "attribution_share": 0  # Will calculate below
+        })
+    
+    # Calculate attribution share
+    total_conversions = sum(r["attributed_conversions"] for r in results)
+    for r in results:
+        r["attribution_share"] = round((r["attributed_conversions"] / total_conversions * 100) if total_conversions > 0 else 0, 2)
+    
+    # Sort by attributed value
+    results.sort(key=lambda x: x["attributed_value"], reverse=True)
+    
+    return {
+        "model": model,
+        "total_conversions": total_conversions,
+        "total_value": sum(r["attributed_value"] for r in results),
+        "attribution": results,
+        "available_models": ["first_touch", "last_touch", "linear", "time_decay"]
     }
 
 
@@ -2939,6 +3453,74 @@ async def get_bid_stream(limit: int = 20):
         "bids": recent_bids[-limit:],
         "total_in_memory": len(recent_bids)
     }
+
+
+# ==================== FILE UPLOAD ====================
+
+# Create uploads directory
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+@api_router.post("/upload/image")
+async def upload_image(file: UploadFile = File(...)):
+    """Upload an image file for creative assets"""
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed: {allowed_types}")
+    
+    # Generate unique filename
+    ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = UPLOAD_DIR / filename
+    
+    # Save file
+    try:
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+    
+    # Get base URL for the file
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+    file_url = f"{base_url}/api/uploads/{filename}"
+    
+    return {
+        "filename": filename,
+        "url": file_url,
+        "content_type": file.content_type,
+        "size": filepath.stat().st_size
+    }
+
+
+@api_router.get("/uploads/{filename}")
+async def get_uploaded_file(filename: str):
+    """Serve uploaded files"""
+    filepath = UPLOAD_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Determine content type
+    ext = filename.split('.')[-1].lower()
+    content_types = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "gif": "image/gif",
+        "webp": "image/webp"
+    }
+    content_type = content_types.get(ext, "application/octet-stream")
+    
+    return FileResponse(filepath, media_type=content_type)
+
+
+@api_router.delete("/uploads/{filename}")
+async def delete_uploaded_file(filename: str):
+    """Delete an uploaded file"""
+    filepath = UPLOAD_DIR / filename
+    if filepath.exists():
+        filepath.unlink()
+    return {"status": "deleted"}
 
 
 # Include routers

@@ -6,17 +6,21 @@ import Campaigns from "./pages/Campaigns";
 import CampaignForm from "./pages/CampaignForm";
 import Creatives from "./pages/Creatives";
 import CreativeForm from "./pages/CreativeForm";
+import CreativeEditor from "./pages/CreativeEditor";
 import SSPEndpoints from "./pages/SSPEndpoints";
+import SSPAnalytics from "./pages/SSPAnalytics";
 import BidLogs from "./pages/BidLogs";
 import MigrationMatrix from "./pages/MigrationMatrix";
 import Reports from "./pages/Reports";
 import Pacing from "./pages/Pacing";
 import Insights from "./pages/Insights";
 import MLModels from "./pages/MLModels";
+import BidOptimization from "./pages/BidOptimization";
 import CampaignComparison from "./pages/CampaignComparison";
 import ABTesting from "./pages/ABTesting";
 import FraudDetection from "./pages/FraudDetection";
 import Audiences from "./pages/Audiences";
+import Attribution from "./pages/Attribution";
 import BidStream from "./pages/BidStream";
 import "./App.css";
 
@@ -43,16 +47,20 @@ function App() {
           <Route path="campaigns/compare" element={<CampaignComparison />} />
           <Route path="creatives" element={<Creatives />} />
           <Route path="creatives/new" element={<CreativeForm />} />
+          <Route path="creatives/editor" element={<CreativeEditor />} />
           <Route path="ssp-endpoints" element={<SSPEndpoints />} />
+          <Route path="ssp-analytics" element={<SSPAnalytics />} />
           <Route path="bid-logs" element={<BidLogs />} />
           <Route path="bid-stream" element={<BidStream />} />
           <Route path="reports" element={<Reports />} />
           <Route path="pacing" element={<Pacing />} />
           <Route path="insights" element={<Insights />} />
           <Route path="ml-models" element={<MLModels />} />
+          <Route path="bid-optimization" element={<BidOptimization />} />
           <Route path="ab-testing" element={<ABTesting />} />
           <Route path="fraud-detection" element={<FraudDetection />} />
           <Route path="audiences" element={<Audiences />} />
+          <Route path="attribution" element={<Attribution />} />
           <Route path="migration-matrix" element={<MigrationMatrix />} />
         </Route>
       </Routes>

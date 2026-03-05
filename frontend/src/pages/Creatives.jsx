@@ -322,15 +322,27 @@ export default function Creatives() {
           <h1 className="text-3xl font-bold text-[#F8FAFC]">Creatives</h1>
           <p className="text-sm text-[#94A3B8] mt-1">Manage ad creatives for your campaigns</p>
         </div>
-        <Link to="/creatives/new">
-          <Button 
-            className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white btn-press shadow-[0_0_10px_rgba(59,130,246,0.3)]"
-            data-testid="create-creative-btn"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Creative
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/creatives/editor">
+            <Button 
+              variant="outline"
+              className="border-[#8B5CF6] text-[#8B5CF6] hover:bg-[#8B5CF6]/10"
+              data-testid="advanced-editor-btn"
+            >
+              <Code className="w-4 h-4 mr-2" />
+              Advanced Editor
+            </Button>
+          </Link>
+          <Link to="/creatives/new">
+            <Button 
+              className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white btn-press shadow-[0_0_10px_rgba(59,130,246,0.3)]"
+              data-testid="create-creative-btn"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Creative
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Creatives Grid */}

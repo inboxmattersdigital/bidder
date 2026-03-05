@@ -379,7 +379,7 @@ class SSPEndpoint(BaseModel):
     
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    api_key: str = Field(default_factory=lambda: f"ssp_{uuid.uuid4().hex}")
+    endpoint_token: str = Field(default_factory=lambda: uuid.uuid4().hex[:16])  # Unique token for bid URL
     description: Optional[str] = None
     status: str = Field(default="active")
     ortb_version: str = Field(default="2.5", description="OpenRTB version (2.5 or 2.6)")
@@ -389,6 +389,12 @@ class SSPEndpoint(BaseModel):
     total_bids: int = Field(default=0)
     total_wins: int = Field(default=0)
     total_spend: float = Field(default=0.0)
+    
+    # Performance metrics
+    avg_response_time_ms: float = Field(default=0.0)
+    win_rate: float = Field(default=0.0)
+    avg_bid_price: float = Field(default=0.0)
+    last_request_at: Optional[datetime] = None
     
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
