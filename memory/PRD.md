@@ -28,8 +28,10 @@ Build a Demand-Side Platform (DSP) Bidder that:
 - **Bidding Engine**: Real-time matching with targeting rules
 - **Protocol Handler**: Version detection, field migration
 
-## What's Been Implemented (March 5, 2026)
-✅ Backend:
+## What's Been Implemented
+
+### Phase 1 (March 5, 2026)
+✅ Backend Core:
 - OpenRTB parser with 2.5/2.6 version detection
 - Campaign Manager APIs (CRUD, activate/pause)
 - Creative Management (banner/video/native)
@@ -38,7 +40,7 @@ Build a Demand-Side Platform (DSP) Bidder that:
 - Bid logging and statistics
 - Migration matrix endpoint
 
-✅ Frontend:
+✅ Frontend Core:
 - Dark theme dashboard with charts (Recharts)
 - Campaigns list with status management
 - Campaign form with 7-tab targeting configuration
@@ -47,12 +49,33 @@ Build a Demand-Side Platform (DSP) Bidder that:
 - Bid Logs with real-time monitoring
 - Migration Matrix reference page
 
-✅ OpenRTB Features:
-- Video placement/plcmt field migration
-- Privacy fields (GDPR, CCPA) handling
-- Ad pod fields (podid, podseq, slotinpod)
-- Structured User Agent parsing
-- Rewarded inventory support
+### Phase 2 - Advanced Features (March 5, 2026)
+✅ Win/Billing Notifications:
+- POST /api/notify/win/{bid_id} - Win notification callback
+- POST /api/notify/billing/{bid_id} - Billing notification
+- Automatic campaign stats update on win
+- Win rate tracking for bid shading
+
+✅ Budget Pacing:
+- Even pacing algorithm (24-hour distribution)
+- Hourly budget enforcement
+- GET /api/pacing/status - Monitor all campaigns
+- POST /api/pacing/reset-all - Reset daily budgets
+- Overpacing/underpacing detection
+
+✅ Campaign Performance Reporting:
+- GET /api/reports/summary - Overall performance
+- GET /api/reports/campaign/{id} - Per-campaign analytics
+- Reports page with interactive charts
+- Date range filtering (1d, 7d, 30d)
+- Campaign breakdown table
+
+✅ Bid Shading:
+- Automatic bid price optimization
+- Target win rate configuration
+- Learning rate adjustment
+- Min/max shade factor bounds
+- Real-time factor updates based on wins
 
 ## Prioritized Backlog
 
@@ -61,21 +84,25 @@ Build a Demand-Side Platform (DSP) Bidder that:
 - [x] Campaign targeting
 - [x] API key authentication
 - [x] Dashboard analytics
+- [x] Win notification callbacks
+- [x] Budget pacing algorithms
+- [x] Performance reporting
+- [x] Bid shading optimization
 
 ### P1 - Next Phase
-- [ ] Win/loss notification endpoints (nurl, burl)
-- [ ] Budget pacing algorithms
-- [ ] Real-time budget enforcement
-- [ ] Campaign scheduling
+- [ ] Frequency capping
+- [ ] Real-time bid adjustment ML model
+- [ ] Multi-currency support
+- [ ] Supply path optimization (SPO)
 
 ### P2 - Future
-- [ ] Bid shading algorithms
-- [ ] Machine learning bid optimization
+- [ ] Advanced fraud detection
+- [ ] Viewability prediction
 - [ ] A/B testing framework
-- [ ] Advanced reporting exports
+- [ ] Custom audience segments
 
 ## Next Tasks
-1. Implement win notification handler for nurl callbacks
-2. Add budget pacing to prevent overspend
-3. Build campaign performance reports
-4. Add frequency capping support
+1. Add frequency capping to prevent over-exposure
+2. Implement supply path optimization
+3. Build custom reporting exports (CSV/Excel)
+4. Add multi-currency bid support
