@@ -22,8 +22,10 @@ from models import (
     SSPEndpoint, SSPEndpointCreate,
     BidLog, DashboardStats,
     CampaignTargeting, BudgetConfig, BidShadingConfig,
+    FrequencyCapConfig, SPOConfig, MLPredictionConfig,
     CampaignReport, ReportSummary,
     WinNotification, BillingNotification,
+    UserFrequency, MLModelStats, BidPredictionFeatures,
     OPENRTB_MIGRATION_MATRIX
 )
 from openrtb_handler import OpenRTBParser, OpenRTBResponseBuilder, BiddingEngine
@@ -208,6 +210,10 @@ async def create_campaign(input: CampaignCreate):
         priority=input.priority,
         creative_id=input.creative_id,
         budget=input.budget,
+        bid_shading=input.bid_shading,
+        frequency_cap=input.frequency_cap,
+        spo=input.spo,
+        ml_prediction=input.ml_prediction,
         targeting=input.targeting,
         status=CampaignStatus.DRAFT
     )
@@ -250,10 +256,10 @@ async def update_campaign(campaign_id: str, input: CampaignUpdate):
                 pass
     
     # Handle nested objects
-    if "budget" in update_data and update_data["budget"]:
-        update_data["budget"] = update_data["budget"].model_dump() if hasattr(update_data["budget"], 'model_dump') else update_data["budget"]
-    if "targeting" in update_data and update_data["targeting"]:
-        update_data["targeting"] = update_data["targeting"].model_dump() if hasattr(update_data["targeting"], 'model_dump') else update_data["targeting"]
+    nested_fields = ["budget", "targeting", "bid_shading", "frequency_cap", "spo", "ml_prediction"]
+    for field in nested_fields:
+        if field in update_data and update_data[field]:
+            update_data[field] = update_data[field].model_dump() if hasattr(update_data[field], 'model_dump') else update_data[field]
     
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     
@@ -461,34 +467,17 @@ async def get_bid_log(log_id: str):
 @bid_router.post("/")
 async def handle_bid_request(
     request: Request,
-    x_api_key: str = Header(None),
     x_openrtb_version: str = Header(None)
 ):
     """
     Handle OpenRTB bid requests from SSPs
     Supports both OpenRTB 2.5 and 2.6
-    Requires valid API key authentication
+    No authentication required - open endpoint for SSPs
     """
     start_time = time.time()
     
-    # Verify API key - required for authenticated requests
+    # Track SSP if identifiable from request (optional)
     ssp_id = None
-    if x_api_key:
-        endpoint = await verify_api_key(x_api_key)
-        if endpoint:
-            ssp_id = endpoint["id"]
-            # Update request count
-            await db.ssp_endpoints.update_one(
-                {"id": ssp_id},
-                {"$inc": {"total_requests": 1}}
-            )
-        else:
-            # Invalid key - reject the request
-            logger.warning(f"Invalid API key received: {x_api_key[:10]}...")
-            raise HTTPException(status_code=401, detail="Invalid API key")
-    else:
-        # No API key provided - reject the request
-        raise HTTPException(status_code=401, detail="API key required. Include X-API-Key header")
     
     try:
         bid_request = await request.json()
@@ -1149,6 +1138,428 @@ async def get_report_summary(
         ],
         "campaigns": len(campaigns),
         "active_campaigns": len([c for c in campaigns if c.get("status") == "active"])
+    }
+
+
+# ==================== REPORT EXPORTS ====================
+
+@api_router.get("/reports/export/csv")
+async def export_report_csv(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    campaign_id: Optional[str] = None
+):
+    """Export report data as CSV"""
+    import csv
+    import io
+    
+    # Default to last 7 days
+    if not end_date:
+        end_dt = datetime.now(timezone.utc)
+        end_date = end_dt.strftime("%Y-%m-%d")
+    else:
+        end_dt = datetime.fromisoformat(end_date)
+    
+    if not start_date:
+        start_dt = end_dt - timedelta(days=7)
+        start_date = start_dt.strftime("%Y-%m-%d")
+    else:
+        start_dt = datetime.fromisoformat(start_date)
+    
+    # Build query
+    query = {
+        "timestamp": {
+            "$gte": start_dt.isoformat(),
+            "$lte": (end_dt + timedelta(days=1)).isoformat()
+        }
+    }
+    if campaign_id:
+        query["campaign_id"] = campaign_id
+    
+    # Get bid logs
+    logs = await db.bid_logs.find(
+        query,
+        {"_id": 0, "id": 1, "request_id": 1, "timestamp": 1, "bid_made": 1, 
+         "bid_price": 1, "shaded_price": 1, "win_notified": 1, "win_price": 1,
+         "campaign_id": 1, "openrtb_version": 1, "processing_time_ms": 1}
+    ).sort("timestamp", -1).to_list(10000)
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=[
+        "id", "request_id", "timestamp", "bid_made", "bid_price", 
+        "shaded_price", "win_notified", "win_price", "campaign_id", 
+        "openrtb_version", "processing_time_ms"
+    ])
+    writer.writeheader()
+    for log in logs:
+        writer.writerow(log)
+    
+    csv_content = output.getvalue()
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=report_{start_date}_{end_date}.csv"
+        }
+    )
+
+
+@api_router.get("/reports/export/json")
+async def export_report_json(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    campaign_id: Optional[str] = None
+):
+    """Export report data as JSON"""
+    # Default to last 7 days
+    if not end_date:
+        end_dt = datetime.now(timezone.utc)
+        end_date = end_dt.strftime("%Y-%m-%d")
+    else:
+        end_dt = datetime.fromisoformat(end_date)
+    
+    if not start_date:
+        start_dt = end_dt - timedelta(days=7)
+        start_date = start_dt.strftime("%Y-%m-%d")
+    else:
+        start_dt = datetime.fromisoformat(start_date)
+    
+    # Get summary
+    summary_data = await get_report_summary(start_date, end_date)
+    
+    # Get campaigns
+    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(1000)
+    
+    export_data = {
+        "export_date": datetime.now(timezone.utc).isoformat(),
+        "date_range": {
+            "start": start_date,
+            "end": end_date
+        },
+        "summary": summary_data,
+        "campaigns": [
+            {
+                "id": c["id"],
+                "name": c["name"],
+                "status": c["status"],
+                "bid_price": c["bid_price"],
+                "impressions": c.get("impressions", 0),
+                "clicks": c.get("clicks", 0),
+                "wins": c.get("wins", 0),
+                "bids": c.get("bids", 0),
+                "spend": c.get("budget", {}).get("total_spend", 0),
+                "win_rate": c.get("recent_win_rate", 0),
+                "avg_win_price": c.get("avg_win_price", 0)
+            }
+            for c in campaigns
+        ]
+    }
+    
+    return JSONResponse(
+        content=export_data,
+        headers={
+            "Content-Disposition": f"attachment; filename=report_{start_date}_{end_date}.json"
+        }
+    )
+
+
+# ==================== FREQUENCY CAPPING ====================
+
+@api_router.get("/frequency/{campaign_id}/{user_id}")
+async def get_user_frequency(campaign_id: str, user_id: str):
+    """Get impression frequency for a user on a campaign"""
+    freq = await db.user_frequencies.find_one(
+        {"campaign_id": campaign_id, "user_id": user_id},
+        {"_id": 0}
+    )
+    
+    if not freq:
+        return {"campaign_id": campaign_id, "user_id": user_id, "impression_count": 0}
+    
+    return freq
+
+
+@api_router.post("/frequency/record")
+async def record_impression(campaign_id: str, user_id: str):
+    """Record an impression for frequency capping"""
+    now = datetime.now(timezone.utc)
+    hour_key = now.strftime("%Y-%m-%d-%H")
+    
+    result = await db.user_frequencies.update_one(
+        {"campaign_id": campaign_id, "user_id": user_id},
+        {
+            "$inc": {"impression_count": 1, f"hourly_impressions.{hour_key}": 1},
+            "$set": {"last_impression": now.isoformat()}
+        },
+        upsert=True
+    )
+    
+    return {"status": "recorded", "campaign_id": campaign_id, "user_id": user_id}
+
+
+@api_router.delete("/frequency/reset/{campaign_id}")
+async def reset_campaign_frequency(campaign_id: str):
+    """Reset all frequency data for a campaign"""
+    result = await db.user_frequencies.delete_many({"campaign_id": campaign_id})
+    return {"status": "reset", "deleted_count": result.deleted_count}
+
+
+# ==================== ML PREDICTION ====================
+
+@api_router.get("/ml/stats/{campaign_id}")
+async def get_ml_stats(campaign_id: str):
+    """Get ML model statistics for a campaign"""
+    stats = await db.ml_model_stats.find(
+        {"campaign_id": campaign_id},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    
+    return {
+        "campaign_id": campaign_id,
+        "ml_enabled": campaign.get("ml_prediction", {}).get("enabled", False) if campaign else False,
+        "feature_stats": stats,
+        "total_data_points": sum(s.get("total_bids", 0) for s in stats)
+    }
+
+
+@api_router.post("/ml/train/{campaign_id}")
+async def train_ml_model(campaign_id: str):
+    """Train/update ML model from historical data"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Get historical bid logs for this campaign
+    logs = await db.bid_logs.find(
+        {"campaign_id": campaign_id, "bid_made": True},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    if len(logs) < 100:
+        return {
+            "status": "insufficient_data",
+            "data_points": len(logs),
+            "required": 100
+        }
+    
+    # Aggregate stats by feature
+    feature_stats = {}
+    
+    for log in logs:
+        summary = log.get("request_summary", {})
+        
+        # Device type feature
+        device_type = summary.get("device_type")
+        if device_type:
+            key = f"device_type:{device_type}"
+            if key not in feature_stats:
+                feature_stats[key] = {"bids": 0, "wins": 0, "total_price": 0, "total_win_price": 0}
+            feature_stats[key]["bids"] += 1
+            feature_stats[key]["total_price"] += log.get("shaded_price") or log.get("bid_price", 0)
+            if log.get("win_notified"):
+                feature_stats[key]["wins"] += 1
+                feature_stats[key]["total_win_price"] += log.get("win_price", 0)
+        
+        # Geo country feature
+        country = summary.get("country")
+        if country:
+            key = f"geo_country:{country}"
+            if key not in feature_stats:
+                feature_stats[key] = {"bids": 0, "wins": 0, "total_price": 0, "total_win_price": 0}
+            feature_stats[key]["bids"] += 1
+            feature_stats[key]["total_price"] += log.get("shaded_price") or log.get("bid_price", 0)
+            if log.get("win_notified"):
+                feature_stats[key]["wins"] += 1
+                feature_stats[key]["total_win_price"] += log.get("win_price", 0)
+        
+        # OS feature
+        os_name = summary.get("os")
+        if os_name:
+            key = f"os:{os_name}"
+            if key not in feature_stats:
+                feature_stats[key] = {"bids": 0, "wins": 0, "total_price": 0, "total_win_price": 0}
+            feature_stats[key]["bids"] += 1
+            feature_stats[key]["total_price"] += log.get("shaded_price") or log.get("bid_price", 0)
+            if log.get("win_notified"):
+                feature_stats[key]["wins"] += 1
+                feature_stats[key]["total_win_price"] += log.get("win_price", 0)
+    
+    # Save to database
+    now = datetime.now(timezone.utc)
+    for key, stats in feature_stats.items():
+        win_rate = stats["wins"] / stats["bids"] if stats["bids"] > 0 else 0
+        avg_bid = stats["total_price"] / stats["bids"] if stats["bids"] > 0 else 0
+        avg_win = stats["total_win_price"] / stats["wins"] if stats["wins"] > 0 else 0
+        
+        await db.ml_model_stats.update_one(
+            {"campaign_id": campaign_id, "feature_key": key},
+            {"$set": {
+                "total_bids": stats["bids"],
+                "total_wins": stats["wins"],
+                "win_rate": win_rate,
+                "avg_bid_price": avg_bid,
+                "avg_win_price": avg_win,
+                "last_updated": now.isoformat()
+            }},
+            upsert=True
+        )
+    
+    return {
+        "status": "trained",
+        "campaign_id": campaign_id,
+        "data_points": len(logs),
+        "features_trained": len(feature_stats)
+    }
+
+
+@api_router.post("/ml/predict")
+async def predict_bid_price(campaign_id: str, features: BidPredictionFeatures):
+    """Predict optimal bid price based on features"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    base_price = campaign.get("bid_price", 1.0)
+    ml_config = campaign.get("ml_prediction", {})
+    
+    if not ml_config.get("enabled"):
+        return {
+            "campaign_id": campaign_id,
+            "predicted_price": base_price,
+            "adjustment_factor": 1.0,
+            "ml_enabled": False
+        }
+    
+    # Get feature stats
+    adjustments = []
+    feature_weights = ml_config.get("feature_weights", {})
+    
+    # Check device type
+    if features.device_type:
+        stats = await db.ml_model_stats.find_one(
+            {"campaign_id": campaign_id, "feature_key": f"device_type:{features.device_type}"},
+            {"_id": 0}
+        )
+        if stats and stats.get("total_bids", 0) >= 10:
+            win_rate = stats.get("win_rate", 0.3)
+            target_rate = ml_config.get("target_win_rate", 0.3)
+            # Adjust based on win rate vs target
+            adjustment = 1.0 + (target_rate - win_rate) * feature_weights.get("device_type", 0.15)
+            adjustments.append(adjustment)
+    
+    # Check geo country
+    if features.geo_country:
+        stats = await db.ml_model_stats.find_one(
+            {"campaign_id": campaign_id, "feature_key": f"geo_country:{features.geo_country}"},
+            {"_id": 0}
+        )
+        if stats and stats.get("total_bids", 0) >= 10:
+            win_rate = stats.get("win_rate", 0.3)
+            target_rate = ml_config.get("target_win_rate", 0.3)
+            adjustment = 1.0 + (target_rate - win_rate) * feature_weights.get("geo_country", 0.15)
+            adjustments.append(adjustment)
+    
+    # Bid floor consideration
+    if features.bid_floor:
+        if features.bid_floor > base_price * 0.9:
+            # Need to bid higher for high floor
+            adjustments.append(1.1)
+    
+    # Calculate final adjustment
+    if adjustments:
+        avg_adjustment = sum(adjustments) / len(adjustments)
+        # Blend with base using prediction weight
+        weight = ml_config.get("prediction_weight", 0.5)
+        final_adjustment = 1.0 * (1 - weight) + avg_adjustment * weight
+    else:
+        final_adjustment = 1.0
+    
+    # Clamp to reasonable range
+    final_adjustment = max(0.5, min(1.5, final_adjustment))
+    predicted_price = base_price * final_adjustment
+    
+    return {
+        "campaign_id": campaign_id,
+        "base_price": base_price,
+        "predicted_price": round(predicted_price, 4),
+        "adjustment_factor": round(final_adjustment, 4),
+        "adjustments_applied": len(adjustments),
+        "ml_enabled": True
+    }
+
+
+# ==================== SPO (Supply Path Optimization) ====================
+
+@api_router.get("/spo/analyze/{campaign_id}")
+async def analyze_supply_paths(campaign_id: str):
+    """Analyze supply paths for a campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Get bid logs with schain data
+    logs = await db.bid_logs.find(
+        {"campaign_id": campaign_id, "bid_made": True},
+        {"_id": 0, "request_summary": 1, "win_notified": 1, "win_price": 1, "shaded_price": 1, "bid_price": 1}
+    ).to_list(5000)
+    
+    # Analyze by SSP/supply path
+    path_stats = {}
+    
+    for log in logs:
+        summary = log.get("request_summary", {})
+        # Use bundle or domain as path identifier
+        path_key = summary.get("bundle") or summary.get("domain") or "unknown"
+        
+        if path_key not in path_stats:
+            path_stats[path_key] = {
+                "bids": 0,
+                "wins": 0,
+                "total_bid_price": 0,
+                "total_win_price": 0
+            }
+        
+        path_stats[path_key]["bids"] += 1
+        path_stats[path_key]["total_bid_price"] += log.get("shaded_price") or log.get("bid_price", 0)
+        
+        if log.get("win_notified"):
+            path_stats[path_key]["wins"] += 1
+            path_stats[path_key]["total_win_price"] += log.get("win_price", 0)
+    
+    # Calculate metrics
+    paths = []
+    for path_key, stats in path_stats.items():
+        win_rate = stats["wins"] / stats["bids"] if stats["bids"] > 0 else 0
+        avg_bid = stats["total_bid_price"] / stats["bids"] if stats["bids"] > 0 else 0
+        avg_win = stats["total_win_price"] / stats["wins"] if stats["wins"] > 0 else 0
+        efficiency = win_rate / avg_bid if avg_bid > 0 else 0
+        
+        paths.append({
+            "path": path_key,
+            "bids": stats["bids"],
+            "wins": stats["wins"],
+            "win_rate": round(win_rate * 100, 2),
+            "avg_bid_price": round(avg_bid, 2),
+            "avg_win_price": round(avg_win, 2),
+            "efficiency_score": round(efficiency * 100, 2)
+        })
+    
+    # Sort by efficiency
+    paths.sort(key=lambda x: x["efficiency_score"], reverse=True)
+    
+    spo_config = campaign.get("spo", {})
+    
+    return {
+        "campaign_id": campaign_id,
+        "spo_enabled": spo_config.get("enabled", False),
+        "total_paths_analyzed": len(paths),
+        "recommended_paths": paths[:10],  # Top 10 by efficiency
+        "underperforming_paths": [p for p in paths if p["win_rate"] < 10][-10:],  # Bottom performers
+        "paths": paths
     }
 
 

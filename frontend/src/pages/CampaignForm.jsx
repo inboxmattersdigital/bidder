@@ -41,6 +41,27 @@ export default function CampaignForm() {
       learning_rate: 0.1,
       current_shade_factor: 0.85
     },
+    frequency_cap: {
+      enabled: false,
+      max_impressions_per_user: 3,
+      time_window_hours: 24,
+      max_impressions_per_day: 5,
+      max_impressions_total: 10
+    },
+    spo: {
+      enabled: false,
+      preferred_ssp_ids: [],
+      blocked_ssp_ids: [],
+      max_hops: 3,
+      require_authorized_sellers: true,
+      bid_adjustment_factor: 1.0
+    },
+    ml_prediction: {
+      enabled: false,
+      use_historical_data: true,
+      prediction_weight: 0.5,
+      min_data_points: 100
+    },
     targeting: {
       geo: { countries: [], regions: [], cities: [] },
       device: { device_types: [], makes: [], models: [], os_list: [], connection_types: [] },
@@ -153,18 +174,27 @@ export default function CampaignForm() {
 
       <form onSubmit={handleSubmit}>
         <Tabs defaultValue="basic" className="space-y-4">
-          <TabsList className="surface-secondary border-panel">
+          <TabsList className="surface-secondary border-panel flex-wrap">
             <TabsTrigger value="basic" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
-              Basic Info
+              Basic
             </TabsTrigger>
             <TabsTrigger value="budget" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
               Budget
             </TabsTrigger>
             <TabsTrigger value="shading" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
-              Bid Shading
+              Shading
+            </TabsTrigger>
+            <TabsTrigger value="freqcap" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
+              Freq Cap
+            </TabsTrigger>
+            <TabsTrigger value="spo" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
+              SPO
+            </TabsTrigger>
+            <TabsTrigger value="ml" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
+              ML
             </TabsTrigger>
             <TabsTrigger value="geo" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
-              Geo Targeting
+              Geo
             </TabsTrigger>
             <TabsTrigger value="device" className="data-[state=active]:bg-[#3B82F6] data-[state=active]:text-white">
               Device
@@ -666,6 +696,279 @@ export default function CampaignForm() {
                   />
                   <p className="text-xs text-[#64748B]">For ad pod targeting: 0=any, 1=first, -1=last, 2+=specific position</p>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Frequency Cap Tab */}
+          <TabsContent value="freqcap">
+            <Card className="surface-primary border-panel">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#F8FAFC]">Frequency Capping</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 surface-secondary rounded border border-[#2D3B55]">
+                  <p className="text-sm text-[#94A3B8] mb-3">
+                    Limit how many times a single user sees your ads to avoid ad fatigue and improve campaign effectiveness.
+                  </p>
+                </div>
+                
+                <div className="flex items-center justify-between py-3 border-b border-[#2D3B55]">
+                  <div>
+                    <Label className="text-[#F8FAFC]">Enable Frequency Capping</Label>
+                    <p className="text-xs text-[#64748B]">Limit impressions per user</p>
+                  </div>
+                  <Switch
+                    checked={form.frequency_cap?.enabled || false}
+                    onCheckedChange={(v) => updateField('frequency_cap.enabled', v)}
+                    data-testid="freq-cap-toggle"
+                  />
+                </div>
+                
+                {form.frequency_cap?.enabled && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Max Impressions Per User</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={form.frequency_cap?.max_impressions_per_user || 3}
+                          onChange={(e) => updateField('frequency_cap.max_impressions_per_user', parseInt(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                          data-testid="freq-cap-max-per-user"
+                        />
+                        <p className="text-xs text-[#64748B]">Per time window</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Time Window (hours)</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="168"
+                          value={form.frequency_cap?.time_window_hours || 24}
+                          onChange={(e) => updateField('frequency_cap.time_window_hours', parseInt(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">24h = daily cap</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Max Impressions Per Day</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={form.frequency_cap?.max_impressions_per_day || 5}
+                          onChange={(e) => updateField('frequency_cap.max_impressions_per_day', parseInt(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">Hard daily limit per user</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Max Total Impressions</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={form.frequency_cap?.max_impressions_total || 10}
+                          onChange={(e) => updateField('frequency_cap.max_impressions_total', parseInt(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">Lifetime cap per user</p>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 surface-secondary rounded border border-[#10B981]/30">
+                      <p className="text-xs text-[#10B981]">
+                        With current settings: Each user will see max {form.frequency_cap?.max_impressions_per_day || 5} impressions per day, 
+                        and {form.frequency_cap?.max_impressions_total || 10} total for this campaign.
+                      </p>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* SPO Tab */}
+          <TabsContent value="spo">
+            <Card className="surface-primary border-panel">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#F8FAFC]">Supply Path Optimization (SPO)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 surface-secondary rounded border border-[#2D3B55]">
+                  <p className="text-sm text-[#94A3B8] mb-3">
+                    Optimize supply paths to reduce costs and improve transparency. Filter by SSP quality and supply chain length.
+                  </p>
+                </div>
+                
+                <div className="flex items-center justify-between py-3 border-b border-[#2D3B55]">
+                  <div>
+                    <Label className="text-[#F8FAFC]">Enable Supply Path Optimization</Label>
+                    <p className="text-xs text-[#64748B]">Filter and prioritize supply paths</p>
+                  </div>
+                  <Switch
+                    checked={form.spo?.enabled || false}
+                    onCheckedChange={(v) => updateField('spo.enabled', v)}
+                    data-testid="spo-toggle"
+                  />
+                </div>
+                
+                {form.spo?.enabled && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-[#94A3B8]">Preferred SSP IDs</Label>
+                      <Input
+                        value={form.spo?.preferred_ssp_ids?.join(', ') || ''}
+                        onChange={(e) => updateField('spo.preferred_ssp_ids', parseList(e.target.value))}
+                        placeholder="ssp1.com, ssp2.com"
+                        className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        data-testid="spo-preferred-ssps"
+                      />
+                      <p className="text-xs text-[#64748B]">Prioritize traffic from these SSPs</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[#94A3B8]">Blocked SSP IDs</Label>
+                      <Input
+                        value={form.spo?.blocked_ssp_ids?.join(', ') || ''}
+                        onChange={(e) => updateField('spo.blocked_ssp_ids', parseList(e.target.value))}
+                        placeholder="bad-ssp.com, low-quality.com"
+                        className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        data-testid="spo-blocked-ssps"
+                      />
+                      <p className="text-xs text-[#64748B]">Never bid on traffic from these SSPs</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Max Supply Chain Hops</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={form.spo?.max_hops || 3}
+                          onChange={(e) => updateField('spo.max_hops', parseInt(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">Reject paths with more intermediaries</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Bid Adjustment Factor</Label>
+                        <Input
+                          type="number"
+                          step="0.05"
+                          min="0.5"
+                          max="1.5"
+                          value={form.spo?.bid_adjustment_factor || 1.0}
+                          onChange={(e) => updateField('spo.bid_adjustment_factor', parseFloat(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">Multiplier for preferred paths</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between py-3 border-t border-[#2D3B55]">
+                      <div>
+                        <Label className="text-[#F8FAFC]">Require Authorized Sellers</Label>
+                        <p className="text-xs text-[#64748B]">Only bid on inventory with valid sellers.json</p>
+                      </div>
+                      <Switch
+                        checked={form.spo?.require_authorized_sellers ?? true}
+                        onCheckedChange={(v) => updateField('spo.require_authorized_sellers', v)}
+                      />
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ML Prediction Tab */}
+          <TabsContent value="ml">
+            <Card className="surface-primary border-panel">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#F8FAFC]">ML-Based Bid Prediction</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 surface-secondary rounded border border-[#2D3B55]">
+                  <p className="text-sm text-[#94A3B8] mb-3">
+                    Use heuristic-based prediction to automatically adjust bid prices based on historical win/loss patterns.
+                    The model learns which device types, geos, and contexts perform best for your campaign.
+                  </p>
+                </div>
+                
+                <div className="flex items-center justify-between py-3 border-b border-[#2D3B55]">
+                  <div>
+                    <Label className="text-[#F8FAFC]">Enable ML Prediction</Label>
+                    <p className="text-xs text-[#64748B]">Auto-adjust bids based on performance data</p>
+                  </div>
+                  <Switch
+                    checked={form.ml_prediction?.enabled || false}
+                    onCheckedChange={(v) => updateField('ml_prediction.enabled', v)}
+                    data-testid="ml-toggle"
+                  />
+                </div>
+                
+                {form.ml_prediction?.enabled && (
+                  <>
+                    <div className="flex items-center justify-between py-3 border-b border-[#2D3B55]">
+                      <div>
+                        <Label className="text-[#F8FAFC]">Use Historical Data</Label>
+                        <p className="text-xs text-[#64748B]">Learn from past bid outcomes</p>
+                      </div>
+                      <Switch
+                        checked={form.ml_prediction?.use_historical_data ?? true}
+                        onCheckedChange={(v) => updateField('ml_prediction.use_historical_data', v)}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Prediction Weight</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="1"
+                          value={form.ml_prediction?.prediction_weight || 0.5}
+                          onChange={(e) => updateField('ml_prediction.prediction_weight', parseFloat(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                          data-testid="ml-prediction-weight"
+                        />
+                        <p className="text-xs text-[#64748B]">0.5 = 50% ML, 50% base price</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Min Data Points</Label>
+                        <Input
+                          type="number"
+                          min="10"
+                          value={form.ml_prediction?.min_data_points || 100}
+                          onChange={(e) => updateField('ml_prediction.min_data_points', parseInt(e.target.value))}
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                        />
+                        <p className="text-xs text-[#64748B]">Required before ML kicks in</p>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 surface-secondary rounded border border-[#8B5CF6]/30">
+                      <p className="text-xs text-[#8B5CF6]">
+                        ML adjusts bids using device type ({(form.ml_prediction?.feature_weights?.device_type || 0.15) * 100}% weight), 
+                        geo ({(form.ml_prediction?.feature_weights?.geo_country || 0.15) * 100}% weight), and 
+                        bid floor ({(form.ml_prediction?.feature_weights?.bid_floor || 0.20) * 100}% weight) signals.
+                      </p>
+                    </div>
+                    
+                    <div className="p-3 bg-[#1E293B] rounded border border-[#3B82F6]/30">
+                      <p className="text-xs text-[#94A3B8]">
+                        <span className="text-[#3B82F6] font-medium">Tip:</span> After 100+ bids, go to Reports → SPO Analysis to train the ML model 
+                        using the <code className="bg-[#0F172A] px-1 rounded">Train Model</code> button.
+                      </p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

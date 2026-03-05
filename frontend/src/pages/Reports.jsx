@@ -6,14 +6,22 @@ import {
   Target,
   Calendar,
   RefreshCw,
-  Download
+  Download,
+  FileJson,
+  FileSpreadsheet
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { getReportSummary, getCampaignReport, getCampaigns } from "../lib/api";
+import { getReportSummary, getCampaignReport, getCampaigns, exportReportCSV, exportReportJSON } from "../lib/api";
 import {
   AreaChart,
   Area,
@@ -161,6 +169,40 @@ export default function Reports() {
           >
             <RefreshCw className="w-4 h-4" />
           </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white"
+                data-testid="export-btn"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="surface-primary border-panel">
+              <DropdownMenuItem 
+                onClick={() => {
+                  const { startDate, endDate } = getDateRange();
+                  exportReportCSV(startDate, endDate, selectedCampaign !== "all" ? selectedCampaign : null);
+                  toast.success("Downloading CSV report...");
+                }}
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Export as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => {
+                  const { startDate, endDate } = getDateRange();
+                  exportReportJSON(startDate, endDate, selectedCampaign !== "all" ? selectedCampaign : null);
+                  toast.success("Downloading JSON report...");
+                }}
+              >
+                <FileJson className="w-4 h-4 mr-2" />
+                Export as JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

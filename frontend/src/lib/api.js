@@ -53,10 +53,41 @@ export const getReportSummary = (startDate, endDate) =>
 export const getCampaignReport = (campaignId, startDate, endDate) => 
   api.get(`/reports/campaign/${campaignId}`, { params: { start_date: startDate, end_date: endDate } });
 
+// Report Exports
+export const exportReportCSV = (startDate, endDate, campaignId) => {
+  const params = new URLSearchParams();
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  if (campaignId) params.append('campaign_id', campaignId);
+  window.open(`${API_BASE}/reports/export/csv?${params.toString()}`, '_blank');
+};
+export const exportReportJSON = (startDate, endDate, campaignId) => {
+  const params = new URLSearchParams();
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  if (campaignId) params.append('campaign_id', campaignId);
+  window.open(`${API_BASE}/reports/export/json?${params.toString()}`, '_blank');
+};
+
 // Pacing
 export const getPacingStatus = () => api.get('/pacing/status');
 export const resetDailySpend = (campaignId) => api.post(`/campaigns/${campaignId}/reset-daily-spend`);
 export const resetAllDailySpend = () => api.post('/pacing/reset-all');
+
+// ML Prediction
+export const getMLStats = (campaignId) => api.get(`/ml/stats/${campaignId}`);
+export const trainMLModel = (campaignId) => api.post(`/ml/train/${campaignId}`);
+export const predictBidPrice = (campaignId, features) => 
+  api.post(`/ml/predict?campaign_id=${campaignId}`, features);
+
+// SPO
+export const analyzeSPO = (campaignId) => api.get(`/spo/analyze/${campaignId}`);
+
+// Frequency Capping
+export const getUserFrequency = (campaignId, userId) => 
+  api.get(`/frequency/${campaignId}/${userId}`);
+export const resetCampaignFrequency = (campaignId) => 
+  api.delete(`/frequency/reset/${campaignId}`);
 
 // Win/Billing Notifications (for testing)
 export const sendWinNotification = (bidId, price) => 

@@ -211,6 +211,47 @@ class BidShadingConfig(BaseModel):
     current_shade_factor: float = Field(default=0.85, description="Current shading multiplier")
 
 
+class FrequencyCapConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    enabled: bool = Field(default=False)
+    max_impressions_per_user: int = Field(default=3, description="Max impressions per user per time window")
+    time_window_hours: int = Field(default=24, description="Time window in hours")
+    max_impressions_per_day: int = Field(default=5, description="Max impressions per user per day")
+    max_impressions_total: int = Field(default=10, description="Max total impressions per user for campaign")
+
+
+class SPOConfig(BaseModel):
+    """Supply Path Optimization configuration"""
+    model_config = ConfigDict(extra="ignore")
+    
+    enabled: bool = Field(default=False)
+    preferred_ssp_ids: List[str] = Field(default_factory=list, description="Preferred SSP IDs for direct paths")
+    blocked_ssp_ids: List[str] = Field(default_factory=list, description="Blocked SSP IDs")
+    max_hops: int = Field(default=3, description="Maximum supply chain hops allowed")
+    require_authorized_sellers: bool = Field(default=True, description="Require valid sellers.json")
+    bid_adjustment_factor: float = Field(default=1.0, description="Bid multiplier for preferred paths")
+
+
+class MLPredictionConfig(BaseModel):
+    """ML-based bid prediction configuration"""
+    model_config = ConfigDict(extra="ignore")
+    
+    enabled: bool = Field(default=False)
+    use_historical_data: bool = Field(default=True)
+    prediction_weight: float = Field(default=0.5, description="Weight given to ML prediction vs base bid")
+    min_data_points: int = Field(default=100, description="Minimum data points needed for prediction")
+    feature_weights: Dict[str, float] = Field(default_factory=lambda: {
+        "device_type": 0.15,
+        "geo_country": 0.15,
+        "app_category": 0.10,
+        "time_of_day": 0.10,
+        "day_of_week": 0.10,
+        "bid_floor": 0.20,
+        "historical_win_rate": 0.20
+    })
+
+
 class Campaign(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
@@ -228,6 +269,15 @@ class Campaign(BaseModel):
     
     # Bid Shading
     bid_shading: BidShadingConfig = Field(default_factory=BidShadingConfig)
+    
+    # Frequency Capping
+    frequency_cap: FrequencyCapConfig = Field(default_factory=FrequencyCapConfig)
+    
+    # Supply Path Optimization
+    spo: SPOConfig = Field(default_factory=SPOConfig)
+    
+    # ML Prediction
+    ml_prediction: MLPredictionConfig = Field(default_factory=MLPredictionConfig)
     
     # Creative
     creative_id: str
@@ -252,6 +302,9 @@ class Campaign(BaseModel):
     # Win rate tracking for bid shading
     recent_win_rate: float = Field(default=0.0)
     avg_win_price: float = Field(default=0.0)
+    
+    # ML model data
+    ml_model_data: Dict[str, Any] = Field(default_factory=dict)
 
 
 # ==================== SSP & API KEY MODELS ====================
@@ -312,6 +365,49 @@ class BidLog(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+# ==================== USER FREQUENCY TRACKING ====================
+
+class UserFrequency(BaseModel):
+    """Track user impression frequency for frequency capping"""
+    model_config = ConfigDict(extra="ignore")
+    
+    user_id: str  # IFA, cookie ID, or device ID
+    campaign_id: str
+    impression_count: int = Field(default=0)
+    last_impression: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    hourly_impressions: Dict[str, int] = Field(default_factory=dict)  # hour -> count
+
+
+# ==================== ML PREDICTION DATA ====================
+
+class BidPredictionFeatures(BaseModel):
+    """Features for ML bid prediction"""
+    device_type: Optional[int] = None
+    geo_country: Optional[str] = None
+    geo_region: Optional[str] = None
+    app_bundle: Optional[str] = None
+    app_category: Optional[str] = None
+    time_of_day: Optional[int] = None
+    day_of_week: Optional[int] = None
+    bid_floor: Optional[float] = None
+    video_placement: Optional[int] = None
+    connection_type: Optional[int] = None
+
+
+class MLModelStats(BaseModel):
+    """Statistics for ML model training"""
+    model_config = ConfigDict(extra="ignore")
+    
+    campaign_id: str
+    feature_key: str  # e.g., "device_type:4" or "geo_country:USA"
+    total_bids: int = Field(default=0)
+    total_wins: int = Field(default=0)
+    win_rate: float = Field(default=0.0)
+    avg_win_price: float = Field(default=0.0)
+    avg_bid_price: float = Field(default=0.0)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 # ==================== REQUEST/RESPONSE MODELS ====================
 
 class CampaignCreate(BaseModel):
@@ -322,6 +418,9 @@ class CampaignCreate(BaseModel):
     creative_id: str
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     bid_shading: BidShadingConfig = Field(default_factory=BidShadingConfig)
+    frequency_cap: FrequencyCapConfig = Field(default_factory=FrequencyCapConfig)
+    spo: SPOConfig = Field(default_factory=SPOConfig)
+    ml_prediction: MLPredictionConfig = Field(default_factory=MLPredictionConfig)
     targeting: CampaignTargeting = Field(default_factory=CampaignTargeting)
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -336,6 +435,9 @@ class CampaignUpdate(BaseModel):
     creative_id: Optional[str] = None
     budget: Optional[BudgetConfig] = None
     bid_shading: Optional[BidShadingConfig] = None
+    frequency_cap: Optional[FrequencyCapConfig] = None
+    spo: Optional[SPOConfig] = None
+    ml_prediction: Optional[MLPredictionConfig] = None
     targeting: Optional[CampaignTargeting] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None

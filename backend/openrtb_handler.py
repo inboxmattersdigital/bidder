@@ -508,7 +508,7 @@ class BiddingEngine:
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Process a bid request and return (response, log_data)
-        Includes bid shading and budget pacing
+        Includes bid shading, budget pacing, frequency capping, SPO, and ML prediction
         """
         start_time = time.time()
         
@@ -517,6 +517,12 @@ class BiddingEngine:
         version = parsed["_version"]
         
         self.response_builder.version = version
+        
+        # Extract user ID for frequency capping
+        user_id = self._get_user_id(parsed)
+        
+        # Extract supply chain info for SPO
+        schain = parsed.get("source", {}).get("schain")
         
         log_data = {
             "request_id": parsed["id"],
@@ -536,7 +542,7 @@ class BiddingEngine:
             log_data["processing_time_ms"] = (time.time() - start_time) * 1000
             return self.response_builder.build_no_bid_response(parsed["id"]), log_data
         
-        # Match campaigns to impressions with budget pacing check
+        # Match campaigns to impressions with all checks
         winning_bids = []
         
         for imp in parsed.get("imp", []):
@@ -559,13 +565,44 @@ class BiddingEngine:
                 if not pacing_eligible:
                     continue
                 
+                # Filter by frequency capping
+                freq_eligible = []
+                for campaign, creative, score in pacing_eligible:
+                    freq_ok = await self._check_frequency_cap(campaign, user_id)
+                    if freq_ok:
+                        freq_eligible.append((campaign, creative, score))
+                    else:
+                        log_data["rejection_reasons"].append(
+                            f"Campaign {campaign['id'][:8]}... frequency cap reached for user"
+                        )
+                
+                if not freq_eligible:
+                    continue
+                
+                # Filter by SPO
+                spo_eligible = []
+                for campaign, creative, score in freq_eligible:
+                    spo_ok = self._check_spo(campaign, schain, parsed)
+                    if spo_ok:
+                        spo_eligible.append((campaign, creative, score))
+                    else:
+                        log_data["rejection_reasons"].append(
+                            f"Campaign {campaign['id'][:8]}... blocked by SPO rules"
+                        )
+                
+                if not spo_eligible:
+                    continue
+                
                 # Select best match (highest priority * bid price)
-                best_match = max(pacing_eligible, key=lambda x: x[0]["priority"] * x[0]["bid_price"])
+                best_match = max(spo_eligible, key=lambda x: x[0]["priority"] * x[0]["bid_price"])
                 campaign, creative, score = best_match
                 
-                # Apply bid shading
+                # Apply ML prediction if enabled
                 original_price = campaign["bid_price"]
-                shaded_price = self._apply_bid_shading(campaign, original_price)
+                ml_adjusted_price = await self._apply_ml_prediction(campaign, parsed, imp)
+                
+                # Apply bid shading on top of ML adjustment
+                shaded_price = self._apply_bid_shading(campaign, ml_adjusted_price)
                 
                 # Check bid floor after shading
                 if shaded_price < imp.get("bidfloor", 0):
@@ -665,6 +702,163 @@ class BiddingEngine:
         shaded_price = original_price * shade_factor
         
         return round(shaded_price, 6)
+    
+    def _get_user_id(self, parsed: Dict[str, Any]) -> Optional[str]:
+        """Extract user identifier from bid request"""
+        # Try device.ifa first (most reliable)
+        device = parsed.get("device", {})
+        if device.get("ifa"):
+            return device["ifa"]
+        
+        # Try user.id
+        user = parsed.get("user", {})
+        if user.get("id"):
+            return user["id"]
+        
+        # Try user.buyeruid
+        if user.get("buyeruid"):
+            return user["buyeruid"]
+        
+        # Try device IP as fallback
+        if device.get("ip"):
+            return f"ip:{device['ip']}"
+        
+        return None
+    
+    async def _check_frequency_cap(self, campaign: Dict[str, Any], user_id: Optional[str]) -> bool:
+        """Check if user has reached frequency cap"""
+        freq_config = campaign.get("frequency_cap", {})
+        
+        if not freq_config.get("enabled", False):
+            return True  # No frequency capping
+        
+        if not user_id:
+            return True  # Can't track without user ID
+        
+        # Get user frequency
+        freq = await self.db.user_frequencies.find_one(
+            {"campaign_id": campaign["id"], "user_id": user_id},
+            {"_id": 0}
+        )
+        
+        if not freq:
+            return True  # No impressions yet
+        
+        max_per_day = freq_config.get("max_impressions_per_day", 5)
+        max_total = freq_config.get("max_impressions_total", 10)
+        
+        current_count = freq.get("impression_count", 0)
+        
+        # Check total cap
+        if current_count >= max_total:
+            return False
+        
+        # Check daily cap (simplified - would need proper date tracking in production)
+        if current_count >= max_per_day:
+            return False
+        
+        return True
+    
+    def _check_spo(self, campaign: Dict[str, Any], schain: Optional[Dict[str, Any]], parsed: Dict[str, Any]) -> bool:
+        """Check Supply Path Optimization rules"""
+        spo_config = campaign.get("spo", {})
+        
+        if not spo_config.get("enabled", False):
+            return True  # No SPO filtering
+        
+        # Check blocked SSPs/bundles
+        blocked_ids = spo_config.get("blocked_ssp_ids", [])
+        if blocked_ids:
+            app_bundle = (parsed.get("app") or {}).get("bundle")
+            site_domain = (parsed.get("site") or {}).get("domain")
+            
+            if app_bundle and app_bundle in blocked_ids:
+                return False
+            if site_domain and site_domain in blocked_ids:
+                return False
+        
+        # Check supply chain hops
+        if schain:
+            nodes = schain.get("nodes", [])
+            max_hops = spo_config.get("max_hops", 3)
+            
+            if len(nodes) > max_hops:
+                return False
+        
+        # Check preferred paths (boost these instead of blocking others)
+        preferred_ids = spo_config.get("preferred_ssp_ids", [])
+        if preferred_ids:
+            app_bundle = (parsed.get("app") or {}).get("bundle")
+            site_domain = (parsed.get("site") or {}).get("domain")
+            
+            # If preferred list exists and this path isn't in it, we still allow but could adjust bid
+            # For now, we just allow all non-blocked paths
+        
+        return True
+    
+    async def _apply_ml_prediction(self, campaign: Dict[str, Any], parsed: Dict[str, Any], imp: Dict[str, Any]) -> float:
+        """Apply ML-based bid prediction"""
+        ml_config = campaign.get("ml_prediction", {})
+        base_price = campaign.get("bid_price", 1.0)
+        
+        if not ml_config.get("enabled", False):
+            return base_price
+        
+        # Extract features
+        device = parsed.get("device", {})
+        summary = self._create_request_summary(parsed)
+        
+        adjustments = []
+        feature_weights = ml_config.get("feature_weights", {})
+        
+        # Check device type feature
+        device_type = device.get("devicetype")
+        if device_type:
+            stats = await self.db.ml_model_stats.find_one(
+                {"campaign_id": campaign["id"], "feature_key": f"device_type:{device_type}"},
+                {"_id": 0}
+            )
+            if stats and stats.get("total_bids", 0) >= 10:
+                win_rate = stats.get("win_rate", 0.3)
+                target_rate = ml_config.get("target_win_rate", 0.3)
+                # Adjust: if winning too much, reduce bid; if losing too much, increase bid
+                adjustment = 1.0 + (target_rate - win_rate) * feature_weights.get("device_type", 0.15)
+                adjustments.append(adjustment)
+        
+        # Check geo country feature
+        geo = device.get("geo", {})
+        country = geo.get("country")
+        if country:
+            stats = await self.db.ml_model_stats.find_one(
+                {"campaign_id": campaign["id"], "feature_key": f"geo_country:{country}"},
+                {"_id": 0}
+            )
+            if stats and stats.get("total_bids", 0) >= 10:
+                win_rate = stats.get("win_rate", 0.3)
+                target_rate = ml_config.get("target_win_rate", 0.3)
+                adjustment = 1.0 + (target_rate - win_rate) * feature_weights.get("geo_country", 0.15)
+                adjustments.append(adjustment)
+        
+        # Bid floor consideration
+        bid_floor = imp.get("bidfloor", 0)
+        if bid_floor > 0:
+            floor_ratio = bid_floor / base_price
+            if floor_ratio > 0.9:
+                # High floor - need to bid higher
+                adjustments.append(1.0 + (floor_ratio - 0.5) * feature_weights.get("bid_floor", 0.2))
+        
+        # Calculate final adjustment
+        if adjustments:
+            avg_adjustment = sum(adjustments) / len(adjustments)
+            weight = ml_config.get("prediction_weight", 0.5)
+            final_adjustment = 1.0 * (1 - weight) + avg_adjustment * weight
+        else:
+            final_adjustment = 1.0
+        
+        # Clamp to reasonable range
+        final_adjustment = max(0.5, min(1.5, final_adjustment))
+        
+        return round(base_price * final_adjustment, 6)
     
     async def _get_active_campaigns(self) -> List[Dict[str, Any]]:
         """Get all active campaigns with their creatives"""
