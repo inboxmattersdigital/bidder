@@ -1,12 +1,7 @@
 # OpenRTB 2.5/2.6 Bidder with Campaign Manager - PRD
 
 ## Original Problem Statement
-Build a Demand-Side Platform (DSP) Bidder that:
-1. Receives and parses bid requests in OpenRTB 2.5 and 2.6 formats
-2. Integrates with a Campaign Manager with comprehensive targeting
-3. Makes real-time bidding decisions matching requests against campaigns
-4. Constructs valid OpenRTB bid responses
-5. Generates SSP endpoints with API key authentication
+Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid requests, manages campaigns with comprehensive targeting, and provides real-time bidding decisions.
 
 ## Architecture
 - **Backend**: FastAPI + MongoDB
@@ -14,12 +9,12 @@ Build a Demand-Side Platform (DSP) Bidder that:
 - **Bidding Engine**: Real-time matching with targeting rules
 - **Protocol Handler**: Version detection, field migration
 
-## What's Been Implemented
+## Implemented Features
 
 ### Phase 1 - Core MVP
 - OpenRTB parser with 2.5/2.6 version detection
 - Campaign Manager APIs (CRUD, activate/pause)
-- Creative Management (banner/video/native)
+- Creative Management (banner/video/native/audio)
 - SSP Endpoint Management
 - Bid endpoint with targeting engine
 - Dark theme dashboard with charts
@@ -41,84 +36,126 @@ Build a Demand-Side Platform (DSP) Bidder that:
 - ML Model Management page
 - Multi-Currency Support (USD, EUR, GBP, CAD, AUD, JPY)
 
-### Phase 5 - Enhanced Campaign Targeting (December 2025)
-- **Ad Placements**: In-App, In-Stream, In-Stream Non-Skip, In-Banner, In-Article, In-Feed, Interstitial, Side Banner, Above/Below Fold, Sticky, Floating, Rewarded
-- **Geo Targeting**: Countries, Regions, Cities + Lat/Long/Radius targeting
-- **Device Targeting**: 
-  - Device types: Mobile/Tablet, PC, CTV, Phone, Tablet, Connected Device, Set Top Box
-  - Connection types: Ethernet, WiFi, Cellular 2G-5G
-  - Mobile carriers by country (USA, GBR, DEU, FRA, IND, BRA, JPN, CAN, AUS)
-- **Video Targeting (OpenRTB 2.5/2.6)**:
-  - Placements: In-Stream, In-Banner, In-Article, In-Feed, Interstitial
-  - PLCMT: In-Stream, Accompanying, Interstitial, No Content
-  - Protocols: VAST 1.0-4.2 with wrappers, DAAST
-  - MIME Types: MP4, WebM, OGG, FLV, 3GPP, VPAID JS, SWF
-  - Pod Positions: First, Last, First or Last, Any
-- **SSP ORTB Version**: Choose OpenRTB 2.5 or 2.6 per SSP endpoint
-- **Theme Toggle**: Dark/Light mode with localStorage persistence
-- **Creative Preview**: Preview banners, video VAST, native ads, audio
+### Phase 5 - Enhanced Targeting
+- Ad Placements (In-App, In-Stream, Interstitial, etc.)
+- Geo Targeting with Lat/Long/Radius
+- Device Targeting with carriers by country
+- Video Targeting with full dropdowns
+- SSP ORTB version selector
+- Theme toggle (Dark/Light mode)
+- Creative preview functionality
 
-### Creative Manager Enhancements
-- Multiple creative formats: Raw Banner, Raw Video, VAST URL, VAST XML, JS Tag, Native JSON, Audio VAST
-- Creative preview functionality for all types
-- Format badges on creative cards
+### Phase 6 - Advanced Platform Features (December 2025)
+- **Campaign Comparison Tool**
+  - Compare 2-3 campaigns side-by-side
+  - Metrics comparison (bids, wins, win rate, price)
+  - Targeting differences analysis
+  - Optimization recommendations
+
+- **A/B Testing Framework**
+  - Create tests with 2-4 campaigns
+  - Traffic split configuration
+  - Real-time winner determination
+  - Status management (active/paused/completed)
+
+- **Fraud Detection**
+  - Bot user agent detection
+  - Invalid geo pattern filtering
+  - High frequency threshold monitoring
+  - Real-time fraud checking API
+  - Fraud score calculation
+
+- **Viewability Prediction**
+  - Device type impact scoring
+  - Placement impact analysis
+  - Banner size optimization
+  - Video viewability factors
+
+- **Custom Audience Segments**
+  - Create/manage audience segments
+  - Rule-based targeting
+  - Geo and category filters
+  - Size estimation
+
+- **Real-Time Bid Stream**
+  - Live bid activity feed
+  - Auto-refresh every 2 seconds
+  - Pause/resume functionality
+  - Bid/No-bid status tracking
+
+- **X-API Auth Removal**
+  - Bid endpoint works without authentication
+  - POST /api/bid accepts requests with no headers
 
 ## Key API Endpoints
 
 ### Bidding
-- `POST /api/bid` - Main bid endpoint (no auth required)
+- `POST /api/bid` - Main bid endpoint (NO AUTH REQUIRED)
 
 ### Campaigns
 - `GET/POST /api/campaigns` - List/create campaigns
-- `GET/PUT/DELETE /api/campaigns/{id}` - Single campaign ops
+- `POST /api/campaigns/compare` - Compare campaigns
 
-### Reference Data
-- `GET /api/reference/iab-categories` - IAB content categories
-- `GET /api/reference/ad-placements` - Ad placement options
-- `GET /api/reference/video-placements` - OpenRTB 2.5 video placements
-- `GET /api/reference/video-plcmt` - OpenRTB 2.6 PLCMT types
-- `GET /api/reference/video-protocols` - VAST versions
-- `GET /api/reference/video-mimes` - Video MIME types
-- `GET /api/reference/pod-positions` - Ad pod positions
-- `GET /api/reference/device-types` - Device types
-- `GET /api/reference/connection-types` - Connection types
-- `GET /api/reference/carriers/{country}` - Mobile carriers
+### A/B Testing
+- `GET/POST /api/ab-tests` - List/create tests
+- `PUT /api/ab-tests/{id}/status` - Update status
 
-### Currency
-- `GET /api/currencies` - Supported currencies
-- `GET /api/currency/convert` - Convert amount
+### Fraud Detection
+- `GET /api/fraud/stats` - Fraud statistics
+- `POST /api/fraud/check` - Check request for fraud
+
+### Viewability
+- `GET /api/viewability/stats` - Viewability stats
+- `POST /api/viewability/predict` - Predict score
+
+### Audiences
+- `GET/POST /api/audiences` - List/create segments
+- `DELETE /api/audiences/{id}` - Delete segment
+
+### Real-Time
+- `GET /api/bid-stream` - Live bid activity
+
+## Navigation Pages
+- Dashboard
+- Campaigns
+- Compare
+- Creatives
+- SSP Endpoints
+- Bid Logs
+- Bid Stream
+- Reports
+- Budget Pacing
+- Insights
+- ML Models
+- A/B Testing
+- Fraud
+- Audiences
+- Migration
 
 ## Prioritized Backlog
 
 ### Completed
-- [x] Core bidding engine
-- [x] Campaign targeting
-- [x] Win notifications
-- [x] Budget pacing
-- [x] Bid shading
-- [x] Frequency capping
-- [x] SPO
+- [x] All core bidding features
+- [x] Campaign management
+- [x] Advanced targeting
 - [x] ML prediction
-- [x] Campaign insights
-- [x] Multi-currency
-- [x] Enhanced targeting (geo lat/long, device carriers)
-- [x] Video targeting with dropdowns
-- [x] Ad placements
-- [x] SSP ORTB version
-- [x] Theme toggle
-- [x] Creative preview
+- [x] Campaign comparison
+- [x] A/B testing
+- [x] Fraud detection
+- [x] Viewability prediction
+- [x] Custom audiences
+- [x] Real-time bid stream
+- [x] X-API auth removal
 
 ### P1 - Upcoming
-- [ ] Campaign Comparison Tool
-- [ ] Real-time Dashboard (WebSocket)
-- [ ] A/B Testing Framework
+- [ ] Intelligent Campaign Creation Wizard
+- [ ] Real-Time Creative Preview System
+- [ ] WebSocket for live updates
 
 ### P2 - Future
-- [ ] Advanced Fraud Detection
-- [ ] Viewability Prediction
-- [ ] Custom Audience Segments
-- [ ] Native/Audio Ad Format Expansion
-- [ ] Creative Editor with Live Preview
+- [ ] Advanced Creative Editor
+- [ ] Automated bid optimization
+- [ ] Cross-campaign attribution
 
 ## Tech Stack
 - **Backend**: FastAPI, Motor (async MongoDB), Pydantic
