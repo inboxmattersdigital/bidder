@@ -13,7 +13,12 @@ import {
   Lightbulb,
   Brain,
   Sun,
-  Moon
+  Moon,
+  Scale,
+  FlaskConical,
+  ShieldAlert,
+  Users,
+  Activity
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Switch } from "./ui/switch";
@@ -21,14 +26,19 @@ import { Switch } from "./ui/switch";
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/campaigns", icon: Megaphone, label: "Campaigns" },
+  { to: "/campaigns/compare", icon: Scale, label: "Compare" },
   { to: "/creatives", icon: Image, label: "Creatives" },
   { to: "/ssp-endpoints", icon: Server, label: "SSP Endpoints" },
   { to: "/bid-logs", icon: ScrollText, label: "Bid Logs" },
+  { to: "/bid-stream", icon: Activity, label: "Bid Stream" },
   { to: "/reports", icon: BarChart3, label: "Reports" },
   { to: "/pacing", icon: Gauge, label: "Budget Pacing" },
   { to: "/insights", icon: Lightbulb, label: "Insights" },
   { to: "/ml-models", icon: Brain, label: "ML Models" },
-  { to: "/migration-matrix", icon: ArrowRightLeft, label: "Migration Matrix" },
+  { to: "/ab-testing", icon: FlaskConical, label: "A/B Testing" },
+  { to: "/fraud-detection", icon: ShieldAlert, label: "Fraud" },
+  { to: "/audiences", icon: Users, label: "Audiences" },
+  { to: "/migration-matrix", icon: ArrowRightLeft, label: "Migration" },
 ];
 
 export default function Layout() {

@@ -124,4 +124,42 @@ export const getConnectionTypes = () => api.get('/reference/connection-types');
 export const getCarriersByCountry = (countryCode) => api.get(`/reference/carriers/${countryCode}`);
 export const getAllCarriers = () => api.get('/reference/carriers');
 
+// Campaign Comparison
+export const compareCampaigns = (campaignIds) => api.post('/campaigns/compare', campaignIds);
+
+// A/B Testing
+export const getABTests = () => api.get('/ab-tests');
+export const createABTest = (name, campaignIds, trafficSplit) => 
+  api.post('/ab-tests', { 
+    name,
+    campaign_ids: campaignIds, 
+    traffic_split: trafficSplit 
+  });
+export const getABTest = (testId) => api.get(`/ab-tests/${testId}`);
+export const updateABTestStatus = (testId, status) => api.put(`/ab-tests/${testId}/status?status=${status}`);
+
+// Fraud Detection
+export const getFraudStats = () => api.get('/fraud/stats');
+export const checkFraud = (requestData) => api.post('/fraud/check', requestData);
+export const updateFraudPatterns = (patterns) => api.put('/fraud/patterns', patterns);
+
+// Viewability
+export const getViewabilityStats = () => api.get('/viewability/stats');
+export const predictViewability = (requestData) => api.post('/viewability/predict', requestData);
+
+// Audience Segments
+export const getAudiences = () => api.get('/audiences');
+export const createAudience = (name, description, rules) => 
+  api.post(`/audiences?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description || '')}`, rules);
+export const getAudience = (audienceId) => api.get(`/audiences/${audienceId}`);
+export const updateAudience = (audienceId, name, rules) => 
+  api.put(`/audiences/${audienceId}`, null, { params: { name, rules: JSON.stringify(rules) }});
+export const deleteAudience = (audienceId) => api.delete(`/audiences/${audienceId}`);
+
+// Creative Validation
+export const validateCreative = (creativeData) => api.post('/creatives/validate', creativeData);
+
+// Real-time Bid Stream
+export const getBidStream = (limit = 20) => api.get(`/bid-stream?limit=${limit}`);
+
 export default api;

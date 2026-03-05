@@ -872,6 +872,22 @@ async def handle_bid_request(
             {"$inc": {"bids": 1}}
         )
     
+    # Add to real-time bid stream
+    global recent_bids
+    stream_entry = {
+        "id": log_data.get("id"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "bid_made": log_data.get("bid_made", False),
+        "campaign_name": log_data.get("campaign_name"),
+        "bid_price": log_data.get("bid_price"),
+        "device_type": bid_request.get("device", {}).get("devicetype"),
+        "geo_country": bid_request.get("device", {}).get("geo", {}).get("country"),
+        "domain": bid_request.get("site", {}).get("domain") or bid_request.get("app", {}).get("bundle")
+    }
+    recent_bids.append(stream_entry)
+    if len(recent_bids) > MAX_RECENT_BIDS:
+        recent_bids = recent_bids[-MAX_RECENT_BIDS:]
+    
     # Return no-bid (204) or bid response (200)
     if not log_data.get("bid_made"):
         return Response(status_code=204)
@@ -2374,6 +2390,479 @@ async def convert_currency(amount: float, from_currency: str = "USD", to_currenc
         "original": {"amount": amount, "currency": from_currency},
         "converted": {"amount": round(converted, 2), "currency": to_currency},
         "rate": CURRENCY_RATES[to_currency] / CURRENCY_RATES[from_currency]
+    }
+
+
+# ==================== CAMPAIGN COMPARISON ====================
+
+@api_router.post("/campaigns/compare")
+async def compare_campaigns(campaign_ids: List[str]):
+    """Compare 2-3 campaigns side by side"""
+    if len(campaign_ids) < 2 or len(campaign_ids) > 3:
+        raise HTTPException(status_code=400, detail="Select 2-3 campaigns to compare")
+    
+    campaigns = []
+    for cid in campaign_ids:
+        campaign = await db.campaigns.find_one({"id": cid}, {"_id": 0})
+        if campaign:
+            campaigns.append(campaign)
+    
+    if len(campaigns) < 2:
+        raise HTTPException(status_code=404, detail="One or more campaigns not found")
+    
+    # Calculate comparison metrics
+    comparison = {
+        "campaigns": campaigns,
+        "metrics_comparison": {},
+        "targeting_differences": {},
+        "recommendations": []
+    }
+    
+    # Compare key metrics
+    metrics = ["bids", "wins", "impressions", "clicks", "bid_price"]
+    for metric in metrics:
+        values = [c.get(metric, 0) for c in campaigns]
+        comparison["metrics_comparison"][metric] = {
+            "values": values,
+            "best": campaign_ids[values.index(max(values))] if max(values) > 0 else None,
+            "diff_pct": round((max(values) - min(values)) / max(values) * 100, 2) if max(values) > 0 else 0
+        }
+    
+    # Calculate win rates
+    win_rates = []
+    for c in campaigns:
+        bids = c.get("bids", 0)
+        wins = c.get("wins", 0)
+        win_rates.append(round(wins / bids * 100, 2) if bids > 0 else 0)
+    comparison["metrics_comparison"]["win_rate"] = {
+        "values": win_rates,
+        "best": campaign_ids[win_rates.index(max(win_rates))] if max(win_rates) > 0 else None
+    }
+    
+    # Compare targeting
+    targeting_fields = ["geo.countries", "device.device_types", "inventory.categories"]
+    for field in targeting_fields:
+        parts = field.split(".")
+        values = []
+        for c in campaigns:
+            val = c.get("targeting", {})
+            for p in parts:
+                val = val.get(p, []) if isinstance(val, dict) else []
+            values.append(set(val) if isinstance(val, list) else set())
+        
+        # Find common and unique targeting
+        common = set.intersection(*values) if values else set()
+        unique = [v - common for v in values]
+        comparison["targeting_differences"][field] = {
+            "common": list(common),
+            "unique": [list(u) for u in unique]
+        }
+    
+    # Generate recommendations
+    if comparison["metrics_comparison"]["win_rate"]["values"]:
+        best_idx = win_rates.index(max(win_rates))
+        worst_idx = win_rates.index(min(win_rates))
+        if best_idx != worst_idx:
+            comparison["recommendations"].append({
+                "type": "win_rate",
+                "message": f"Consider adopting targeting from '{campaigns[best_idx]['name']}' for '{campaigns[worst_idx]['name']}'"
+            })
+    
+    return comparison
+
+
+# ==================== A/B TESTING ====================
+
+class ABTestCreate(BaseModel):
+    """Model for A/B test creation"""
+    name: str
+    campaign_ids: List[str]
+    traffic_split: Optional[List[float]] = None
+
+@api_router.post("/ab-tests")
+async def create_ab_test(data: ABTestCreate):
+    """Create an A/B test between campaigns"""
+    name = data.name
+    campaign_ids = data.campaign_ids
+    traffic_split = data.traffic_split
+    
+    if len(campaign_ids) < 2 or len(campaign_ids) > 4:
+        raise HTTPException(status_code=400, detail="Select 2-4 campaigns for A/B test")
+    
+    if traffic_split is None:
+        traffic_split = [100 / len(campaign_ids)] * len(campaign_ids)
+    
+    if len(traffic_split) != len(campaign_ids) or abs(sum(traffic_split) - 100) > 0.1:
+        raise HTTPException(status_code=400, detail="Traffic split must add up to 100%")
+    
+    # Verify campaigns exist
+    campaigns = []
+    for cid in campaign_ids:
+        campaign = await db.campaigns.find_one({"id": cid}, {"_id": 0, "id": 1, "name": 1})
+        if not campaign:
+            raise HTTPException(status_code=404, detail=f"Campaign {cid} not found")
+        campaigns.append(campaign)
+    
+    ab_test = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "status": "active",
+        "campaign_ids": campaign_ids,
+        "campaign_names": [c["name"] for c in campaigns],
+        "traffic_split": traffic_split,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "stats": {cid: {"impressions": 0, "clicks": 0, "conversions": 0} for cid in campaign_ids}
+    }
+    
+    await db.ab_tests.insert_one(ab_test)
+    if "_id" in ab_test:
+        del ab_test["_id"]
+    
+    return ab_test
+
+
+@api_router.get("/ab-tests")
+async def get_ab_tests():
+    """Get all A/B tests"""
+    tests = await db.ab_tests.find({}, {"_id": 0}).to_list(100)
+    return {"tests": tests}
+
+
+@api_router.get("/ab-tests/{test_id}")
+async def get_ab_test(test_id: str):
+    """Get A/B test details with performance data"""
+    test = await db.ab_tests.find_one({"id": test_id}, {"_id": 0})
+    if not test:
+        raise HTTPException(status_code=404, detail="A/B test not found")
+    
+    # Calculate performance metrics for each variant
+    for cid in test["campaign_ids"]:
+        campaign = await db.campaigns.find_one({"id": cid}, {"_id": 0})
+        if campaign:
+            bids = campaign.get("bids", 0)
+            wins = campaign.get("wins", 0)
+            test["stats"][cid]["bids"] = bids
+            test["stats"][cid]["wins"] = wins
+            test["stats"][cid]["win_rate"] = round(wins / bids * 100, 2) if bids > 0 else 0
+    
+    # Determine winner
+    winner = None
+    best_metric = 0
+    for cid, stats in test["stats"].items():
+        if stats.get("win_rate", 0) > best_metric:
+            best_metric = stats["win_rate"]
+            winner = cid
+    test["winner"] = winner
+    
+    return test
+
+
+@api_router.put("/ab-tests/{test_id}/status")
+async def update_ab_test_status(test_id: str, status: str):
+    """Update A/B test status"""
+    if status not in ["active", "paused", "completed"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    result = await db.ab_tests.update_one(
+        {"id": test_id},
+        {"$set": {"status": status}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="A/B test not found")
+    
+    return {"status": status}
+
+
+# ==================== FRAUD DETECTION ====================
+
+FRAUD_PATTERNS = {
+    "bot_user_agents": ["bot", "crawler", "spider", "scraper", "headless"],
+    "suspicious_ips": [],
+    "high_frequency_threshold": 100,  # requests per minute
+    "invalid_geo_patterns": ["XX", "ZZ"]
+}
+
+@api_router.get("/fraud/stats")
+async def get_fraud_stats():
+    """Get fraud detection statistics"""
+    total_bids = await db.bid_logs.count_documents({})
+    flagged_bids = await db.bid_logs.count_documents({"fraud_flags": {"$exists": True, "$ne": []}})
+    
+    # Get fraud by type
+    pipeline = [
+        {"$match": {"fraud_flags": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$fraud_flags"},
+        {"$group": {"_id": "$fraud_flags", "count": {"$sum": 1}}}
+    ]
+    fraud_by_type = await db.bid_logs.aggregate(pipeline).to_list(20)
+    
+    return {
+        "total_bids": total_bids,
+        "flagged_bids": flagged_bids,
+        "fraud_rate": round(flagged_bids / total_bids * 100, 2) if total_bids > 0 else 0,
+        "fraud_by_type": {f["_id"]: f["count"] for f in fraud_by_type},
+        "patterns": FRAUD_PATTERNS
+    }
+
+
+@api_router.post("/fraud/check")
+async def check_fraud(request_data: dict):
+    """Check a bid request for fraud indicators"""
+    flags = []
+    score = 0
+    
+    # Check user agent
+    ua = request_data.get("device", {}).get("ua", "").lower()
+    for pattern in FRAUD_PATTERNS["bot_user_agents"]:
+        if pattern in ua:
+            flags.append("bot_user_agent")
+            score += 30
+            break
+    
+    # Check for missing required fields
+    if not request_data.get("device", {}).get("ip"):
+        flags.append("missing_ip")
+        score += 20
+    
+    if not request_data.get("device", {}).get("ua"):
+        flags.append("missing_user_agent")
+        score += 15
+    
+    # Check geo validity
+    geo = request_data.get("device", {}).get("geo", {})
+    if geo.get("country") in FRAUD_PATTERNS["invalid_geo_patterns"]:
+        flags.append("invalid_geo")
+        score += 25
+    
+    # Check for suspicious patterns
+    if request_data.get("device", {}).get("js") == 0:
+        flags.append("javascript_disabled")
+        score += 10
+    
+    return {
+        "is_fraudulent": score >= 50,
+        "fraud_score": min(score, 100),
+        "flags": flags,
+        "recommendation": "block" if score >= 50 else "allow"
+    }
+
+
+@api_router.put("/fraud/patterns")
+async def update_fraud_patterns(patterns: dict):
+    """Update fraud detection patterns"""
+    global FRAUD_PATTERNS
+    FRAUD_PATTERNS.update(patterns)
+    return {"status": "updated", "patterns": FRAUD_PATTERNS}
+
+
+# ==================== VIEWABILITY PREDICTION ====================
+
+@api_router.get("/viewability/stats")
+async def get_viewability_stats():
+    """Get viewability statistics"""
+    # Get viewability data from bid logs
+    pipeline = [
+        {"$match": {"viewability_score": {"$exists": True}}},
+        {"$group": {
+            "_id": None,
+            "avg_score": {"$avg": "$viewability_score"},
+            "total": {"$sum": 1},
+            "high_viewability": {"$sum": {"$cond": [{"$gte": ["$viewability_score", 70]}, 1, 0]}},
+            "low_viewability": {"$sum": {"$cond": [{"$lt": ["$viewability_score", 50]}, 1, 0]}}
+        }}
+    ]
+    
+    result = await db.bid_logs.aggregate(pipeline).to_list(1)
+    stats = result[0] if result else {"avg_score": 0, "total": 0, "high_viewability": 0, "low_viewability": 0}
+    
+    return {
+        "average_viewability": round(stats.get("avg_score", 0), 2),
+        "total_measured": stats.get("total", 0),
+        "high_viewability_count": stats.get("high_viewability", 0),
+        "low_viewability_count": stats.get("low_viewability", 0),
+        "benchmark": 65  # Industry benchmark
+    }
+
+
+@api_router.post("/viewability/predict")
+async def predict_viewability(request_data: dict):
+    """Predict viewability score for a bid request"""
+    score = 50  # Base score
+    factors = []
+    
+    # Device type impact
+    device_type = request_data.get("device", {}).get("devicetype", 2)
+    if device_type in [4, 5]:  # Phone, Tablet
+        score += 10
+        factors.append({"factor": "mobile_device", "impact": "+10"})
+    elif device_type == 3:  # CTV
+        score += 15
+        factors.append({"factor": "ctv_device", "impact": "+15"})
+    
+    # Position impact
+    imp = request_data.get("imp", [{}])[0]
+    if imp.get("instl") == 1:  # Interstitial
+        score += 20
+        factors.append({"factor": "interstitial", "impact": "+20"})
+    
+    # Banner size impact
+    banner = imp.get("banner", {})
+    if banner:
+        w, h = banner.get("w", 0), banner.get("h", 0)
+        if w >= 300 and h >= 250:
+            score += 5
+            factors.append({"factor": "large_banner", "impact": "+5"})
+        if w == 320 and h == 480:  # Full screen mobile
+            score += 10
+            factors.append({"factor": "fullscreen_mobile", "impact": "+10"})
+    
+    # Video viewability
+    video = imp.get("video", {})
+    if video:
+        if video.get("placement") == 1:  # In-stream
+            score += 15
+            factors.append({"factor": "instream_video", "impact": "+15"})
+        if video.get("skip") == 0:  # Non-skippable
+            score += 10
+            factors.append({"factor": "non_skippable", "impact": "+10"})
+    
+    return {
+        "predicted_score": min(score, 100),
+        "confidence": 0.75,
+        "factors": factors,
+        "recommendation": "high_value" if score >= 70 else "standard" if score >= 50 else "low_value"
+    }
+
+
+# ==================== CUSTOM AUDIENCE SEGMENTS ====================
+
+@api_router.get("/audiences")
+async def get_audiences():
+    """Get all audience segments"""
+    audiences = await db.audiences.find({}, {"_id": 0}).to_list(100)
+    return {"audiences": audiences}
+
+
+@api_router.post("/audiences")
+async def create_audience(
+    name: str,
+    description: str = "",
+    rules: dict = None
+):
+    """Create a custom audience segment"""
+    audience = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "description": description,
+        "rules": rules or {},
+        "size": 0,
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.audiences.insert_one(audience)
+    if "_id" in audience:
+        del audience["_id"]
+    
+    return audience
+
+
+@api_router.get("/audiences/{audience_id}")
+async def get_audience(audience_id: str):
+    """Get audience segment details"""
+    audience = await db.audiences.find_one({"id": audience_id}, {"_id": 0})
+    if not audience:
+        raise HTTPException(status_code=404, detail="Audience not found")
+    return audience
+
+
+@api_router.put("/audiences/{audience_id}")
+async def update_audience(audience_id: str, name: str = None, rules: dict = None):
+    """Update audience segment"""
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if name:
+        update_data["name"] = name
+    if rules:
+        update_data["rules"] = rules
+    
+    result = await db.audiences.update_one(
+        {"id": audience_id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Audience not found")
+    
+    return await get_audience(audience_id)
+
+
+@api_router.delete("/audiences/{audience_id}")
+async def delete_audience(audience_id: str):
+    """Delete audience segment"""
+    result = await db.audiences.delete_one({"id": audience_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Audience not found")
+    return {"status": "deleted"}
+
+
+# ==================== CREATIVE VALIDATION ====================
+
+@api_router.post("/creatives/validate")
+async def validate_creative(creative_data: dict):
+    """Validate creative content and return issues"""
+    issues = []
+    warnings = []
+    
+    creative_type = creative_data.get("type", "banner")
+    
+    if creative_type == "banner":
+        banner = creative_data.get("banner_data", {})
+        w, h = banner.get("width", 0), banner.get("height", 0)
+        
+        # Check dimensions
+        valid_sizes = [(300, 250), (728, 90), (160, 600), (320, 50), (300, 600), (970, 250)]
+        if (w, h) not in valid_sizes:
+            warnings.append({"field": "dimensions", "message": f"{w}x{h} is not a standard IAB size"})
+        
+        # Check markup
+        markup = banner.get("ad_markup", "")
+        if markup:
+            if "<script" in markup.lower() and "https://" not in markup:
+                issues.append({"field": "ad_markup", "message": "Scripts should use HTTPS"})
+            if len(markup) > 100000:
+                issues.append({"field": "ad_markup", "message": "Markup too large (>100KB)"})
+    
+    elif creative_type == "video":
+        video = creative_data.get("video_data", {})
+        duration = video.get("duration", 0)
+        
+        if duration > 60:
+            warnings.append({"field": "duration", "message": "Video longer than 60s may have low completion"})
+        
+        if not video.get("vast_url") and not video.get("vast_xml") and not video.get("video_url"):
+            issues.append({"field": "video_data", "message": "No video source provided"})
+    
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues,
+        "warnings": warnings,
+        "score": 100 - (len(issues) * 30) - (len(warnings) * 10)
+    }
+
+
+# ==================== REAL-TIME BID STREAM ====================
+
+# Store recent bids in memory for real-time display
+recent_bids = []
+MAX_RECENT_BIDS = 100
+
+@api_router.get("/bid-stream")
+async def get_bid_stream(limit: int = 20):
+    """Get recent bid activity for real-time dashboard"""
+    return {
+        "bids": recent_bids[-limit:],
+        "total_in_memory": len(recent_bids)
     }
 
 

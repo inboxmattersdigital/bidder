@@ -13,6 +13,11 @@ import Reports from "./pages/Reports";
 import Pacing from "./pages/Pacing";
 import Insights from "./pages/Insights";
 import MLModels from "./pages/MLModels";
+import CampaignComparison from "./pages/CampaignComparison";
+import ABTesting from "./pages/ABTesting";
+import FraudDetection from "./pages/FraudDetection";
+import Audiences from "./pages/Audiences";
+import BidStream from "./pages/BidStream";
 import "./App.css";
 
 function App() {
@@ -35,14 +40,19 @@ function App() {
           <Route path="campaigns" element={<Campaigns />} />
           <Route path="campaigns/new" element={<CampaignForm />} />
           <Route path="campaigns/:id/edit" element={<CampaignForm />} />
+          <Route path="campaigns/compare" element={<CampaignComparison />} />
           <Route path="creatives" element={<Creatives />} />
           <Route path="creatives/new" element={<CreativeForm />} />
           <Route path="ssp-endpoints" element={<SSPEndpoints />} />
           <Route path="bid-logs" element={<BidLogs />} />
+          <Route path="bid-stream" element={<BidStream />} />
           <Route path="reports" element={<Reports />} />
           <Route path="pacing" element={<Pacing />} />
           <Route path="insights" element={<Insights />} />
           <Route path="ml-models" element={<MLModels />} />
+          <Route path="ab-testing" element={<ABTesting />} />
+          <Route path="fraud-detection" element={<FraudDetection />} />
+          <Route path="audiences" element={<Audiences />} />
           <Route path="migration-matrix" element={<MigrationMatrix />} />
         </Route>
       </Routes>
