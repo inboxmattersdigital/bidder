@@ -1,52 +1,120 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { 
   Activity, RefreshCw, Zap, Globe, Smartphone, DollarSign,
-  CheckCircle, XCircle, Pause, Play
+  CheckCircle, XCircle, Pause, Play, Wifi, WifiOff
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
-import { getBidStream } from "../lib/api";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const WS_URL = BACKEND_URL?.replace('https://', 'wss://').replace('http://', 'ws://') + '/api';
 
 export default function BidStream() {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [stats, setStats] = useState({ total: 0, wins: 0, noResponse: 0 });
-  const intervalRef = useRef(null);
+  const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
 
-  const fetchBids = async () => {
-    if (isPaused) return;
+  const updateStats = useCallback((bidList) => {
+    const total = bidList.length;
+    const wins = bidList.filter(b => b.bid_made).length;
+    setStats({ total, wins, noResponse: total - wins });
+  }, []);
+
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
     
     try {
-      const res = await getBidStream(50);
-      setBids(res.data.bids || []);
+      const ws = new WebSocket(`${WS_URL}/ws/bid-stream`);
       
-      // Calculate stats
-      const total = res.data.bids?.length || 0;
-      const wins = res.data.bids?.filter(b => b.bid_made)?.length || 0;
-      setStats({ total, wins, noResponse: total - wins });
+      ws.onopen = () => {
+        setIsConnected(true);
+        setLoading(false);
+        toast.success("Connected to live bid stream");
+      };
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "initial" || data.type === "recent") {
+          setBids(data.bids || []);
+          updateStats(data.bids || []);
+        } else if (data.type === "new_bid" && !isPaused) {
+          setBids(prev => {
+            const updated = [...prev, data.bid].slice(-50);
+            updateStats(updated);
+            return updated;
+          });
+        } else if (data.type === "heartbeat") {
+          // Connection alive, no action needed
+        }
+      };
+      
+      ws.onclose = () => {
+        setIsConnected(false);
+        // Auto-reconnect after 3 seconds
+        if (!reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connectWebSocket();
+          }, 3000);
+        }
+      };
+      
+      ws.onerror = () => {
+        setIsConnected(false);
+        setLoading(false);
+      };
+      
+      wsRef.current = ws;
     } catch (error) {
-      // Silent fail for real-time updates
-    } finally {
       setLoading(false);
+      toast.error("Failed to connect to bid stream");
     }
-  };
+  }, [isPaused, updateStats]);
 
   useEffect(() => {
-    fetchBids();
-    intervalRef.current = setInterval(fetchBids, 2000);
+    connectWebSocket();
     
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [isPaused]);
+  }, [connectWebSocket]);
+
+  // Send ping every 25 seconds to keep connection alive
+  useEffect(() => {
+    const pingInterval = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 25000);
+    
+    return () => clearInterval(pingInterval);
+  }, []);
 
   const togglePause = () => {
     setIsPaused(!isPaused);
+    if (isPaused) {
+      toast.info("Stream resumed");
+    } else {
+      toast.info("Stream paused");
+    }
+  };
+
+  const requestRecent = () => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "get_recent", limit: 50 }));
+    }
   };
 
   const getDeviceIcon = (type) => {
@@ -59,10 +127,23 @@ export default function BidStream() {
     }
   };
 
+  const getDeviceName = (type) => {
+    const types = {
+      1: "Mobile",
+      2: "PC",
+      3: "Connected TV",
+      4: "Phone",
+      5: "Tablet",
+      6: "Connected Device",
+      7: "Set Top Box"
+    };
+    return types[type] || "Unknown";
+  };
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center h-64">
-        <div className="text-[#64748B]">Loading bid stream...</div>
+        <div className="text-[#64748B]">Connecting to bid stream...</div>
       </div>
     );
   }
@@ -74,20 +155,42 @@ export default function BidStream() {
         <div>
           <h1 className="text-3xl font-bold text-[#F8FAFC]">Real-Time Bid Stream</h1>
           <p className="text-sm text-[#94A3B8] mt-1">
-            Live feed of bid requests and responses
+            Live feed of bid requests and responses via WebSocket
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            onClick={togglePause}
-            variant="outline"
-            className={isPaused ? "border-[#10B981] text-[#10B981]" : "border-[#F59E0B] text-[#F59E0B]"}
+          {/* Connection Status */}
+          <Badge 
+            variant="outline" 
+            className={isConnected 
+              ? "bg-[#10B981]/20 text-[#10B981] border-[#10B981]/30" 
+              : "bg-[#EF4444]/20 text-[#EF4444] border-[#EF4444]/30"
+            }
           >
-            {isPaused ? <Play className="w-4 h-4 mr-2" /> : <Pause className="w-4 h-4 mr-2" />}
-            {isPaused ? "Resume" : "Pause"}
-          </Button>
+            {isConnected ? (
+              <><Wifi className="w-3 h-3 mr-1" /> Connected</>
+            ) : (
+              <><WifiOff className="w-3 h-3 mr-1" /> Disconnected</>
+            )}
+          </Badge>
+          
           <Button 
-            onClick={fetchBids}
+            variant="outline"
+            onClick={togglePause}
+            className={isPaused 
+              ? "border-[#10B981] text-[#10B981] hover:bg-[#10B981]/10" 
+              : "border-[#F59E0B] text-[#F59E0B] hover:bg-[#F59E0B]/10"
+            }
+          >
+            {isPaused ? (
+              <><Play className="w-4 h-4 mr-2" /> Resume</>
+            ) : (
+              <><Pause className="w-4 h-4 mr-2" /> Pause</>
+            )}
+          </Button>
+          
+          <Button 
+            onClick={requestRecent}
             className="bg-[#3B82F6] hover:bg-[#60A5FA]"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -96,25 +199,12 @@ export default function BidStream() {
         </div>
       </div>
 
-      {/* Live Stats */}
+      {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="surface-primary border-panel">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${isPaused ? "bg-[#F59E0B]/20" : "bg-[#10B981]/20"}`}>
-              <Activity className={`w-5 h-5 ${isPaused ? "text-[#F59E0B]" : "text-[#10B981] animate-pulse"}`} />
-            </div>
-            <div>
-              <p className="text-xs text-[#64748B]">Status</p>
-              <p className={`text-sm font-bold ${isPaused ? "text-[#F59E0B]" : "text-[#10B981]"}`}>
-                {isPaused ? "Paused" : "Live"}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="surface-primary border-panel">
-          <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-[#3B82F6]/20">
-              <Zap className="w-5 h-5 text-[#3B82F6]" />
+              <Activity className="w-5 h-5 text-[#3B82F6]" />
             </div>
             <div>
               <p className="text-xs text-[#64748B]">Total Requests</p>
@@ -135,99 +225,114 @@ export default function BidStream() {
         </Card>
         <Card className="surface-primary border-panel">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-[#64748B]/20">
-              <XCircle className="w-5 h-5 text-[#64748B]" />
+            <div className="p-2 rounded-lg bg-[#F59E0B]/20">
+              <XCircle className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <div>
-              <p className="text-xs text-[#64748B]">No Bid</p>
-              <p className="text-xl font-bold text-[#64748B]">{stats.noResponse}</p>
+              <p className="text-xs text-[#64748B]">No Bids</p>
+              <p className="text-xl font-bold text-[#F59E0B]">{stats.noResponse}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="surface-primary border-panel">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-[#8B5CF6]/20">
+              <Zap className="w-5 h-5 text-[#8B5CF6]" />
+            </div>
+            <div>
+              <p className="text-xs text-[#64748B]">Bid Rate</p>
+              <p className="text-xl font-bold text-[#8B5CF6]">
+                {stats.total > 0 ? ((stats.wins / stats.total) * 100).toFixed(1) : 0}%
+              </p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Bid Stream */}
+      {/* Bid Stream Table */}
       <Card className="surface-primary border-panel">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle className="text-lg text-[#F8FAFC] flex items-center gap-2">
-            <Activity className={`w-5 h-5 ${isPaused ? "text-[#F59E0B]" : "text-[#10B981] animate-pulse"}`} />
-            Bid Activity
+            <Activity className="w-5 h-5 text-[#3B82F6]" />
+            Live Bid Activity
+            {!isPaused && (
+              <span className="relative flex h-2 w-2 ml-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10B981] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10B981]"></span>
+              </span>
+            )}
           </CardTitle>
-          <p className="text-xs text-[#64748B]">Last 50 requests</p>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full">
-              <thead>
+              <thead className="sticky top-0 surface-primary">
                 <tr className="border-b border-[#2D3B55]">
                   <th className="text-left py-2 px-3 text-xs text-[#64748B] font-medium">Time</th>
-                  <th className="text-left py-2 px-3 text-xs text-[#64748B] font-medium">Status</th>
+                  <th className="text-center py-2 px-3 text-xs text-[#64748B] font-medium">Status</th>
                   <th className="text-left py-2 px-3 text-xs text-[#64748B] font-medium">Campaign</th>
-                  <th className="text-left py-2 px-3 text-xs text-[#64748B] font-medium">Price</th>
+                  <th className="text-right py-2 px-3 text-xs text-[#64748B] font-medium">Bid</th>
                   <th className="text-left py-2 px-3 text-xs text-[#64748B] font-medium">Device</th>
                   <th className="text-left py-2 px-3 text-xs text-[#64748B] font-medium">Geo</th>
                   <th className="text-left py-2 px-3 text-xs text-[#64748B] font-medium">Domain</th>
                 </tr>
               </thead>
               <tbody>
-                {bids.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-[#64748B]">
-                      No recent bid activity
+                {[...bids].reverse().map((bid, idx) => (
+                  <tr 
+                    key={bid.id || idx} 
+                    className={`border-b border-[#2D3B55]/30 ${idx === 0 && !isPaused ? "animate-pulse bg-[#3B82F6]/5" : ""}`}
+                  >
+                    <td className="py-2 px-3 text-xs text-[#94A3B8] font-mono">
+                      {new Date(bid.timestamp).toLocaleTimeString()}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      {bid.bid_made ? (
+                        <Badge className="bg-[#10B981]/20 text-[#10B981] text-[10px]">
+                          BID
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-[#64748B]/20 text-[#64748B] text-[10px]">
+                          NO BID
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-sm text-[#F8FAFC]">
+                      {bid.campaign_name || "-"}
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      {bid.bid_price ? (
+                        <span className="text-sm font-mono text-[#10B981]">
+                          ${bid.bid_price.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-[#64748B]">-</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-1 text-xs text-[#94A3B8]">
+                        {getDeviceIcon(bid.device_type)}
+                        {getDeviceName(bid.device_type)}
+                      </div>
+                    </td>
+                    <td className="py-2 px-3 text-xs text-[#94A3B8]">
+                      {bid.geo_country || "-"}
+                    </td>
+                    <td className="py-2 px-3 text-xs text-[#94A3B8] max-w-[150px] truncate">
+                      {bid.domain || "-"}
                     </td>
                   </tr>
-                ) : (
-                  bids.slice().reverse().map((bid, idx) => (
-                    <tr 
-                      key={bid.id || idx} 
-                      className={`border-b border-[#2D3B55]/30 ${idx === 0 && !isPaused ? "bg-[#10B981]/5" : ""}`}
-                    >
-                      <td className="py-2 px-3 text-xs text-[#94A3B8] font-mono">
-                        {bid.timestamp ? new Date(bid.timestamp).toLocaleTimeString() : "-"}
-                      </td>
-                      <td className="py-2 px-3">
-                        {bid.bid_made ? (
-                          <Badge className="bg-[#10B981]/20 text-[#10B981] border-0 text-[10px]">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            BID
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-[#64748B]/20 text-[#64748B] border-0 text-[10px]">
-                            <XCircle className="w-3 h-3 mr-1" />
-                            NO BID
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-xs text-[#F8FAFC]">
-                        {bid.campaign_name || "-"}
-                      </td>
-                      <td className="py-2 px-3 text-xs font-mono">
-                        {bid.bid_price ? (
-                          <span className="text-[#10B981]">
-                            <DollarSign className="w-3 h-3 inline" />
-                            {bid.bid_price.toFixed(2)}
-                          </span>
-                        ) : (
-                          <span className="text-[#64748B]">-</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-1 text-xs text-[#94A3B8]">
-                          {getDeviceIcon(bid.device_type)}
-                          <span>{bid.device_type || "-"}</span>
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 text-xs text-[#94A3B8] font-mono">
-                        {bid.geo_country || "-"}
-                      </td>
-                      <td className="py-2 px-3 text-xs text-[#94A3B8] truncate max-w-[150px]">
-                        {bid.domain || "-"}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
+            
+            {bids.length === 0 && (
+              <div className="text-center py-12 text-[#64748B]">
+                <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No bid activity yet</p>
+                <p className="text-sm mt-1">Send a bid request to see it appear here in real-time</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

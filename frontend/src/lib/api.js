@@ -47,6 +47,9 @@ export const getBidLog = (id) => api.get(`/bid-logs/${id}`);
 // Migration Matrix
 export const getMigrationMatrix = () => api.get('/migration-matrix');
 
+// Reference Data
+export const getReferenceData = () => api.get('/reference/all');
+
 // Reporting
 export const getReportSummary = (startDate, endDate) => 
   api.get('/reports/summary', { params: { start_date: startDate, end_date: endDate } });

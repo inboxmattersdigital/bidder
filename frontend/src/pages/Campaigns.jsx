@@ -8,7 +8,8 @@ import {
   Edit,
   MoreVertical,
   Target,
-  DollarSign
+  DollarSign,
+  Wand2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -115,15 +116,27 @@ export default function Campaigns() {
           <h1 className="text-3xl font-bold text-[#F8FAFC]">Campaigns</h1>
           <p className="text-sm text-[#94A3B8] mt-1">Manage your advertising campaigns</p>
         </div>
-        <Link to="/campaigns/new">
-          <Button 
-            className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white btn-press shadow-[0_0_10px_rgba(59,130,246,0.3)]"
-            data-testid="create-campaign-btn"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Campaign
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/campaigns/wizard">
+            <Button 
+              variant="outline"
+              className="border-[#8B5CF6] text-[#8B5CF6] hover:bg-[#8B5CF6]/10"
+              data-testid="wizard-btn"
+            >
+              <Wand2 className="w-4 h-4 mr-2" />
+              Wizard
+            </Button>
+          </Link>
+          <Link to="/campaigns/new">
+            <Button 
+              className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white btn-press shadow-[0_0_10px_rgba(59,130,246,0.3)]"
+              data-testid="create-campaign-btn"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Campaign
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Campaigns List */}

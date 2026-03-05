@@ -2,7 +2,7 @@
 OpenRTB 2.5/2.6 Bidder with Campaign Manager
 High-performance DSP for programmatic advertising
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Depends, Response, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Request, Depends, Response, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
@@ -12,12 +12,14 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 import uuid
 from datetime import datetime, timezone, timedelta
 import time
 import shutil
 import base64
+import asyncio
+import json
 
 from models import (
     Campaign, CampaignCreate, CampaignUpdate, CampaignStatus,
@@ -57,6 +59,44 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+# ==================== WEBSOCKET CONNECTION MANAGER ====================
+
+class ConnectionManager:
+    """Manages WebSocket connections for real-time bid stream"""
+    
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.add(websocket)
+        logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
+    
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.discard(websocket)
+        logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
+    
+    async def broadcast(self, message: dict):
+        """Broadcast message to all connected clients"""
+        if not self.active_connections:
+            return
+        
+        message_json = json.dumps(message)
+        disconnected = set()
+        
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message_json)
+            except Exception:
+                disconnected.add(connection)
+        
+        # Clean up disconnected clients
+        for conn in disconnected:
+            self.active_connections.discard(conn)
+
+ws_manager = ConnectionManager()
 
 
 # ==================== REFERENCE DATA ====================
@@ -414,6 +454,23 @@ async def get_carriers_by_country(country_code: str):
 async def get_all_carriers():
     """Get all mobile carriers by country"""
     return {"carriers_by_country": CARRIERS_BY_COUNTRY}
+
+
+@api_router.get("/reference/all")
+async def get_all_reference_data():
+    """Get all reference data in one call"""
+    return {
+        "iab_categories": IAB_CATEGORIES,
+        "video_placements": VIDEO_PLACEMENTS,
+        "video_plcmt": VIDEO_PLCMT,
+        "video_protocols": VIDEO_PROTOCOLS,
+        "video_mimes": VIDEO_MIMES,
+        "pod_positions": POD_POSITIONS,
+        "ad_placements": AD_PLACEMENTS,
+        "device_types": DEVICE_TYPES,
+        "connection_types": CONNECTION_TYPES,
+        "carriers_by_country": CARRIERS_BY_COUNTRY
+    }
 
 
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
@@ -1005,6 +1062,9 @@ async def _process_bid_request_internal(
     recent_bids.append(stream_entry)
     if len(recent_bids) > MAX_RECENT_BIDS:
         recent_bids = recent_bids[-MAX_RECENT_BIDS:]
+    
+    # Broadcast to WebSocket clients
+    asyncio.create_task(broadcast_new_bid(stream_entry))
     
     # Return no-bid (204) or bid response (200)
     if not log_data.get("bid_made"):
@@ -3453,6 +3513,53 @@ async def get_bid_stream(limit: int = 20):
         "bids": recent_bids[-limit:],
         "total_in_memory": len(recent_bids)
     }
+
+
+@app.websocket("/api/ws/bid-stream")
+async def websocket_bid_stream(websocket: WebSocket):
+    """WebSocket endpoint for real-time bid stream"""
+    await ws_manager.connect(websocket)
+    
+    try:
+        # Send initial batch of recent bids
+        await websocket.send_text(json.dumps({
+            "type": "initial",
+            "bids": recent_bids[-20:],
+            "total": len(recent_bids)
+        }))
+        
+        # Keep connection alive and listen for ping/pong
+        while True:
+            try:
+                # Wait for messages (ping/pong or subscription changes)
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                msg = json.loads(data)
+                
+                if msg.get("type") == "ping":
+                    await websocket.send_text(json.dumps({"type": "pong"}))
+                elif msg.get("type") == "get_recent":
+                    limit = msg.get("limit", 20)
+                    await websocket.send_text(json.dumps({
+                        "type": "recent",
+                        "bids": recent_bids[-limit:],
+                        "total": len(recent_bids)
+                    }))
+            except asyncio.TimeoutError:
+                # Send heartbeat
+                await websocket.send_text(json.dumps({"type": "heartbeat"}))
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        ws_manager.disconnect(websocket)
+
+
+async def broadcast_new_bid(bid_data: dict):
+    """Broadcast a new bid to all connected WebSocket clients"""
+    await ws_manager.broadcast({
+        "type": "new_bid",
+        "bid": bid_data
+    })
 
 
 # ==================== FILE UPLOAD ====================
