@@ -207,6 +207,7 @@ async def create_campaign(input: CampaignCreate):
         name=input.name,
         bid_price=input.bid_price,
         bid_floor=input.bid_floor,
+        currency=input.currency,
         priority=input.priority,
         creative_id=input.creative_id,
         budget=input.budget,
@@ -1560,6 +1561,473 @@ async def analyze_supply_paths(campaign_id: str):
         "recommended_paths": paths[:10],  # Top 10 by efficiency
         "underperforming_paths": [p for p in paths if p["win_rate"] < 10][-10:],  # Bottom performers
         "paths": paths
+    }
+
+
+# ==================== CAMPAIGN PERFORMANCE INSIGHTS ====================
+
+@api_router.get("/insights/campaigns")
+async def get_campaign_insights():
+    """
+    Analyze all campaigns and provide actionable insights
+    Returns health scores, issues, and recommendations
+    """
+    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(1000)
+    
+    insights = []
+    overall_health = {"healthy": 0, "warning": 0, "critical": 0}
+    
+    for campaign in campaigns:
+        campaign_insight = {
+            "campaign_id": campaign["id"],
+            "campaign_name": campaign["name"],
+            "status": campaign.get("status", "draft"),
+            "health_score": 100,
+            "health_status": "healthy",
+            "issues": [],
+            "recommendations": [],
+            "metrics": {}
+        }
+        
+        # Calculate metrics
+        bids = campaign.get("bids", 0)
+        wins = campaign.get("wins", 0)
+        impressions = campaign.get("impressions", 0)
+        clicks = campaign.get("clicks", 0)
+        budget = campaign.get("budget", {})
+        daily_budget = budget.get("daily_budget", 0)
+        daily_spend = budget.get("daily_spend", 0)
+        total_budget = budget.get("total_budget", 0)
+        total_spend = budget.get("total_spend", 0)
+        
+        win_rate = (wins / bids * 100) if bids > 0 else 0
+        ctr = (clicks / impressions * 100) if impressions > 0 else 0
+        budget_utilization = (daily_spend / daily_budget * 100) if daily_budget > 0 else 0
+        
+        campaign_insight["metrics"] = {
+            "bids": bids,
+            "wins": wins,
+            "win_rate": round(win_rate, 2),
+            "impressions": impressions,
+            "clicks": clicks,
+            "ctr": round(ctr, 2),
+            "daily_spend": daily_spend,
+            "daily_budget": daily_budget,
+            "budget_utilization": round(budget_utilization, 2)
+        }
+        
+        # Win Rate Analysis
+        if bids >= 10:  # Only analyze if enough data
+            if win_rate < 5:
+                campaign_insight["issues"].append({
+                    "type": "critical",
+                    "category": "win_rate",
+                    "message": f"Very low win rate ({win_rate:.1f}%)",
+                    "impact": "Campaign is not competitive"
+                })
+                campaign_insight["recommendations"].append({
+                    "action": "increase_bid",
+                    "message": f"Increase bid price by 20-30% (current: ${campaign.get('bid_price', 0):.2f})",
+                    "priority": "high"
+                })
+                campaign_insight["health_score"] -= 40
+            elif win_rate < 15:
+                campaign_insight["issues"].append({
+                    "type": "warning",
+                    "category": "win_rate",
+                    "message": f"Low win rate ({win_rate:.1f}%)",
+                    "impact": "May miss valuable impressions"
+                })
+                campaign_insight["recommendations"].append({
+                    "action": "increase_bid",
+                    "message": f"Consider increasing bid by 10-15%",
+                    "priority": "medium"
+                })
+                campaign_insight["health_score"] -= 20
+            elif win_rate > 70:
+                campaign_insight["issues"].append({
+                    "type": "info",
+                    "category": "win_rate",
+                    "message": f"Very high win rate ({win_rate:.1f}%)",
+                    "impact": "May be overbidding"
+                })
+                campaign_insight["recommendations"].append({
+                    "action": "enable_shading",
+                    "message": "Enable bid shading to reduce costs while maintaining wins",
+                    "priority": "medium"
+                })
+        
+        # Budget Pacing Analysis
+        if daily_budget > 0:
+            current_hour = datetime.now(timezone.utc).hour
+            ideal_utilization = (current_hour / 24) * 100
+            
+            if budget_utilization > ideal_utilization + 20:
+                campaign_insight["issues"].append({
+                    "type": "warning",
+                    "category": "pacing",
+                    "message": f"Overpacing ({budget_utilization:.0f}% spent, ideal: {ideal_utilization:.0f}%)",
+                    "impact": "Budget may exhaust early"
+                })
+                campaign_insight["recommendations"].append({
+                    "action": "reduce_bid",
+                    "message": "Reduce bid price or enable even pacing",
+                    "priority": "high"
+                })
+                campaign_insight["health_score"] -= 15
+            elif budget_utilization < ideal_utilization - 30 and current_hour > 6:
+                campaign_insight["issues"].append({
+                    "type": "warning",
+                    "category": "pacing",
+                    "message": f"Underpacing ({budget_utilization:.0f}% spent, ideal: {ideal_utilization:.0f}%)",
+                    "impact": "Not capturing available inventory"
+                })
+                campaign_insight["recommendations"].append({
+                    "action": "increase_bid",
+                    "message": "Increase bid or expand targeting to spend budget",
+                    "priority": "medium"
+                })
+                campaign_insight["health_score"] -= 10
+        
+        # Total Budget Check
+        if total_budget > 0:
+            total_utilization = (total_spend / total_budget) * 100
+            if total_utilization >= 90:
+                campaign_insight["issues"].append({
+                    "type": "critical",
+                    "category": "budget",
+                    "message": f"Budget nearly exhausted ({total_utilization:.0f}%)",
+                    "impact": "Campaign will stop soon"
+                })
+                campaign_insight["recommendations"].append({
+                    "action": "increase_budget",
+                    "message": "Increase total budget to continue campaign",
+                    "priority": "high"
+                })
+                campaign_insight["health_score"] -= 30
+        
+        # Frequency Cap Analysis
+        freq_cap = campaign.get("frequency_cap", {})
+        if freq_cap.get("enabled"):
+            # Check if hitting caps frequently
+            freq_count = await db.user_frequencies.count_documents({
+                "campaign_id": campaign["id"],
+                "impression_count": {"$gte": freq_cap.get("max_impressions_total", 10)}
+            })
+            if freq_count > 100:
+                campaign_insight["issues"].append({
+                    "type": "info",
+                    "category": "frequency",
+                    "message": f"{freq_count} users have hit frequency cap",
+                    "impact": "May be limiting reach"
+                })
+                campaign_insight["recommendations"].append({
+                    "action": "expand_targeting",
+                    "message": "Expand geo or device targeting to reach more users",
+                    "priority": "low"
+                })
+        
+        # Bid Shading Analysis
+        bid_shading = campaign.get("bid_shading", {})
+        if not bid_shading.get("enabled") and win_rate > 50 and bids > 50:
+            campaign_insight["recommendations"].append({
+                "action": "enable_shading",
+                "message": "High win rate detected - enable bid shading to save 15-30% on costs",
+                "priority": "medium"
+            })
+        
+        # ML Prediction Analysis
+        ml_config = campaign.get("ml_prediction", {})
+        if not ml_config.get("enabled") and bids >= 100:
+            campaign_insight["recommendations"].append({
+                "action": "enable_ml",
+                "message": "Enough data available - enable ML prediction for smarter bidding",
+                "priority": "low"
+            })
+        
+        # SPO Analysis
+        spo_config = campaign.get("spo", {})
+        if not spo_config.get("enabled") and bids >= 200:
+            campaign_insight["recommendations"].append({
+                "action": "enable_spo",
+                "message": "Consider enabling SPO to optimize supply paths",
+                "priority": "low"
+            })
+        
+        # Determine health status
+        if campaign_insight["health_score"] >= 80:
+            campaign_insight["health_status"] = "healthy"
+            overall_health["healthy"] += 1
+        elif campaign_insight["health_score"] >= 50:
+            campaign_insight["health_status"] = "warning"
+            overall_health["warning"] += 1
+        else:
+            campaign_insight["health_status"] = "critical"
+            overall_health["critical"] += 1
+        
+        campaign_insight["health_score"] = max(0, campaign_insight["health_score"])
+        insights.append(campaign_insight)
+    
+    # Sort by health score (worst first)
+    insights.sort(key=lambda x: x["health_score"])
+    
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "overall_health": overall_health,
+        "total_campaigns": len(campaigns),
+        "campaigns_needing_attention": len([i for i in insights if i["health_status"] != "healthy"]),
+        "insights": insights
+    }
+
+
+@api_router.get("/insights/campaign/{campaign_id}")
+async def get_single_campaign_insight(campaign_id: str):
+    """Get detailed insights for a single campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Get all insights and filter
+    all_insights = await get_campaign_insights()
+    for insight in all_insights["insights"]:
+        if insight["campaign_id"] == campaign_id:
+            # Add additional detailed data
+            insight["bid_history"] = await get_bid_history(campaign_id)
+            insight["ml_stats"] = await get_ml_summary(campaign_id)
+            return insight
+    
+    raise HTTPException(status_code=404, detail="Insight not found")
+
+
+async def get_bid_history(campaign_id: str) -> list:
+    """Get recent bid history for trend analysis"""
+    pipeline = [
+        {"$match": {"campaign_id": campaign_id}},
+        {"$sort": {"timestamp": -1}},
+        {"$limit": 100},
+        {"$group": {
+            "_id": {"$substr": ["$timestamp", 0, 13]},  # Group by hour
+            "bids": {"$sum": 1},
+            "wins": {"$sum": {"$cond": ["$win_notified", 1, 0]}},
+            "avg_price": {"$avg": {"$ifNull": ["$shaded_price", "$bid_price"]}}
+        }},
+        {"$sort": {"_id": -1}},
+        {"$limit": 24}
+    ]
+    history = await db.bid_logs.aggregate(pipeline).to_list(24)
+    return [{"hour": h["_id"], "bids": h["bids"], "wins": h["wins"], "avg_price": round(h["avg_price"] or 0, 2)} for h in history]
+
+
+async def get_ml_summary(campaign_id: str) -> dict:
+    """Get ML model summary"""
+    stats = await db.ml_model_stats.find(
+        {"campaign_id": campaign_id},
+        {"_id": 0}
+    ).to_list(100)
+    
+    if not stats:
+        return {"trained": False, "features": 0}
+    
+    return {
+        "trained": True,
+        "features": len(stats),
+        "total_data_points": sum(s.get("total_bids", 0) for s in stats),
+        "top_features": sorted(stats, key=lambda x: x.get("total_bids", 0), reverse=True)[:5]
+    }
+
+
+@api_router.post("/insights/apply-recommendation/{campaign_id}")
+async def apply_recommendation(campaign_id: str, action: str):
+    """Apply a recommendation to a campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    update_data = {}
+    message = ""
+    
+    if action == "increase_bid":
+        new_price = campaign.get("bid_price", 1.0) * 1.15
+        update_data["bid_price"] = round(new_price, 2)
+        message = f"Bid price increased to ${new_price:.2f}"
+    
+    elif action == "reduce_bid":
+        new_price = campaign.get("bid_price", 1.0) * 0.85
+        update_data["bid_price"] = round(new_price, 2)
+        message = f"Bid price reduced to ${new_price:.2f}"
+    
+    elif action == "enable_shading":
+        update_data["bid_shading"] = {
+            "enabled": True,
+            "min_shade_factor": 0.5,
+            "max_shade_factor": 0.95,
+            "target_win_rate": 0.3,
+            "learning_rate": 0.1,
+            "current_shade_factor": 0.85
+        }
+        message = "Bid shading enabled with default settings"
+    
+    elif action == "enable_ml":
+        update_data["ml_prediction"] = {
+            "enabled": True,
+            "use_historical_data": True,
+            "prediction_weight": 0.5,
+            "min_data_points": 100
+        }
+        message = "ML prediction enabled"
+    
+    elif action == "enable_spo":
+        update_data["spo"] = {
+            "enabled": True,
+            "preferred_ssp_ids": [],
+            "blocked_ssp_ids": [],
+            "max_hops": 3,
+            "require_authorized_sellers": True,
+            "bid_adjustment_factor": 1.0
+        }
+        message = "Supply Path Optimization enabled"
+    
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.campaigns.update_one(
+        {"id": campaign_id},
+        {"$set": update_data}
+    )
+    
+    return {"status": "applied", "action": action, "message": message}
+
+
+# ==================== ML MODEL MANAGEMENT ====================
+
+@api_router.get("/ml/models")
+async def get_all_ml_models():
+    """Get list of all ML models across campaigns"""
+    campaigns = await db.campaigns.find(
+        {"ml_prediction.enabled": True},
+        {"_id": 0, "id": 1, "name": 1, "ml_prediction": 1, "ml_model_data": 1}
+    ).to_list(1000)
+    
+    models = []
+    for c in campaigns:
+        stats = await db.ml_model_stats.find(
+            {"campaign_id": c["id"]},
+            {"_id": 0}
+        ).to_list(100)
+        
+        total_data = sum(s.get("total_bids", 0) for s in stats)
+        avg_win_rate = sum(s.get("win_rate", 0) for s in stats) / len(stats) if stats else 0
+        
+        models.append({
+            "campaign_id": c["id"],
+            "campaign_name": c["name"],
+            "ml_enabled": c.get("ml_prediction", {}).get("enabled", False),
+            "prediction_weight": c.get("ml_prediction", {}).get("prediction_weight", 0.5),
+            "features_count": len(stats),
+            "total_data_points": total_data,
+            "avg_win_rate": round(avg_win_rate * 100, 2),
+            "status": "trained" if total_data >= 100 else "insufficient_data",
+            "last_trained": stats[0].get("last_updated") if stats else None
+        })
+    
+    return {"models": models, "total": len(models)}
+
+
+@api_router.get("/ml/model/{campaign_id}/details")
+async def get_ml_model_details(campaign_id: str):
+    """Get detailed ML model info for a campaign"""
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    stats = await db.ml_model_stats.find(
+        {"campaign_id": campaign_id},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Group by feature type
+    feature_groups = {}
+    for s in stats:
+        key = s["feature_key"]
+        feature_type = key.split(":")[0]
+        if feature_type not in feature_groups:
+            feature_groups[feature_type] = []
+        feature_groups[feature_type].append({
+            "value": key.split(":")[1] if ":" in key else key,
+            "bids": s.get("total_bids", 0),
+            "wins": s.get("total_wins", 0),
+            "win_rate": round(s.get("win_rate", 0) * 100, 2),
+            "avg_bid_price": round(s.get("avg_bid_price", 0), 2),
+            "avg_win_price": round(s.get("avg_win_price", 0), 2)
+        })
+    
+    # Sort each group by bids
+    for ft in feature_groups:
+        feature_groups[ft].sort(key=lambda x: x["bids"], reverse=True)
+    
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.get("name"),
+        "ml_config": campaign.get("ml_prediction", {}),
+        "total_features": len(stats),
+        "total_data_points": sum(s.get("total_bids", 0) for s in stats),
+        "feature_groups": feature_groups,
+        "performance_summary": {
+            "best_performing": sorted(stats, key=lambda x: x.get("win_rate", 0), reverse=True)[:5],
+            "worst_performing": sorted(stats, key=lambda x: x.get("win_rate", 0))[:5]
+        }
+    }
+
+
+# ==================== MULTI-CURRENCY SUPPORT ====================
+
+CURRENCY_RATES = {
+    "USD": 1.0,
+    "EUR": 0.92,
+    "GBP": 0.79,
+    "CAD": 1.36,
+    "AUD": 1.53,
+    "JPY": 149.50
+}
+
+CURRENCY_SYMBOLS = {
+    "USD": "$",
+    "EUR": "€",
+    "GBP": "£",
+    "CAD": "C$",
+    "AUD": "A$",
+    "JPY": "¥"
+}
+
+
+@api_router.get("/currencies")
+async def get_supported_currencies():
+    """Get list of supported currencies with conversion rates"""
+    return {
+        "base_currency": "USD",
+        "currencies": [
+            {"code": code, "symbol": CURRENCY_SYMBOLS.get(code, code), "rate": rate}
+            for code, rate in CURRENCY_RATES.items()
+        ]
+    }
+
+
+@api_router.get("/currency/convert")
+async def convert_currency(amount: float, from_currency: str = "USD", to_currency: str = "USD"):
+    """Convert amount between currencies"""
+    if from_currency not in CURRENCY_RATES or to_currency not in CURRENCY_RATES:
+        raise HTTPException(status_code=400, detail="Unsupported currency")
+    
+    # Convert to USD first, then to target
+    usd_amount = amount / CURRENCY_RATES[from_currency]
+    converted = usd_amount * CURRENCY_RATES[to_currency]
+    
+    return {
+        "original": {"amount": amount, "currency": from_currency},
+        "converted": {"amount": round(converted, 2), "currency": to_currency},
+        "rate": CURRENCY_RATES[to_currency] / CURRENCY_RATES[from_currency]
     }
 
 

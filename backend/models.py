@@ -260,8 +260,9 @@ class Campaign(BaseModel):
     status: CampaignStatus = Field(default=CampaignStatus.DRAFT)
     
     # Bidding config
-    bid_price: float = Field(description="CPM bid price in USD")
+    bid_price: float = Field(description="CPM bid price")
     bid_floor: float = Field(default=0.0, description="Minimum floor to bid on")
+    currency: str = Field(default="USD", description="Campaign currency (USD, EUR, GBP, etc.)")
     priority: int = Field(default=1, ge=1, le=10)
     
     # Budget
@@ -414,6 +415,7 @@ class CampaignCreate(BaseModel):
     name: str
     bid_price: float
     bid_floor: float = 0.0
+    currency: str = "USD"
     priority: int = 1
     creative_id: str
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
@@ -431,6 +433,7 @@ class CampaignUpdate(BaseModel):
     status: Optional[CampaignStatus] = None
     bid_price: Optional[float] = None
     bid_floor: Optional[float] = None
+    currency: Optional[str] = None
     priority: Optional[int] = None
     creative_id: Optional[str] = None
     budget: Optional[BudgetConfig] = None

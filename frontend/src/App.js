@@ -11,6 +11,8 @@ import BidLogs from "./pages/BidLogs";
 import MigrationMatrix from "./pages/MigrationMatrix";
 import Reports from "./pages/Reports";
 import Pacing from "./pages/Pacing";
+import Insights from "./pages/Insights";
+import MLModels from "./pages/MLModels";
 import "./App.css";
 
 function App() {
@@ -39,6 +41,8 @@ function App() {
           <Route path="bid-logs" element={<BidLogs />} />
           <Route path="reports" element={<Reports />} />
           <Route path="pacing" element={<Pacing />} />
+          <Route path="insights" element={<Insights />} />
+          <Route path="ml-models" element={<MLModels />} />
           <Route path="migration-matrix" element={<MigrationMatrix />} />
         </Route>
       </Routes>

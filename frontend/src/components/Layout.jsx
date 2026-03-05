@@ -8,7 +8,9 @@ import {
   ArrowRightLeft,
   Zap,
   BarChart3,
-  Gauge
+  Gauge,
+  Lightbulb,
+  Brain
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -20,6 +22,8 @@ const navItems = [
   { to: "/bid-logs", icon: ScrollText, label: "Bid Logs" },
   { to: "/reports", icon: BarChart3, label: "Reports" },
   { to: "/pacing", icon: Gauge, label: "Budget Pacing" },
+  { to: "/insights", icon: Lightbulb, label: "Insights" },
+  { to: "/ml-models", icon: Brain, label: "ML Models" },
   { to: "/migration-matrix", icon: ArrowRightLeft, label: "Migration Matrix" },
 ];
 

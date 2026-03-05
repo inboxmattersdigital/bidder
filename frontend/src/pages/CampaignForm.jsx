@@ -24,6 +24,7 @@ export default function CampaignForm() {
     name: "",
     bid_price: 1.0,
     bid_floor: 0.0,
+    currency: "USD",
     priority: 5,
     creative_id: "",
     budget: {
@@ -71,6 +72,15 @@ export default function CampaignForm() {
       privacy: { gdpr_required: false, gdpr_consent_required: false, ccpa_allowed: true, coppa_allowed: false }
     }
   });
+
+  const currencies = [
+    { code: "USD", symbol: "$", name: "US Dollar" },
+    { code: "EUR", symbol: "€", name: "Euro" },
+    { code: "GBP", symbol: "£", name: "British Pound" },
+    { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
+    { code: "AUD", symbol: "A$", name: "Australian Dollar" },
+    { code: "JPY", symbol: "¥", name: "Japanese Yen" }
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -248,7 +258,7 @@ export default function CampaignForm() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[#94A3B8]">Bid Price (CPM) *</Label>
                     <Input
@@ -269,6 +279,24 @@ export default function CampaignForm() {
                       onChange={(e) => updateField('bid_floor', parseFloat(e.target.value))}
                       className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[#94A3B8]">Currency</Label>
+                    <Select 
+                      value={form.currency || "USD"} 
+                      onValueChange={(v) => updateField('currency', v)}
+                    >
+                      <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]" data-testid="currency-select">
+                        <SelectValue placeholder="Select currency" />
+                      </SelectTrigger>
+                      <SelectContent className="surface-primary border-panel">
+                        {currencies.map(c => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.symbol} {c.code} - {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[#94A3B8]">Priority (1-10)</Label>

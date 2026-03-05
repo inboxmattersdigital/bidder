@@ -96,4 +96,19 @@ export const sendWinNotification = (bidId, price) =>
 // Seed Data
 export const seedData = () => api.post('/seed-data');
 
+// Campaign Insights
+export const getCampaignInsights = () => api.get('/insights/campaigns');
+export const getSingleCampaignInsight = (campaignId) => api.get(`/insights/campaign/${campaignId}`);
+export const applyRecommendation = (campaignId, action) => 
+  api.post(`/insights/apply-recommendation/${campaignId}?action=${action}`);
+
+// ML Models
+export const getAllMLModels = () => api.get('/ml/models');
+export const getMLModelDetails = (campaignId) => api.get(`/ml/model/${campaignId}/details`);
+
+// Multi-Currency
+export const getSupportedCurrencies = () => api.get('/currencies');
+export const convertCurrency = (amount, fromCurrency, toCurrency) => 
+  api.get('/currency/convert', { params: { amount, from_currency: fromCurrency, to_currency: toCurrency } });
+
 export default api;
