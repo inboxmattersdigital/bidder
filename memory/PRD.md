@@ -74,10 +74,14 @@ Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid reque
 - `GET /api/attribution/analysis` - Attribution analysis
 
 ## Navigation Structure
-Dashboard | Campaigns | Wizard | Compare | Creatives | Editor | 
+Dashboard | Campaigns | Compare | Creatives | Editor | 
 SSP Endpoints | SSP Analytics | Bid Logs | Bid Stream | Reports | 
 Budget Pacing | Insights | ML Models | Bid Optimizer | A/B Testing | 
 Fraud | Audiences | Attribution | Migration
+
+## Routes
+- `/campaigns/new` - DV360-style Campaign Wizard (create)
+- `/campaigns/:id/edit` - DV360-style Campaign Wizard (edit)
 
 ## Tech Stack
 - **Backend**: FastAPI, Motor, Pydantic, WebSockets
@@ -93,8 +97,18 @@ Fraud | Audiences | Attribution | Migration
 - [x] VAST version selection (2.0-4.2)
 - [x] Video preview for VAST tags
 - [x] Improved badge color scheme
+- [x] **DV360-Style Campaign Wizard (Phase 11)**
+  - Redesigned to match Google DV360 UI
+  - Persistent sidebar navigation with 5 steps
+  - Step indicators: blue (active), green (completed), gray (pending)
+  - Steps: Campaign basics → Budget & bidding → Targeting → Creatives → Additional settings
+  - Removed old tabbed CampaignForm.jsx
+  - Single "Create Campaign" button on campaigns list
+  - Edit mode pre-populates all fields and shows all steps as completed
 
 ### P1 - Upcoming
+- [ ] **SSP Performance Analytics UI** - Build interactive frontend for /api/ssp-analytics
+- [ ] **Automated Bid Optimization UI** - Build frontend for /api/bid-optimization
 - [ ] Code Refactoring - Split server.py into modular routers
 - [ ] Video upload to cloud storage (currently local preview only)
 - [ ] VAST tag validation and parsing
@@ -103,3 +117,7 @@ Fraud | Audiences | Attribution | Migration
 - [ ] Bulk campaign management
 - [ ] Advanced fraud detection algorithms
 - [ ] Campaign duplication feature
+- [ ] Cross-Campaign Attribution UI
+
+## Files Deleted (Phase 11)
+- `/app/frontend/src/pages/CampaignForm.jsx` - Replaced by CampaignWizard.jsx
