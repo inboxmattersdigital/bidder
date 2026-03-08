@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { 
   ArrowLeft, Check, Save, Megaphone, Target, DollarSign, Image, Settings, 
   ChevronRight, Loader2, Users, Clock, Shield, BarChart3, Globe, 
-  Smartphone, Monitor, Tv, Radio, MapPin, Calendar, Lightbulb
+  Smartphone, Monitor, Tv, Radio, MapPin, Calendar, Lightbulb, Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -136,8 +136,13 @@ const ATTRIBUTION_MODELS = [
 
 export default function CampaignWizard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  
+  // Check if we're creating from media plan
+  const fromMediaPlan = location.state?.fromMediaPlan;
+  const planData = location.state?.planData;
   
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState(new Set());
@@ -146,6 +151,7 @@ export default function CampaignWizard() {
   const [creatives, setCreatives] = useState([]);
   const [forecast, setForecast] = useState(null);
   const [strategyRec, setStrategyRec] = useState(null);
+  const [showPlanBanner, setShowPlanBanner] = useState(fromMediaPlan);
   
   // ==================== FORM STATE ====================
   const [form, setForm] = useState({
@@ -255,6 +261,48 @@ export default function CampaignWizard() {
   useEffect(() => {
     loadInitialData();
   }, [id]);
+
+  // Apply media plan data if coming from planner
+  useEffect(() => {
+    if (fromMediaPlan && planData && !isEdit) {
+      setForm(prev => ({
+        ...prev,
+        // Budget
+        total_budget: planData.total_budget || prev.total_budget,
+        daily_budget: planData.daily_budget || prev.daily_budget,
+        
+        // Goal & Strategy
+        primary_goal: planData.primary_goal || prev.primary_goal,
+        kpi_type: planData.kpi_type || prev.kpi_type,
+        bidding_strategy: planData.bidding_strategy || prev.bidding_strategy,
+        pacing_type: planData.pacing_type || prev.pacing_type,
+        
+        // Frequency Cap
+        frequency_cap_enabled: planData.frequency_cap_enabled ?? prev.frequency_cap_enabled,
+        frequency_cap_count: planData.frequency_cap_count || prev.frequency_cap_count,
+        frequency_cap_period: planData.frequency_cap_period || prev.frequency_cap_period,
+        
+        // Inventory Sources
+        inventory_sources: planData.inventory_sources || prev.inventory_sources,
+      }));
+      
+      // Set forecast from plan data
+      if (planData.forecast) {
+        setForecast({
+          estimated_impressions: planData.forecast.impressions,
+          estimated_reach: planData.forecast.reach,
+          estimated_clicks: planData.forecast.clicks,
+          estimated_cpm: planData.forecast.cpm,
+          confidence_level: planData.forecast.confidence
+        });
+      }
+      
+      // Mark budget step as potentially complete
+      setCompletedSteps(prev => new Set([...prev, 2]));
+      
+      toast.success("Media plan settings applied!");
+    }
+  }, [fromMediaPlan, planData, isEdit]);
 
   useEffect(() => {
     // Generate forecast when budget/targeting changes
@@ -1742,6 +1790,48 @@ export default function CampaignWizard() {
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-6">
+          {/* Media Plan Banner */}
+          {showPlanBanner && planData && (
+            <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-[#10B981]/20 to-[#3B82F6]/20 border border-[#10B981]/30">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-[#10B981]/20">
+                    <Sparkles className="w-5 h-5 text-[#10B981]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-[#F8FAFC]">
+                      Created from Media Plan
+                    </h3>
+                    <p className="text-xs text-[#94A3B8] mt-0.5">
+                      Settings pre-filled based on your media plan recommendations
+                    </p>
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      <Badge className="bg-[#3B82F6]/20 text-[#3B82F6] text-xs">
+                        Budget: ${planData.total_budget?.toLocaleString()}
+                      </Badge>
+                      <Badge className="bg-[#10B981]/20 text-[#10B981] text-xs">
+                        {planData.bidding_strategy?.replace(/_/g, ' ')}
+                      </Badge>
+                      {planData.forecast?.impressions && (
+                        <Badge className="bg-[#F59E0B]/20 text-[#F59E0B] text-xs">
+                          Est. {(planData.forecast.impressions / 1000000).toFixed(1)}M impressions
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowPlanBanner(false)}
+                  className="text-[#64748B] hover:text-[#F8FAFC] -mt-1 -mr-1"
+                >
+                  ×
+                </Button>
+              </div>
+            </div>
+          )}
+          
           {renderStepContent()}
 
           {/* Navigation */}

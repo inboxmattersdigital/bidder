@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   BarChart3, TrendingUp, DollarSign, Users, Target, Lightbulb, 
-  RefreshCw, Download, Calendar, Zap, PieChart, ArrowRight
+  RefreshCw, Download, Calendar, Zap, PieChart, ArrowRight, Megaphone
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -52,6 +53,7 @@ const INVENTORY_SOURCES = [
 ];
 
 export default function MediaPlanner() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [forecast, setForecast] = useState(null);
   const [benchmarks, setBenchmarks] = useState(null);
@@ -129,6 +131,51 @@ export default function MediaPlanner() {
     return num?.toLocaleString() || "0";
   };
 
+  const createCampaignFromPlan = () => {
+    // Build campaign data from media plan
+    const campaignData = {
+      // Budget & Bidding
+      total_budget: planConfig.budget,
+      daily_budget: Math.round(planConfig.budget / planConfig.duration_days),
+      duration_days: planConfig.duration_days,
+      
+      // Goal & KPI
+      primary_goal: planConfig.goal,
+      kpi_type: strategy?.strategy?.recommended_bid_type?.toLowerCase() || "cpm",
+      
+      // Strategy recommendations
+      bidding_strategy: strategy?.strategy?.bidding_strategy || "manual_cpm",
+      pacing_type: strategy?.strategy?.pacing || "even",
+      
+      // Frequency cap
+      frequency_cap_enabled: true,
+      frequency_cap_count: strategy?.strategy?.frequency_cap || 5,
+      frequency_cap_period: strategy?.strategy?.frequency_period || "day",
+      
+      // Inventory sources from priority inventory
+      inventory_sources: strategy?.strategy?.priority_inventory || planConfig.inventory_sources,
+      
+      // Forecast data for reference
+      forecast: {
+        impressions: forecast?.estimated_impressions,
+        reach: forecast?.estimated_reach,
+        clicks: forecast?.estimated_clicks,
+        cpm: forecast?.estimated_cpm,
+        confidence: forecast?.confidence_level
+      }
+    };
+    
+    // Navigate to campaign wizard with state
+    navigate("/campaigns/new", { 
+      state: { 
+        fromMediaPlan: true,
+        planData: campaignData 
+      }
+    });
+    
+    toast.success("Creating campaign from media plan...");
+  };
+
   const budgetAllocationData = lineItemRecs?.recommendations?.map((rec, idx) => ({
     name: rec.type,
     value: rec.budget,
@@ -151,6 +198,16 @@ export default function MediaPlanner() {
             Forecast campaign performance and get strategic recommendations
           </p>
         </div>
+        {forecast && strategy && (
+          <Button 
+            onClick={createCampaignFromPlan}
+            className="bg-[#10B981] hover:bg-[#059669]"
+            data-testid="create-campaign-from-plan-btn"
+          >
+            <Megaphone className="w-4 h-4 mr-2" />
+            Create Campaign from Plan
+          </Button>
+        )}
       </div>
 
       {/* Configuration Panel */}

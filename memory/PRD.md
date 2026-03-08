@@ -181,6 +181,13 @@ Fraud | Audiences | Attribution | Migration
   - Line Item Recommendations (Prospecting, Retargeting, Lookalike, Contextual)
   - Optimization Checkpoints timeline
   - Industry Benchmarks by Format (Display, Video, Native, CTV, Audio)
+  - **"Create Campaign from Plan" Feature**: One-click campaign creation with pre-filled:
+    - Budget (Total and Daily calculated)
+    - Bidding Strategy from recommendations
+    - Pacing type
+    - Frequency caps
+    - Inventory sources
+    - Forecast reference data
   - **MOCKED**: Forecasting uses mock data (YouTube/GDN real APIs flagged for later)
 - [x] **Insertion Orders & Line Items Management**
   - Insertion Orders CRUD with stats overview
