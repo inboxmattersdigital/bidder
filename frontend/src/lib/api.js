@@ -194,4 +194,35 @@ export const uploadImage = async (file) => {
 };
 export const deleteUploadedFile = (filename) => api.delete(`/uploads/${filename}`);
 
+// Media Planner
+export const getMediaPlanForecast = (data) => api.post('/media-planner/forecast', data);
+export const getIndustryBenchmarks = () => api.get('/media-planner/benchmarks');
+export const getPerformanceProjections = (budget, durationDays, creativeType, goal) => 
+  api.post(`/media-planner/projections?budget=${budget}&duration_days=${durationDays}&creative_type=${creativeType}&goal=${goal}`);
+export const recommendCampaignStrategy = (goal, budget, durationDays, creativeTypes) => 
+  api.post('/media-planner/recommend-strategy', null, { 
+    params: { goal, budget, duration_days: durationDays, creative_types: creativeTypes?.join(',') } 
+  });
+
+// Insertion Orders
+export const getInsertionOrders = (campaignId) => 
+  api.get('/insertion-orders', { params: campaignId ? { campaign_id: campaignId } : {} });
+export const getInsertionOrder = (id) => api.get(`/insertion-orders/${id}`);
+export const createInsertionOrder = (data) => api.post('/insertion-orders', data);
+export const updateInsertionOrder = (id, data) => api.put(`/insertion-orders/${id}`, data);
+export const deleteInsertionOrder = (id) => api.delete(`/insertion-orders/${id}`);
+
+// Line Items
+export const getLineItems = (ioId) => 
+  api.get('/line-items', { params: ioId ? { io_id: ioId } : {} });
+export const getLineItem = (id) => api.get(`/line-items/${id}`);
+export const createLineItem = (data) => api.post('/line-items', data);
+export const updateLineItem = (id, data) => api.put(`/line-items/${id}`, data);
+export const deleteLineItem = (id) => api.delete(`/line-items/${id}`);
+export const recommendLineItems = (goal, budget, audienceType) => 
+  api.post('/line-items/recommend', null, { params: { goal, budget, audience_type: audienceType } });
+
+// Fraud Analysis
+export const analyzeFraud = (campaignId) => api.get(`/fraud/detection/${campaignId}`);
+
 export default api;

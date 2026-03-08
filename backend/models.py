@@ -92,6 +92,94 @@ class VideoPlcmt(int, Enum):
     NO_CONTENT = 4
 
 
+
+# ==================== CAMPAIGN GOAL & KPI ENUMS ====================
+
+class CampaignGoal(str, Enum):
+    BRAND_AWARENESS = "brand_awareness"
+    REACH = "reach"
+    TRAFFIC = "traffic"
+    ENGAGEMENT = "engagement"
+    APP_INSTALLS = "app_installs"
+    VIDEO_VIEWS = "video_views"
+    LEAD_GENERATION = "lead_generation"
+    CONVERSIONS = "conversions"
+    CATALOG_SALES = "catalog_sales"
+    STORE_VISITS = "store_visits"
+
+
+class KPIType(str, Enum):
+    CPM = "cpm"
+    CPC = "cpc"
+    CPA = "cpa"
+    CPV = "cpv"
+    VCPM = "vcpm"
+    CTR = "ctr"
+    VTR = "vtr"
+    ROAS = "roas"
+
+
+class BiddingStrategy(str, Enum):
+    MANUAL_CPM = "manual_cpm"
+    MANUAL_CPC = "manual_cpc"
+    TARGET_CPA = "target_cpa"
+    TARGET_ROAS = "target_roas"
+    MAXIMIZE_CONVERSIONS = "maximize_conversions"
+    MAXIMIZE_CLICKS = "maximize_clicks"
+    MAXIMIZE_IMPRESSIONS = "maximize_impressions"
+
+
+class InventorySource(str, Enum):
+    OPEN_EXCHANGE = "open_exchange"
+    PRIVATE_MARKETPLACE = "pmp"
+    PROGRAMMATIC_GUARANTEED = "pg"
+    YOUTUBE = "youtube"
+    GOOGLE_DISPLAY = "gdn"
+    CONNECTED_TV = "ctv"
+    AUDIO = "audio"
+
+
+class Environment(str, Enum):
+    WEB = "web"
+    APP = "app"
+    CTV = "ctv"
+    DOOH = "dooh"
+
+
+class BrandSafetyLevel(str, Enum):
+    STANDARD = "standard"
+    STRICT = "strict"
+    CUSTOM = "custom"
+
+
+class IOStatus(str, Enum):
+    DRAFT = "draft"
+    PENDING_APPROVAL = "pending_approval"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class LineItemType(str, Enum):
+    PROSPECTING = "prospecting"
+    RETARGETING = "retargeting"
+    CONTEXTUAL = "contextual"
+    AUDIENCE = "audience"
+    CONQUEST = "conquest"
+    LOOKALIKE = "lookalike"
+
+
+class AttributionModel(str, Enum):
+    LAST_TOUCH = "last_touch"
+    FIRST_TOUCH = "first_touch"
+    LINEAR = "linear"
+    TIME_DECAY = "time_decay"
+    POSITION_BASED = "position_based"
+    DATA_DRIVEN = "data_driven"
+
+
+
 # ==================== TARGETING MODELS ====================
 
 class GeoTargeting(BaseModel):
@@ -160,6 +248,80 @@ class PrivacySettings(BaseModel):
     coppa_allowed: bool = Field(default=False)
 
 
+class DemographicTargeting(BaseModel):
+    """Demographics targeting for advanced audience reach"""
+    model_config = ConfigDict(extra="ignore")
+    
+    age_ranges: List[str] = Field(default_factory=list, description="Age ranges: 18-24, 25-34, 35-44, 45-54, 55-64, 65+")
+    genders: List[str] = Field(default_factory=list, description="male, female, unknown")
+    income_segments: List[str] = Field(default_factory=list, description="low, medium, high, affluent")
+    languages: List[str] = Field(default_factory=list, description="ISO 639-1 language codes")
+    education_levels: List[str] = Field(default_factory=list)
+    parental_status: List[str] = Field(default_factory=list, description="parent, not_parent")
+    marital_status: List[str] = Field(default_factory=list)
+
+
+class BrandSafetyConfig(BaseModel):
+    """Brand safety and content control settings"""
+    model_config = ConfigDict(extra="ignore")
+    
+    level: str = Field(default="standard", description="standard, strict, custom")
+    blocked_categories: List[str] = Field(default_factory=list, description="IAB categories to block")
+    blocked_keywords: List[str] = Field(default_factory=list)
+    blocked_domains: List[str] = Field(default_factory=list)
+    blocked_apps: List[str] = Field(default_factory=list)
+    allowed_content_ratings: List[str] = Field(default_factory=lambda: ["G", "PG", "PG-13"])
+    exclude_unrated_content: bool = Field(default=False)
+    exclude_ugc: bool = Field(default=False)
+    exclude_live_streaming: bool = Field(default=False)
+
+
+class ContextualTargeting(BaseModel):
+    """Contextual targeting configuration"""
+    model_config = ConfigDict(extra="ignore")
+    
+    keywords: List[str] = Field(default_factory=list)
+    keyword_match_type: str = Field(default="broad", description="broad, phrase, exact")
+    contextual_categories: List[str] = Field(default_factory=list)
+    sentiment: List[str] = Field(default_factory=list, description="positive, neutral, negative")
+    exclude_keywords: List[str] = Field(default_factory=list)
+
+
+class PlacementViewability(BaseModel):
+    """Ad placement and viewability settings"""
+    model_config = ConfigDict(extra="ignore")
+    
+    ad_positions: List[str] = Field(default_factory=list, description="above_fold, below_fold, sidebar, etc.")
+    viewability_threshold: int = Field(default=50, description="Minimum viewability percentage")
+    viewability_vendor: str = Field(default="any", description="moat, ias, doubleverify, any")
+    video_viewability_threshold: int = Field(default=50)
+    exclude_non_viewable: bool = Field(default=False)
+
+
+class TimeTargeting(BaseModel):
+    """Day and time-based targeting (dayparting)"""
+    model_config = ConfigDict(extra="ignore")
+    
+    enabled: bool = Field(default=False)
+    timezone: str = Field(default="UTC")
+    days_of_week: List[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4, 5, 6], description="0=Monday to 6=Sunday")
+    hours_of_day: List[int] = Field(default_factory=lambda: list(range(24)), description="0-23")
+    # Advanced: hourly multipliers for bid adjustments
+    hourly_bid_multipliers: Dict[str, float] = Field(default_factory=dict)
+
+
+class TechnicalTargeting(BaseModel):
+    """Browser, carrier, and connection targeting"""
+    model_config = ConfigDict(extra="ignore")
+    
+    browsers: List[str] = Field(default_factory=list, description="chrome, safari, firefox, edge, etc.")
+    browser_versions: Dict[str, str] = Field(default_factory=dict, description="min versions")
+    connection_speeds: List[str] = Field(default_factory=list, description="2g, 3g, 4g, 5g, wifi, ethernet")
+    min_bandwidth_kbps: Optional[int] = None
+    exclude_vpn: bool = Field(default=False)
+    exclude_datacenter_ips: bool = Field(default=True)
+
+
 class CampaignTargeting(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
@@ -169,6 +331,13 @@ class CampaignTargeting(BaseModel):
     video: VideoTargeting = Field(default_factory=VideoTargeting)
     content: ContentTargeting = Field(default_factory=ContentTargeting)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
+    # New advanced targeting
+    demographics: DemographicTargeting = Field(default_factory=DemographicTargeting)
+    brand_safety: BrandSafetyConfig = Field(default_factory=BrandSafetyConfig)
+    contextual: ContextualTargeting = Field(default_factory=ContextualTargeting)
+    placement: PlacementViewability = Field(default_factory=PlacementViewability)
+    time: TimeTargeting = Field(default_factory=TimeTargeting)
+    technical: TechnicalTargeting = Field(default_factory=TechnicalTargeting)
 
 
 # ==================== CREATIVE MODELS ====================
@@ -372,7 +541,347 @@ class Campaign(BaseModel):
     ml_model_data: Dict[str, Any] = Field(default_factory=dict)
 
 
-# ==================== SSP & API KEY MODELS ====================
+# ==================== CAMPAIGN OVERVIEW (Enhanced) ====================
+
+class CampaignOverview(BaseModel):
+    """Extended campaign overview for DSP planning"""
+    model_config = ConfigDict(extra="ignore")
+    
+    business_product: str = Field(default="", description="Product or service being advertised")
+    primary_goal: str = Field(default="brand_awareness", description="Campaign primary goal")
+    kpi_type: str = Field(default="cpm", description="Primary KPI type")
+    kpi_target: float = Field(default=0.0, description="Target KPI value")
+    target_audience_description: str = Field(default="", description="Description of ideal customer")
+    bidding_strategy: str = Field(default="manual_cpm")
+    inventory_sources: List[str] = Field(default_factory=list)
+    environments: List[str] = Field(default_factory=lambda: ["web", "app"])
+
+
+# ==================== INSERTION ORDER MODELS ====================
+
+class InsertionOrder(BaseModel):
+    """Insertion Order for campaign structuring"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    advertiser_id: str = Field(default="")
+    campaign_id: Optional[str] = None
+    status: str = Field(default="draft")
+    
+    # Budget
+    total_budget: float = Field(default=0.0)
+    spent_budget: float = Field(default=0.0)
+    currency: str = Field(default="USD")
+    
+    # Flight dates
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    
+    # Structure
+    structure_type: str = Field(default="audience", description="audience, tactic, goal")
+    
+    # Targeting exclusions at IO level
+    excluded_domains: List[str] = Field(default_factory=list)
+    excluded_apps: List[str] = Field(default_factory=list)
+    excluded_categories: List[str] = Field(default_factory=list)
+    excluded_audiences: List[str] = Field(default_factory=list)
+    
+    # Performance
+    impressions: int = Field(default=0)
+    clicks: int = Field(default=0)
+    conversions: int = Field(default=0)
+    
+    # Line items
+    line_item_ids: List[str] = Field(default_factory=list)
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class IOCreate(BaseModel):
+    name: str
+    advertiser_id: str = ""
+    campaign_id: Optional[str] = None
+    total_budget: float = 0.0
+    currency: str = "USD"
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    structure_type: str = "audience"
+
+
+# ==================== LINE ITEM MODELS ====================
+
+class LineItem(BaseModel):
+    """Line Item within an Insertion Order"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    io_id: str  # Parent Insertion Order
+    campaign_id: Optional[str] = None
+    status: str = Field(default="draft")
+    
+    # Type
+    line_item_type: str = Field(default="prospecting", description="prospecting, retargeting, contextual, audience")
+    
+    # Budget
+    budget: float = Field(default=0.0)
+    spent: float = Field(default=0.0)
+    
+    # Bidding
+    bid_strategy: str = Field(default="manual_cpm")
+    bid_price: float = Field(default=1.0)
+    bid_cap: Optional[float] = None
+    
+    # Inventory
+    inventory_source: str = Field(default="open_exchange")
+    deal_ids: List[str] = Field(default_factory=list)
+    
+    # Targeting (can override IO settings)
+    device_targeting: List[str] = Field(default_factory=list)
+    environment_targeting: List[str] = Field(default_factory=list)
+    geo_targeting: List[str] = Field(default_factory=list)
+    
+    # Dayparting
+    daypart_enabled: bool = Field(default=False)
+    daypart_hours: List[int] = Field(default_factory=list)
+    daypart_days: List[int] = Field(default_factory=list)
+    
+    # Audience
+    audience_ids: List[str] = Field(default_factory=list)
+    exclude_audience_ids: List[str] = Field(default_factory=list)
+    
+    # Creative
+    creative_ids: List[str] = Field(default_factory=list)
+    
+    # Performance
+    impressions: int = Field(default=0)
+    clicks: int = Field(default=0)
+    conversions: int = Field(default=0)
+    
+    # Frequency
+    frequency_cap: int = Field(default=0)
+    frequency_period: str = Field(default="day")
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LineItemCreate(BaseModel):
+    name: str
+    io_id: str
+    campaign_id: Optional[str] = None
+    line_item_type: str = "prospecting"
+    budget: float = 0.0
+    bid_strategy: str = "manual_cpm"
+    bid_price: float = 1.0
+    inventory_source: str = "open_exchange"
+
+
+# ==================== MEDIA PLANNER MODELS ====================
+
+class MediaPlanForecast(BaseModel):
+    """Media planning forecast results"""
+    model_config = ConfigDict(extra="ignore")
+    
+    estimated_impressions: int = Field(default=0)
+    estimated_reach: int = Field(default=0)
+    estimated_clicks: int = Field(default=0)
+    estimated_conversions: int = Field(default=0)
+    estimated_cpm: float = Field(default=0.0)
+    estimated_cpc: float = Field(default=0.0)
+    estimated_cpa: float = Field(default=0.0)
+    estimated_ctr: float = Field(default=0.0)
+    estimated_cvr: float = Field(default=0.0)
+    confidence_level: float = Field(default=0.0, description="Forecast confidence 0-100")
+    
+    # Budget recommendations
+    recommended_daily_budget: float = Field(default=0.0)
+    recommended_total_budget: float = Field(default=0.0)
+    
+    # Inventory availability
+    available_inventory: int = Field(default=0)
+    inventory_match_rate: float = Field(default=0.0)
+    
+    # Audience reach
+    total_addressable_audience: int = Field(default=0)
+    estimated_frequency: float = Field(default=0.0)
+
+
+class MediaPlanRequest(BaseModel):
+    """Request for media plan forecast"""
+    budget: float
+    duration_days: int = 30
+    goal: str = "brand_awareness"
+    kpi_type: str = "cpm"
+    targeting: Optional[Dict[str, Any]] = None
+    inventory_sources: List[str] = Field(default_factory=lambda: ["open_exchange"])
+    creative_types: List[str] = Field(default_factory=lambda: ["banner"])
+
+
+# ==================== AUDIENCE MODELS (Enhanced) ====================
+
+class FirstPartyAudience(BaseModel):
+    """First-party audience data"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    type: str = Field(default="customer_list", description="customer_list, site_visitors, app_users, crm")
+    size: int = Field(default=0)
+    source: str = Field(default="upload")
+    match_rate: float = Field(default=0.0)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ThirdPartyAudience(BaseModel):
+    """Third-party audience segment"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    provider: str = Field(default="", description="Oracle, Experian, LiveRamp, etc.")
+    category: str = Field(default="")
+    size: int = Field(default=0)
+    cpm_cost: float = Field(default=0.0)
+
+
+class LookalikeConfig(BaseModel):
+    """Lookalike audience configuration"""
+    model_config = ConfigDict(extra="ignore")
+    
+    source_audience_id: str
+    expansion_level: int = Field(default=3, ge=1, le=10, description="1=most similar, 10=broadest")
+    estimated_size: int = Field(default=0)
+
+
+# ==================== ATTRIBUTION MODELS (Enhanced) ====================
+
+class AttributionEvent(BaseModel):
+    """Attribution tracking event"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    campaign_id: str
+    line_item_id: Optional[str] = None
+    creative_id: Optional[str] = None
+    event_type: str = Field(description="impression, click, conversion, view_through")
+    event_value: float = Field(default=0.0)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    # Attribution metadata
+    channel: str = Field(default="display")
+    device: str = Field(default="")
+    geo: str = Field(default="")
+    
+    # Conversion details
+    conversion_type: Optional[str] = None
+    conversion_window_hours: int = Field(default=24)
+
+
+class AttributionPath(BaseModel):
+    """User attribution path/journey"""
+    model_config = ConfigDict(extra="ignore")
+    
+    user_id: str
+    touchpoints: List[Dict[str, Any]] = Field(default_factory=list)
+    conversion_value: float = Field(default=0.0)
+    conversion_timestamp: Optional[datetime] = None
+    path_length: int = Field(default=0)
+    time_to_conversion_hours: float = Field(default=0.0)
+
+
+# ==================== MEASUREMENT & REPORTING MODELS ====================
+
+class ConversionConfig(BaseModel):
+    """Conversion tracking configuration"""
+    model_config = ConfigDict(extra="ignore")
+    
+    enabled: bool = Field(default=False)
+    pixel_id: str = Field(default="")
+    conversion_window_days: int = Field(default=30)
+    view_through_window_hours: int = Field(default=24)
+    click_through_window_days: int = Field(default=30)
+    attribution_model: str = Field(default="last_touch")
+    count_type: str = Field(default="all", description="all, unique")
+
+
+class PerformanceProjection(BaseModel):
+    """Campaign performance projection"""
+    model_config = ConfigDict(extra="ignore")
+    
+    # Impressions
+    min_impressions: int = Field(default=0)
+    max_impressions: int = Field(default=0)
+    expected_impressions: int = Field(default=0)
+    
+    # Clicks
+    min_clicks: int = Field(default=0)
+    max_clicks: int = Field(default=0)
+    expected_clicks: int = Field(default=0)
+    
+    # Conversions
+    min_conversions: int = Field(default=0)
+    max_conversions: int = Field(default=0)
+    expected_conversions: int = Field(default=0)
+    
+    # Costs
+    expected_cpm_range: List[float] = Field(default_factory=lambda: [0.0, 0.0])
+    expected_cpc_range: List[float] = Field(default_factory=lambda: [0.0, 0.0])
+    expected_cpa_range: List[float] = Field(default_factory=lambda: [0.0, 0.0])
+    
+    # Industry benchmarks
+    industry_avg_ctr: float = Field(default=0.0)
+    industry_avg_cvr: float = Field(default=0.0)
+    industry_avg_cpm: float = Field(default=0.0)
+
+
+# ==================== INDUSTRY BENCHMARKS ====================
+
+INDUSTRY_BENCHMARKS = {
+    "display": {
+        "ctr": 0.35,
+        "cvr": 0.77,
+        "cpm_range": [1.0, 5.0],
+        "cpc_range": [0.50, 2.00],
+        "viewability": 52.0
+    },
+    "video": {
+        "ctr": 0.44,
+        "cvr": 0.90,
+        "cpm_range": [5.0, 25.0],
+        "cpc_range": [0.75, 3.00],
+        "vtr": 68.0,
+        "viewability": 66.0
+    },
+    "native": {
+        "ctr": 0.80,
+        "cvr": 1.20,
+        "cpm_range": [3.0, 12.0],
+        "cpc_range": [0.40, 1.50],
+        "viewability": 70.0
+    },
+    "ctv": {
+        "ctr": 0.10,
+        "cvr": 0.30,
+        "cpm_range": [15.0, 45.0],
+        "cpc_range": [5.00, 15.00],
+        "vtr": 95.0
+    },
+    "audio": {
+        "ctr": 0.15,
+        "cvr": 0.25,
+        "cpm_range": [8.0, 20.0],
+        "listen_through_rate": 90.0
+    }
+}
+
+
+
 
 class SSPEndpoint(BaseModel):
     model_config = ConfigDict(extra="ignore")
