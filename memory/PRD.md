@@ -68,20 +68,30 @@ Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid reque
 - `POST /api/upload/image` - Image upload
 - `GET /api/reference/all` - All reference data
 
+### Media Planning & IOs
+- `POST /api/media-planner/forecast` - Campaign performance forecast
+- `GET /api/media-planner/benchmarks` - Industry benchmarks
+- `POST /api/media-planner/recommend-strategy` - Strategy recommendations
+- `GET/POST /api/insertion-orders` - Insertion Orders CRUD
+- `GET/POST /api/line-items` - Line Items CRUD
+- `POST /api/line-items/recommend` - Line Item recommendations
+
 ### Analytics
 - `GET /api/ssp-analytics/overview` - SSP performance
 - `GET /api/bid-optimization/status` - Bid optimization
 - `GET /api/attribution/analysis` - Attribution analysis
 
 ## Navigation Structure
-Dashboard | Campaigns | Compare | Creatives | Editor | 
+Dashboard | Campaigns | Compare | Media Planner | Insertion Orders | Creatives | Editor | 
 SSP Endpoints | SSP Analytics | Bid Logs | Bid Stream | Reports | 
 Budget Pacing | Insights | ML Models | Bid Optimizer | A/B Testing | 
 Fraud | Audiences | Attribution | Migration
 
 ## Routes
-- `/campaigns/new` - DV360-style Campaign Wizard (create)
-- `/campaigns/:id/edit` - DV360-style Campaign Wizard (edit)
+- `/campaigns/new` - DV360-style Campaign Wizard (8 steps, create)
+- `/campaigns/:id/edit` - DV360-style Campaign Wizard (8 steps, edit)
+- `/media-planner` - Media Planning & Forecasting
+- `/insertion-orders` - Insertion Orders & Line Items Management
 
 ## Tech Stack
 - **Backend**: FastAPI, Motor, Pydantic, WebSockets
@@ -147,26 +157,64 @@ Fraud | Audiences | Attribution | Migration
   - All 25 backend API tests passing
   - 100% frontend page functionality verified
 
+### Completed (December 2025 - Phase 15)
+- [x] **Advanced Campaign Enhancement System**
+  - Enhanced Campaign Wizard with 8 steps (was 5):
+    - Campaign Overview (Goals, KPIs, Target Audience)
+    - Budget & Bidding (6 strategies, pacing, inventory sources)
+    - Targeting (Geography, Device, Contextual, Technical tabs)
+    - Audience (Demographics, Age, Gender, Income, Languages, Lookalike)
+    - Creatives (selection with best practices)
+    - Schedule & Pacing (Flight dates, Frequency capping, Dayparting)
+    - Brand Safety (Levels, Content exclusions, Blocked keywords/domains)
+    - Measurement (Conversion tracking, Attribution models)
+  - Strategy recommendations based on campaign goal
+  - Performance forecast integration in wizard
+- [x] **Media Planner Module**
+  - Campaign Planning Parameters (Budget, Duration, Goal, Creative Type)
+  - Generate Plan with forecasting:
+    - Estimated Impressions, Reach, Clicks, Conversions
+    - CPM, CPC, CPA projections
+    - Confidence level indicator
+  - Budget Allocation Recommendations (pie chart)
+  - Strategy Recommendations (Bidding, Frequency, Pacing, Inventory)
+  - Line Item Recommendations (Prospecting, Retargeting, Lookalike, Contextual)
+  - Optimization Checkpoints timeline
+  - Industry Benchmarks by Format (Display, Video, Native, CTV, Audio)
+  - **MOCKED**: Forecasting uses mock data (YouTube/GDN real APIs flagged for later)
+- [x] **Insertion Orders & Line Items Management**
+  - Insertion Orders CRUD with stats overview
+  - IO Structure types (Audience, Tactic, Goal)
+  - Line Items within IOs with budget allocation
+  - Line Item Types (Prospecting, Retargeting, Contextual, Audience, Lookalike)
+  - Bid strategies and inventory source per line item
+  - AI-powered Line Item recommendations when creating
+  - Budget progress tracking per IO and per Line Item
+  - Performance metrics (Impressions, Clicks) per line item
+- [x] **Navigation Updates**
+  - Added "Media Planner" to sidebar
+  - Added "Insertion Orders" to sidebar
+  - Total 20 navigation items
+
 ### P1 - Upcoming
+- [ ] **Real YouTube & GDN API Integration** - Replace mock forecasting data
 - [ ] Video upload to cloud storage (currently local preview only)
 - [ ] VAST tag validation and parsing
-- [ ] Cross-Campaign Attribution UI
 
 ### P2 - Future
 - [ ] Bulk campaign management
 - [ ] Advanced fraud detection algorithms
 - [ ] Campaign duplication feature
-- [ ] Cross-Campaign Attribution UI
+- [ ] Table column sorting (SSP Analytics, etc.)
 
 ## Files Deleted (Phase 11)
 - `/app/frontend/src/pages/CampaignForm.jsx` - Replaced by CampaignWizard.jsx
 
-## Architecture Changes (Phase 14)
+## Architecture Changes (Phase 14-15)
 ```
 /app/backend/
 ├── server.py           # Main app (~80 lines) - Imports routers, CORS, lifespan
-├── server_old.py       # Backup of original monolithic server
-├── models.py           # Pydantic models
+├── models.py           # Pydantic models (heavily updated for advanced targeting, IOs, Line Items)
 ├── openrtb_handler.py  # Core bidding engine
 └── routers/            # Feature-based modular routers
     ├── __init__.py
@@ -178,5 +226,12 @@ Fraud | Audiences | Attribution | Migration
     ├── analytics.py    # SSP analytics, reports, pacing
     ├── optimization.py # Bid optimization, ML, SPO
     ├── attribution.py  # Attribution tracking
+    ├── media_planning.py  # Media Planner, IOs, Line Items (NEW)
     └── misc.py         # Currencies, A/B testing, audiences, uploads
+
+/app/frontend/src/pages/
+├── MediaPlanner.jsx      # Media Planning & Forecasting (NEW)
+├── InsertionOrders.jsx   # IO & Line Item Management (NEW)
+├── CampaignWizard.jsx    # Enhanced 8-step Campaign Creation
+└── ... (existing pages)
 ```
