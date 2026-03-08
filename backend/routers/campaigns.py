@@ -26,7 +26,7 @@ async def get_campaigns(status: Optional[str] = None):
             if campaign.get(field) and isinstance(campaign[field], str):
                 try:
                     campaign[field] = datetime.fromisoformat(campaign[field].replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError):
                     pass
     
     return campaigns
@@ -100,7 +100,7 @@ async def update_campaign(campaign_id: str, input: CampaignUpdate):
         if field in update_data and update_data[field]:
             try:
                 update_data[field] = datetime.fromisoformat(update_data[field]).isoformat()
-            except:
+            except (ValueError, TypeError):
                 pass
     
     # Handle nested objects
@@ -163,3 +163,63 @@ async def reset_daily_spend(campaign_id: str):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Campaign not found")
     return {"status": "reset", "daily_spent": 0}
+
+
+@router.post("/campaigns/{campaign_id}/duplicate")
+async def duplicate_campaign(campaign_id: str):
+    """Duplicate a campaign with a new ID"""
+    import uuid
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    # Create new campaign with copied data
+    new_id = str(uuid.uuid4())
+    new_campaign = campaign.copy()
+    new_campaign["id"] = new_id
+    new_campaign["name"] = f"{campaign['name']} (Copy)"
+    new_campaign["status"] = "draft"
+    new_campaign["bids"] = 0
+    new_campaign["wins"] = 0
+    new_campaign["created_at"] = datetime.now(timezone.utc).isoformat()
+    new_campaign["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Reset budget spent
+    if "budget" in new_campaign and new_campaign["budget"]:
+        new_campaign["budget"]["daily_spent"] = 0
+        new_campaign["budget"]["total_spent"] = 0
+    
+    await db.campaigns.insert_one(new_campaign)
+    
+    # Remove _id from response
+    new_campaign.pop("_id", None)
+    return new_campaign
+
+
+@router.post("/campaigns/bulk/activate")
+async def bulk_activate_campaigns(campaign_ids: List[str]):
+    """Activate multiple campaigns"""
+    result = await db.campaigns.update_many(
+        {"id": {"$in": campaign_ids}},
+        {"$set": {"status": "active", "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"updated": result.modified_count}
+
+
+@router.post("/campaigns/bulk/pause")
+async def bulk_pause_campaigns(campaign_ids: List[str]):
+    """Pause multiple campaigns"""
+    result = await db.campaigns.update_many(
+        {"id": {"$in": campaign_ids}},
+        {"$set": {"status": "paused", "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"updated": result.modified_count}
+
+
+@router.post("/campaigns/bulk/delete")
+async def bulk_delete_campaigns(campaign_ids: List[str]):
+    """Delete multiple campaigns"""
+    result = await db.campaigns.delete_many({"id": {"$in": campaign_ids}})
+    return {"deleted": result.deleted_count}
+

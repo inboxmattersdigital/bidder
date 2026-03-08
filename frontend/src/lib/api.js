@@ -23,6 +23,12 @@ export const updateCampaign = (id, data) => api.put(`/campaigns/${id}`, data);
 export const deleteCampaign = (id) => api.delete(`/campaigns/${id}`);
 export const activateCampaign = (id) => api.post(`/campaigns/${id}/activate`);
 export const pauseCampaign = (id) => api.post(`/campaigns/${id}/pause`);
+export const duplicateCampaign = (id) => api.post(`/campaigns/${id}/duplicate`);
+
+// Bulk Campaign Operations
+export const bulkActivateCampaigns = (ids) => api.post('/campaigns/bulk/activate', ids);
+export const bulkPauseCampaigns = (ids) => api.post('/campaigns/bulk/pause', ids);
+export const bulkDeleteCampaigns = (ids) => api.post('/campaigns/bulk/delete', ids);
 
 // Creatives
 export const getCreatives = (type) => 

@@ -210,6 +210,20 @@ Fraud | Audiences | Attribution | Migration
   - Added "Media Planner" to sidebar
   - Added "Insertion Orders" to sidebar
   - Total 20 navigation items
+- [x] **Bulk Campaign Management**
+  - Multi-select checkboxes for campaigns
+  - Bulk actions bar: Activate, Pause, Delete selected campaigns
+  - Select all / Clear selection
+  - Confirmation dialog for bulk delete
+- [x] **Table Column Sorting**
+  - Sortable columns: Name, Status, Bid Price, Daily Budget, Bids, Wins
+  - Click column header to sort ascending/descending
+  - Visual indicators (arrows) for sort direction
+- [x] **Campaign Duplication**
+  - "Duplicate" option in campaign dropdown menu
+  - Creates copy with "(Copy)" suffix
+  - Resets status to draft, clears metrics (bids/wins)
+  - Resets budget spent counters
 
 ### P1 - Upcoming
 - [ ] **Real YouTube & GDN API Integration** - Replace mock forecasting data
@@ -217,10 +231,7 @@ Fraud | Audiences | Attribution | Migration
 - [ ] VAST tag validation and parsing
 
 ### P2 - Future
-- [ ] Bulk campaign management
 - [ ] Advanced fraud detection algorithms
-- [ ] Campaign duplication feature
-- [ ] Table column sorting (SSP Analytics, etc.)
 
 ## Files Deleted (Phase 11)
 - `/app/frontend/src/pages/CampaignForm.jsx` - Replaced by CampaignWizard.jsx
