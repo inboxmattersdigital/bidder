@@ -118,14 +118,417 @@ const BRAND_SAFETY_LEVELS = [
 ];
 
 const COUNTRIES = [
+  // Middle East
+  { code: "ARE", name: "United Arab Emirates" }, { code: "SAU", name: "Saudi Arabia" },
+  { code: "QAT", name: "Qatar" }, { code: "KWT", name: "Kuwait" },
+  { code: "BHR", name: "Bahrain" }, { code: "OMN", name: "Oman" },
+  // North America
   { code: "USA", name: "United States" }, { code: "CAN", name: "Canada" },
+  { code: "MEX", name: "Mexico" },
+  // Europe
   { code: "GBR", name: "United Kingdom" }, { code: "DEU", name: "Germany" },
-  { code: "FRA", name: "France" }, { code: "AUS", name: "Australia" },
-  { code: "JPN", name: "Japan" }, { code: "IND", name: "India" },
-  { code: "BRA", name: "Brazil" }, { code: "MEX", name: "Mexico" },
-  { code: "ESP", name: "Spain" }, { code: "ITA", name: "Italy" },
-  { code: "NLD", name: "Netherlands" }, { code: "CHN", name: "China" },
-  { code: "KOR", name: "South Korea" }, { code: "SGP", name: "Singapore" },
+  { code: "FRA", name: "France" }, { code: "ITA", name: "Italy" },
+  { code: "ESP", name: "Spain" }, { code: "NLD", name: "Netherlands" },
+  { code: "BEL", name: "Belgium" }, { code: "CHE", name: "Switzerland" },
+  { code: "AUT", name: "Austria" }, { code: "SWE", name: "Sweden" },
+  { code: "NOR", name: "Norway" }, { code: "DNK", name: "Denmark" },
+  { code: "FIN", name: "Finland" }, { code: "POL", name: "Poland" },
+  { code: "PRT", name: "Portugal" }, { code: "IRL", name: "Ireland" },
+  { code: "CZE", name: "Czech Republic" }, { code: "ROU", name: "Romania" },
+  { code: "HUN", name: "Hungary" }, { code: "GRC", name: "Greece" },
+  // Asia Pacific
+  { code: "IND", name: "India" }, { code: "CHN", name: "China" },
+  { code: "JPN", name: "Japan" }, { code: "KOR", name: "South Korea" },
+  { code: "SGP", name: "Singapore" }, { code: "MYS", name: "Malaysia" },
+  { code: "THA", name: "Thailand" }, { code: "VNM", name: "Vietnam" },
+  { code: "IDN", name: "Indonesia" }, { code: "PHL", name: "Philippines" },
+  { code: "AUS", name: "Australia" }, { code: "NZL", name: "New Zealand" },
+  { code: "HKG", name: "Hong Kong" }, { code: "TWN", name: "Taiwan" },
+  { code: "PAK", name: "Pakistan" }, { code: "BGD", name: "Bangladesh" },
+  // South America
+  { code: "BRA", name: "Brazil" }, { code: "ARG", name: "Argentina" },
+  { code: "COL", name: "Colombia" }, { code: "CHL", name: "Chile" },
+  { code: "PER", name: "Peru" }, { code: "VEN", name: "Venezuela" },
+  // Africa
+  { code: "ZAF", name: "South Africa" }, { code: "EGY", name: "Egypt" },
+  { code: "NGA", name: "Nigeria" }, { code: "KEN", name: "Kenya" },
+  { code: "MAR", name: "Morocco" },
+  // Others
+  { code: "RUS", name: "Russia" }, { code: "TUR", name: "Turkey" },
+  { code: "ISR", name: "Israel" },
+];
+
+// States by Country
+const STATES_BY_COUNTRY = {
+  USA: [
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",
+    "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+    "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan",
+    "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire",
+    "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+    "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia",
+    "Wisconsin", "Wyoming"
+  ],
+  IND: [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa",
+    "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",
+    "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
+    "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir"
+  ],
+  ARE: ["Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"],
+  GBR: ["England", "Scotland", "Wales", "Northern Ireland"],
+  CAN: ["Ontario", "Quebec", "British Columbia", "Alberta", "Manitoba", "Saskatchewan"],
+  AUS: ["New South Wales", "Victoria", "Queensland", "Western Australia", "South Australia"],
+  DEU: ["Bavaria", "Berlin", "Hamburg", "Hesse", "North Rhine-Westphalia", "Baden-Württemberg"],
+};
+
+// Cities by Country
+const CITIES_BY_COUNTRY = {
+  USA: [
+    "New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia", "San Antonio",
+    "San Diego", "Dallas", "San Jose", "Austin", "Jacksonville", "Fort Worth", "Columbus",
+    "Charlotte", "San Francisco", "Indianapolis", "Seattle", "Denver", "Washington DC",
+    "Boston", "Nashville", "Detroit", "Portland", "Las Vegas", "Memphis", "Louisville",
+    "Baltimore", "Milwaukee", "Albuquerque", "Tucson", "Fresno", "Sacramento", "Atlanta", "Miami"
+  ],
+  IND: [
+    "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Pune",
+    "Surat", "Jaipur", "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal",
+    "Visakhapatnam", "Patna", "Vadodara", "Ghaziabad", "Ludhiana", "Agra", "Nashik",
+    "Faridabad", "Meerut", "Rajkot", "Varanasi", "Srinagar", "Aurangabad", "Dhanbad",
+    "Amritsar", "Navi Mumbai", "Allahabad", "Ranchi", "Howrah", "Coimbatore", "Jabalpur",
+    "Gwalior", "Vijayawada", "Jodhpur", "Madurai", "Raipur", "Kota", "Chandigarh", "Guwahati"
+  ],
+  ARE: [
+    "Dubai", "Abu Dhabi", "Sharjah", "Al Ain", "Ajman", "Ras Al Khaimah", "Fujairah",
+    "Umm Al Quwain", "Khor Fakkan", "Dibba Al-Fujairah", "Kalba"
+  ],
+  GBR: [
+    "London", "Birmingham", "Manchester", "Glasgow", "Liverpool", "Leeds", "Sheffield",
+    "Edinburgh", "Bristol", "Leicester", "Coventry", "Bradford", "Cardiff", "Belfast",
+    "Nottingham", "Kingston upon Hull", "Newcastle", "Stoke-on-Trent", "Southampton"
+  ],
+  CAN: [
+    "Toronto", "Montreal", "Vancouver", "Calgary", "Edmonton", "Ottawa", "Winnipeg",
+    "Quebec City", "Hamilton", "Kitchener", "London", "Victoria", "Halifax", "Oshawa"
+  ],
+  AUS: [
+    "Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast", "Canberra",
+    "Newcastle", "Wollongong", "Logan City", "Geelong", "Hobart", "Townsville", "Cairns"
+  ],
+  DEU: [
+    "Berlin", "Hamburg", "Munich", "Cologne", "Frankfurt", "Stuttgart", "Düsseldorf",
+    "Leipzig", "Dortmund", "Essen", "Bremen", "Dresden", "Hanover", "Nuremberg"
+  ],
+  SAU: ["Riyadh", "Jeddah", "Mecca", "Medina", "Dammam", "Tabuk", "Buraidah"],
+  QAT: ["Doha", "Al Wakrah", "Al Khor", "Umm Salal Muhammad"],
+  SGP: ["Singapore"],
+  FRA: ["Paris", "Marseille", "Lyon", "Toulouse", "Nice", "Nantes", "Strasbourg", "Bordeaux"],
+  JPN: ["Tokyo", "Yokohama", "Osaka", "Nagoya", "Sapporo", "Kobe", "Kyoto", "Fukuoka"],
+  CHN: ["Shanghai", "Beijing", "Shenzhen", "Guangzhou", "Chengdu", "Hangzhou", "Wuhan", "Xian"],
+  BRA: ["São Paulo", "Rio de Janeiro", "Brasília", "Salvador", "Fortaleza", "Belo Horizonte"],
+};
+
+// Telecom Operators by Country
+const TELECOM_OPERATORS = {
+  USA: ["AT&T", "Verizon", "T-Mobile", "Sprint", "US Cellular", "Dish Network"],
+  IND: ["Jio", "Airtel", "Vi (Vodafone Idea)", "BSNL", "MTNL"],
+  ARE: ["Etisalat", "du"],
+  GBR: ["EE", "O2", "Vodafone UK", "Three UK", "Virgin Mobile UK"],
+  CAN: ["Rogers", "Bell", "Telus", "Freedom Mobile", "Sasktel"],
+  AUS: ["Telstra", "Optus", "Vodafone AU", "TPG"],
+  DEU: ["Deutsche Telekom", "Vodafone DE", "O2 Germany", "1&1"],
+  SAU: ["STC", "Mobily", "Zain"],
+  QAT: ["Ooredoo", "Vodafone Qatar"],
+  SGP: ["Singtel", "StarHub", "M1", "TPG Telecom"],
+  FRA: ["Orange", "SFR", "Bouygues Telecom", "Free Mobile"],
+  JPN: ["NTT Docomo", "au by KDDI", "SoftBank", "Rakuten Mobile"],
+  CHN: ["China Mobile", "China Unicom", "China Telecom"],
+  BRA: ["Vivo", "Claro", "TIM", "Oi"],
+};
+
+// IAB Categories
+const IAB_CATEGORIES = [
+  { code: "IAB1", name: "Arts & Entertainment" },
+  { code: "IAB1-1", name: "Books & Literature" },
+  { code: "IAB1-2", name: "Celebrity Fan/Gossip" },
+  { code: "IAB1-3", name: "Fine Art" },
+  { code: "IAB1-4", name: "Humor" },
+  { code: "IAB1-5", name: "Movies" },
+  { code: "IAB1-6", name: "Music" },
+  { code: "IAB1-7", name: "Television" },
+  { code: "IAB2", name: "Automotive" },
+  { code: "IAB2-1", name: "Auto Parts" },
+  { code: "IAB2-2", name: "Auto Repair" },
+  { code: "IAB2-3", name: "Buying/Selling Cars" },
+  { code: "IAB3", name: "Business" },
+  { code: "IAB3-1", name: "Advertising" },
+  { code: "IAB3-2", name: "Agriculture" },
+  { code: "IAB3-3", name: "Biotech/Biomedical" },
+  { code: "IAB3-4", name: "Business Software" },
+  { code: "IAB3-5", name: "Construction" },
+  { code: "IAB3-6", name: "Forestry" },
+  { code: "IAB3-7", name: "Government" },
+  { code: "IAB3-8", name: "Green Solutions" },
+  { code: "IAB3-9", name: "Human Resources" },
+  { code: "IAB3-10", name: "Logistics" },
+  { code: "IAB3-11", name: "Marketing" },
+  { code: "IAB3-12", name: "Metals" },
+  { code: "IAB4", name: "Careers" },
+  { code: "IAB4-1", name: "Career Planning" },
+  { code: "IAB4-2", name: "College" },
+  { code: "IAB4-3", name: "Financial Aid" },
+  { code: "IAB4-4", name: "Job Fairs" },
+  { code: "IAB4-5", name: "Job Search" },
+  { code: "IAB4-6", name: "Resume Writing/Advice" },
+  { code: "IAB4-7", name: "Nursing" },
+  { code: "IAB4-8", name: "Scholarships" },
+  { code: "IAB4-9", name: "Telecommuting" },
+  { code: "IAB4-10", name: "U.S. Military" },
+  { code: "IAB4-11", name: "Career Advice" },
+  { code: "IAB5", name: "Education" },
+  { code: "IAB5-1", name: "7-12 Education" },
+  { code: "IAB5-2", name: "Adult Education" },
+  { code: "IAB5-3", name: "Art History" },
+  { code: "IAB5-4", name: "College Administration" },
+  { code: "IAB5-5", name: "College Life" },
+  { code: "IAB5-6", name: "Distance Learning" },
+  { code: "IAB5-7", name: "English as a 2nd Language" },
+  { code: "IAB5-8", name: "Language Learning" },
+  { code: "IAB5-9", name: "Graduate School" },
+  { code: "IAB5-10", name: "Homeschooling" },
+  { code: "IAB5-11", name: "Homework/Study Tips" },
+  { code: "IAB5-12", name: "K-6 Educators" },
+  { code: "IAB5-13", name: "Private School" },
+  { code: "IAB5-14", name: "Special Education" },
+  { code: "IAB5-15", name: "Studying Business" },
+  { code: "IAB6", name: "Family & Parenting" },
+  { code: "IAB6-1", name: "Adoption" },
+  { code: "IAB6-2", name: "Babies & Toddlers" },
+  { code: "IAB6-3", name: "Daycare/Pre School" },
+  { code: "IAB6-4", name: "Family Internet" },
+  { code: "IAB6-5", name: "Parenting - K-6 Kids" },
+  { code: "IAB6-6", name: "Parenting teens" },
+  { code: "IAB6-7", name: "Pregnancy" },
+  { code: "IAB6-8", name: "Special Needs Kids" },
+  { code: "IAB6-9", name: "Eldercare" },
+  { code: "IAB7", name: "Health & Fitness" },
+  { code: "IAB7-1", name: "Exercise" },
+  { code: "IAB7-2", name: "ADD" },
+  { code: "IAB7-3", name: "AIDS/HIV" },
+  { code: "IAB7-4", name: "Allergies" },
+  { code: "IAB7-5", name: "Alternative Medicine" },
+  { code: "IAB7-6", name: "Arthritis" },
+  { code: "IAB7-7", name: "Asthma" },
+  { code: "IAB7-8", name: "Autism/PDD" },
+  { code: "IAB7-9", name: "Bipolar Disorder" },
+  { code: "IAB7-10", name: "Brain Tumor" },
+  { code: "IAB7-11", name: "Cancer" },
+  { code: "IAB7-12", name: "Cholesterol" },
+  { code: "IAB7-13", name: "Chronic Fatigue Syndrome" },
+  { code: "IAB7-14", name: "Chronic Pain" },
+  { code: "IAB7-15", name: "Cold & Flu" },
+  { code: "IAB7-16", name: "Deafness" },
+  { code: "IAB7-17", name: "Dental Care" },
+  { code: "IAB7-18", name: "Depression" },
+  { code: "IAB7-19", name: "Dermatology" },
+  { code: "IAB7-20", name: "Diabetes" },
+  { code: "IAB7-21", name: "Epilepsy" },
+  { code: "IAB7-22", name: "GERD/Acid Reflux" },
+  { code: "IAB7-23", name: "Headaches/Migraines" },
+  { code: "IAB7-24", name: "Heart Disease" },
+  { code: "IAB7-25", name: "Herbs for Health" },
+  { code: "IAB7-26", name: "Holistic Healing" },
+  { code: "IAB7-27", name: "IBS/Crohn's Disease" },
+  { code: "IAB7-28", name: "Incest/Abuse Support" },
+  { code: "IAB7-29", name: "Incontinence" },
+  { code: "IAB7-30", name: "Infertility" },
+  { code: "IAB7-31", name: "Men's Health" },
+  { code: "IAB7-32", name: "Nutrition" },
+  { code: "IAB7-33", name: "Orthopedics" },
+  { code: "IAB7-34", name: "Panic/Anxiety Disorders" },
+  { code: "IAB7-35", name: "Pediatrics" },
+  { code: "IAB7-36", name: "Physical Therapy" },
+  { code: "IAB7-37", name: "Psychology/Psychiatry" },
+  { code: "IAB7-38", name: "Senior Health" },
+  { code: "IAB7-39", name: "Sexuality" },
+  { code: "IAB7-40", name: "Sleep Disorders" },
+  { code: "IAB7-41", name: "Smoking Cessation" },
+  { code: "IAB7-42", name: "Substance Abuse" },
+  { code: "IAB7-43", name: "Thyroid Disease" },
+  { code: "IAB7-44", name: "Weight Loss" },
+  { code: "IAB7-45", name: "Women's Health" },
+  { code: "IAB8", name: "Food & Drink" },
+  { code: "IAB8-1", name: "American Cuisine" },
+  { code: "IAB8-2", name: "Barbecues & Grilling" },
+  { code: "IAB8-3", name: "Cajun/Creole" },
+  { code: "IAB8-4", name: "Chinese Cuisine" },
+  { code: "IAB8-5", name: "Cocktails/Beer" },
+  { code: "IAB8-6", name: "Coffee/Tea" },
+  { code: "IAB8-7", name: "Cuisine-Specific" },
+  { code: "IAB8-8", name: "Desserts & Baking" },
+  { code: "IAB8-9", name: "Dining Out" },
+  { code: "IAB8-10", name: "Food Allergies" },
+  { code: "IAB8-11", name: "French Cuisine" },
+  { code: "IAB8-12", name: "Health/Lowfat Cooking" },
+  { code: "IAB8-13", name: "Italian Cuisine" },
+  { code: "IAB8-14", name: "Japanese Cuisine" },
+  { code: "IAB8-15", name: "Mexican Cuisine" },
+  { code: "IAB8-16", name: "Vegan" },
+  { code: "IAB8-17", name: "Vegetarian" },
+  { code: "IAB8-18", name: "Wine" },
+  { code: "IAB9", name: "Hobbies & Interests" },
+  { code: "IAB9-1", name: "Art/Technology" },
+  { code: "IAB9-2", name: "Arts & Crafts" },
+  { code: "IAB9-3", name: "Beadwork" },
+  { code: "IAB9-4", name: "Bird-Watching" },
+  { code: "IAB9-5", name: "Board Games/Puzzles" },
+  { code: "IAB9-6", name: "Candle & Soap Making" },
+  { code: "IAB9-7", name: "Card Games" },
+  { code: "IAB9-8", name: "Chess" },
+  { code: "IAB9-9", name: "Cigars" },
+  { code: "IAB9-10", name: "Collecting" },
+  { code: "IAB9-11", name: "Comic Books" },
+  { code: "IAB9-12", name: "Drawing/Sketching" },
+  { code: "IAB9-13", name: "Freelance Writing" },
+  { code: "IAB9-14", name: "Genealogy" },
+  { code: "IAB9-15", name: "Getting Published" },
+  { code: "IAB9-16", name: "Guitar" },
+  { code: "IAB9-17", name: "Home Recording" },
+  { code: "IAB9-18", name: "Investors & Patents" },
+  { code: "IAB9-19", name: "Jewelry Making" },
+  { code: "IAB9-20", name: "Magic & Illusion" },
+  { code: "IAB9-21", name: "Needlework" },
+  { code: "IAB9-22", name: "Painting" },
+  { code: "IAB9-23", name: "Photography" },
+  { code: "IAB9-24", name: "Radio" },
+  { code: "IAB9-25", name: "Roleplaying Games" },
+  { code: "IAB9-26", name: "Sci-Fi & Fantasy" },
+  { code: "IAB9-27", name: "Scrapbooking" },
+  { code: "IAB9-28", name: "Screenwriting" },
+  { code: "IAB9-29", name: "Stamps & Coins" },
+  { code: "IAB9-30", name: "Video & Computer Games" },
+  { code: "IAB9-31", name: "Woodworking" },
+  { code: "IAB10", name: "Home & Garden" },
+  { code: "IAB11", name: "Law, Gov't & Politics" },
+  { code: "IAB12", name: "News" },
+  { code: "IAB13", name: "Personal Finance" },
+  { code: "IAB13-1", name: "Beginning Investing" },
+  { code: "IAB13-2", name: "Credit/Debt & Loans" },
+  { code: "IAB13-3", name: "Financial News" },
+  { code: "IAB13-4", name: "Financial Planning" },
+  { code: "IAB13-5", name: "Hedge Fund" },
+  { code: "IAB13-6", name: "Insurance" },
+  { code: "IAB13-7", name: "Investing" },
+  { code: "IAB13-8", name: "Mutual Funds" },
+  { code: "IAB13-9", name: "Options" },
+  { code: "IAB13-10", name: "Retirement Planning" },
+  { code: "IAB13-11", name: "Stocks" },
+  { code: "IAB13-12", name: "Tax Planning" },
+  { code: "IAB14", name: "Society" },
+  { code: "IAB15", name: "Science" },
+  { code: "IAB16", name: "Pets" },
+  { code: "IAB17", name: "Sports" },
+  { code: "IAB17-1", name: "Auto Racing" },
+  { code: "IAB17-2", name: "Baseball" },
+  { code: "IAB17-3", name: "Bicycling" },
+  { code: "IAB17-4", name: "Bodybuilding" },
+  { code: "IAB17-5", name: "Boxing" },
+  { code: "IAB17-6", name: "Canoeing/Kayaking" },
+  { code: "IAB17-7", name: "Cheerleading" },
+  { code: "IAB17-8", name: "Climbing" },
+  { code: "IAB17-9", name: "Cricket" },
+  { code: "IAB17-10", name: "Figure Skating" },
+  { code: "IAB17-11", name: "Fly Fishing" },
+  { code: "IAB17-12", name: "Football" },
+  { code: "IAB17-13", name: "Freshwater Fishing" },
+  { code: "IAB17-14", name: "Game & Fish" },
+  { code: "IAB17-15", name: "Golf" },
+  { code: "IAB17-16", name: "Horse Racing" },
+  { code: "IAB17-17", name: "Horses" },
+  { code: "IAB17-18", name: "Hunting/Shooting" },
+  { code: "IAB17-19", name: "Inline Skating" },
+  { code: "IAB17-20", name: "Martial Arts" },
+  { code: "IAB17-21", name: "Mountain Biking" },
+  { code: "IAB17-22", name: "NASCAR Racing" },
+  { code: "IAB17-23", name: "Olympics" },
+  { code: "IAB17-24", name: "Paintball" },
+  { code: "IAB17-25", name: "Power & Motorcycles" },
+  { code: "IAB17-26", name: "Pro Basketball" },
+  { code: "IAB17-27", name: "Pro Ice Hockey" },
+  { code: "IAB17-28", name: "Rodeo" },
+  { code: "IAB17-29", name: "Rugby" },
+  { code: "IAB17-30", name: "Running/Jogging" },
+  { code: "IAB17-31", name: "Sailing" },
+  { code: "IAB17-32", name: "Saltwater Fishing" },
+  { code: "IAB17-33", name: "Scuba Diving" },
+  { code: "IAB17-34", name: "Skateboarding" },
+  { code: "IAB17-35", name: "Skiing" },
+  { code: "IAB17-36", name: "Snowboarding" },
+  { code: "IAB17-37", name: "Surfing/Bodyboarding" },
+  { code: "IAB17-38", name: "Swimming" },
+  { code: "IAB17-39", name: "Table Tennis/Ping-Pong" },
+  { code: "IAB17-40", name: "Tennis" },
+  { code: "IAB17-41", name: "Volleyball" },
+  { code: "IAB17-42", name: "Walking" },
+  { code: "IAB17-43", name: "Waterski/Wakeboard" },
+  { code: "IAB17-44", name: "World Soccer" },
+  { code: "IAB18", name: "Style & Fashion" },
+  { code: "IAB19", name: "Technology & Computing" },
+  { code: "IAB19-1", name: "3-D Graphics" },
+  { code: "IAB19-2", name: "Animation" },
+  { code: "IAB19-3", name: "Antivirus Software" },
+  { code: "IAB19-4", name: "C/C++" },
+  { code: "IAB19-5", name: "Cameras & Camcorders" },
+  { code: "IAB19-6", name: "Cell Phones" },
+  { code: "IAB19-7", name: "Computer Certification" },
+  { code: "IAB19-8", name: "Computer Networking" },
+  { code: "IAB19-9", name: "Computer Peripherals" },
+  { code: "IAB19-10", name: "Computer Reviews" },
+  { code: "IAB19-11", name: "Data Centers" },
+  { code: "IAB19-12", name: "Databases" },
+  { code: "IAB19-13", name: "Desktop Publishing" },
+  { code: "IAB19-14", name: "Desktop Video" },
+  { code: "IAB19-15", name: "Email" },
+  { code: "IAB19-16", name: "Graphics Software" },
+  { code: "IAB19-17", name: "Home Video/DVD" },
+  { code: "IAB19-18", name: "Internet Technology" },
+  { code: "IAB19-19", name: "Java" },
+  { code: "IAB19-20", name: "JavaScript" },
+  { code: "IAB19-21", name: "Mac Support" },
+  { code: "IAB19-22", name: "MP3/MIDI" },
+  { code: "IAB19-23", name: "Net Conferencing" },
+  { code: "IAB19-24", name: "Net for Beginners" },
+  { code: "IAB19-25", name: "Network Security" },
+  { code: "IAB19-26", name: "Palmtops/PDAs" },
+  { code: "IAB19-27", name: "PC Support" },
+  { code: "IAB19-28", name: "Portable" },
+  { code: "IAB19-29", name: "Entertainment" },
+  { code: "IAB19-30", name: "Shareware/Freeware" },
+  { code: "IAB19-31", name: "Software" },
+  { code: "IAB19-32", name: "Web Clip Art" },
+  { code: "IAB19-33", name: "Web Design/HTML" },
+  { code: "IAB19-34", name: "Web Search" },
+  { code: "IAB19-35", name: "Windows" },
+  { code: "IAB20", name: "Travel" },
+  { code: "IAB21", name: "Real Estate" },
+  { code: "IAB22", name: "Shopping" },
+  { code: "IAB23", name: "Religion & Spirituality" },
+];
+
+const CURRENCIES = [
+  { code: "AED", name: "UAE Dirham", symbol: "د.إ" },
+  { code: "USD", name: "US Dollar", symbol: "$" },
+  { code: "INR", name: "Indian Rupee", symbol: "₹" },
+];
+
+const BID_PRICING_TYPES = [
+  { value: "cpm", label: "CPM", desc: "Cost per 1,000 impressions" },
+  { value: "cpc", label: "CPC", desc: "Cost per click" },
+  { value: "cpa", label: "CPA", desc: "Cost per acquisition" },
+  { value: "cpv", label: "CPV", desc: "Cost per view" },
 ];
 
 const DEVICE_TYPES = [
@@ -173,16 +576,15 @@ export default function CampaignWizard() {
   const [form, setForm] = useState({
     // Campaign Overview
     name: "",
-    business_product: "",
+    iab_categories: [],
     description: "",
     primary_goal: "brand_awareness",
     kpi_type: "cpm",
     kpi_target: 5.0,
-    target_audience_description: "",
     
     // Budget & Bidding
     bidding_strategy: "manual_cpm",
-    bid_price: 2.0,
+    bid_pricing_type: "cpm",
     bid_floor: 0.5,
     currency: "USD",
     daily_budget: 100,
@@ -195,11 +597,17 @@ export default function CampaignWizard() {
     
     // Geographic Targeting
     geo_countries: [],
+    geo_states: [],
     geo_cities: [],
-    geo_regions: [],
+    geo_pincodes: [],
     lat_long_targeting: false,
     lat_long_points: [],
+    geo_latitude: "",
+    geo_longitude: "",
     radius_km: 10,
+    
+    // Telecom
+    telecom_operators: [],
     
     // Device Targeting
     device_types: [],
@@ -241,6 +649,8 @@ export default function CampaignWizard() {
     // Audience
     first_party_audiences: [],
     third_party_audiences: [],
+    first_party_audience_input: "",
+    third_party_audience_input: "",
     lookalike_enabled: false,
     lookalike_expansion: 3,
     audience_exclusions: [],
@@ -501,7 +911,6 @@ export default function CampaignWizard() {
     try {
       const campaignData = {
         name: form.name,
-        bid_price: form.bid_price,
         bid_floor: form.bid_floor,
         currency: form.currency,
         priority: form.priority,
@@ -521,8 +930,17 @@ export default function CampaignWizard() {
         spo: { enabled: form.spo_enabled },
         ml_prediction: { enabled: form.ml_prediction_enabled },
         targeting: {
-          geo: { countries: form.geo_countries, cities: form.geo_cities, regions: form.geo_regions },
+          geo: { 
+            countries: form.geo_countries, 
+            states: form.geo_states,
+            cities: form.geo_cities, 
+            pincodes: form.geo_pincodes,
+            latitude: form.geo_latitude,
+            longitude: form.geo_longitude,
+            radius_km: form.radius_km,
+          },
           device: { device_types: form.device_types, os_list: form.os_list },
+          telecom: { operators: form.telecom_operators },
           demographics: {
             age_ranges: form.age_ranges,
             genders: form.genders,
@@ -644,15 +1062,38 @@ export default function CampaignWizard() {
         />
       </div>
 
-      {/* Business/Product */}
+      {/* IAB Categories */}
       <div className="space-y-2">
-        <Label className="text-[#94A3B8]">Business / Product</Label>
-        <Input
-          value={form.business_product}
-          onChange={(e) => updateField("business_product", e.target.value)}
-          placeholder="Describe your product or service"
-          className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
-        />
+        <Label className="text-[#94A3B8]">IAB Categories *</Label>
+        <Select 
+          value={form.iab_categories[0] || ""} 
+          onValueChange={(v) => {
+            if (v && !form.iab_categories.includes(v)) {
+              updateField("iab_categories", [...form.iab_categories, v]);
+            }
+          }}
+        >
+          <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+            <SelectValue placeholder="Select IAB category" />
+          </SelectTrigger>
+          <SelectContent className="surface-primary border-[#2D3B55] max-h-[300px]">
+            {IAB_CATEGORIES.map((cat) => (
+              <SelectItem key={cat.code} value={cat.code} className="text-[#F8FAFC]">
+                {cat.code} - {cat.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {form.iab_categories.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {form.iab_categories.map((code) => (
+              <Badge key={code} variant="secondary" className="bg-[#3B82F6]/20 text-[#3B82F6]">
+                {IAB_CATEGORIES.find(c => c.code === code)?.name || code}
+                <button onClick={() => updateField("iab_categories", form.iab_categories.filter(c => c !== code))} className="ml-2">×</button>
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Primary Goal */}
@@ -703,17 +1144,6 @@ export default function CampaignWizard() {
             className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
           />
         </div>
-      </div>
-
-      {/* Target Audience Description */}
-      <div className="space-y-2">
-        <Label className="text-[#94A3B8]">Target Audience Description</Label>
-        <Textarea
-          value={form.target_audience_description}
-          onChange={(e) => updateField("target_audience_description", e.target.value)}
-          placeholder="Describe your ideal customer (e.g., 'Tech-savvy millennials interested in sustainable products')"
-          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] min-h-[80px]"
-        />
       </div>
 
       {/* Description */}
@@ -770,23 +1200,44 @@ export default function CampaignWizard() {
         <p className="text-sm text-[#64748B]">Set your budget, bidding strategy, and inventory sources</p>
       </div>
 
-      {/* Budget */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Currency & Bid Pricing Type */}
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label className="text-[#94A3B8]">Currency</Label>
+          <Label className="text-[#94A3B8]">Currency *</Label>
           <Select value={form.currency} onValueChange={(v) => updateField("currency", v)}>
             <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="surface-primary border-[#2D3B55]">
-              {["USD", "EUR", "GBP", "CAD", "AUD", "JPY"].map((c) => (
-                <SelectItem key={c} value={c} className="text-[#F8FAFC]">{c}</SelectItem>
+              {CURRENCIES.map((c) => (
+                <SelectItem key={c.code} value={c.code} className="text-[#F8FAFC]">
+                  {c.symbol} {c.code} - {c.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label className="text-[#94A3B8]">Daily Budget *</Label>
+          <Label className="text-[#94A3B8]">Bid Pricing Type *</Label>
+          <Select value={form.bid_pricing_type} onValueChange={(v) => updateField("bid_pricing_type", v)}>
+            <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="surface-primary border-[#2D3B55]">
+              {BID_PRICING_TYPES.map((t) => (
+                <SelectItem key={t.value} value={t.value} className="text-[#F8FAFC]">
+                  {t.label} - {t.desc}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Budget */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-[#94A3B8]">Daily Budget ({CURRENCIES.find(c => c.code === form.currency)?.symbol || '$'}) *</Label>
           <Input
             type="number"
             value={form.daily_budget}
@@ -795,7 +1246,7 @@ export default function CampaignWizard() {
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-[#94A3B8]">Total Budget</Label>
+          <Label className="text-[#94A3B8]">Total Budget ({CURRENCIES.find(c => c.code === form.currency)?.symbol || '$'})</Label>
           <Input
             type="number"
             value={form.total_budget}
@@ -808,38 +1259,24 @@ export default function CampaignWizard() {
       {/* Bidding Strategy */}
       <div className="space-y-2">
         <Label className="text-[#94A3B8]">Bidding Strategy</Label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {BIDDING_STRATEGIES.map((strategy) => (
-            <div
-              key={strategy.value}
-              onClick={() => updateField("bidding_strategy", strategy.value)}
-              className={`p-3 rounded-lg cursor-pointer border transition-all ${
-                form.bidding_strategy === strategy.value
-                  ? "bg-[#10B981]/20 border-[#10B981]"
-                  : "surface-secondary border-[#2D3B55] hover:border-[#10B981]/50"
-              }`}
-            >
-              <p className="text-sm font-medium text-[#F8FAFC]">{strategy.label}</p>
-              <p className="text-xs text-[#64748B] mt-1">{strategy.desc}</p>
-            </div>
-          ))}
-        </div>
+        <Select value={form.bidding_strategy} onValueChange={(v) => updateField("bidding_strategy", v)}>
+          <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="surface-primary border-[#2D3B55]">
+            {BIDDING_STRATEGIES.map((strategy) => (
+              <SelectItem key={strategy.value} value={strategy.value} className="text-[#F8FAFC]">
+                {strategy.label} - {strategy.desc}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Bid Price */}
+      {/* Bid Floor */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label className="text-[#94A3B8]">Bid Price ({form.currency}) *</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={form.bid_price}
-            onChange={(e) => updateField("bid_price", parseFloat(e.target.value) || 0)}
-            className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-[#94A3B8]">Bid Floor</Label>
+          <Label className="text-[#94A3B8]">Bid Floor ({form.currency})</Label>
           <Input
             type="number"
             step="0.01"
@@ -965,7 +1402,12 @@ export default function CampaignWizard() {
   );
 
   // Step 3: Targeting
-  const renderTargetingStep = () => (
+  const renderTargetingStep = () => {
+    const availableStates = form.geo_countries.length === 1 ? (STATES_BY_COUNTRY[form.geo_countries[0]] || []) : [];
+    const availableCities = form.geo_countries.length === 1 ? (CITIES_BY_COUNTRY[form.geo_countries[0]] || []) : [];
+    const availableOperators = form.geo_countries.length === 1 ? (TELECOM_OPERATORS[form.geo_countries[0]] || []) : [];
+    
+    return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-[#F8FAFC] mb-1">Targeting</h2>
@@ -982,57 +1424,235 @@ export default function CampaignWizard() {
 
         {/* Geographic Targeting */}
         <TabsContent value="geo" className="space-y-4 mt-4">
+          {/* Countries Dropdown */}
           <div className="space-y-2">
             <Label className="text-[#94A3B8]">Countries</Label>
-            <div className="grid grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-2 surface-secondary rounded-lg">
-              {COUNTRIES.map((country) => (
-                <div
-                  key={country.code}
-                  onClick={() => toggleArrayItem("geo_countries", country.code)}
-                  className={`px-3 py-2 rounded cursor-pointer text-sm transition-all ${
-                    form.geo_countries.includes(country.code)
-                      ? "bg-[#3B82F6] text-white"
-                      : "bg-[#1E293B] text-[#94A3B8] hover:bg-[#2D3B55]"
-                  }`}
-                >
-                  {country.name}
-                </div>
-              ))}
-            </div>
+            <Select 
+              value={form.geo_countries[0] || ""} 
+              onValueChange={(v) => {
+                if (v && !form.geo_countries.includes(v)) {
+                  updateField("geo_countries", [...form.geo_countries, v]);
+                  // Reset states and cities when country changes
+                  updateField("geo_states", []);
+                  updateField("geo_cities", []);
+                  updateField("telecom_operators", []);
+                }
+              }}
+            >
+              <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                <SelectValue placeholder="Select country" />
+              </SelectTrigger>
+              <SelectContent className="surface-primary border-[#2D3B55] max-h-[300px]">
+                {COUNTRIES.map((country) => (
+                  <SelectItem key={country.code} value={country.code} className="text-[#F8FAFC]">
+                    {country.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {form.geo_countries.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {form.geo_countries.map((code) => (
                   <Badge key={code} variant="secondary" className="bg-[#3B82F6]/20 text-[#3B82F6]">
                     {COUNTRIES.find(c => c.code === code)?.name || code}
-                    <button onClick={() => toggleArrayItem("geo_countries", code)} className="ml-2">×</button>
+                    <button onClick={() => {
+                      updateField("geo_countries", form.geo_countries.filter(c => c !== code));
+                      updateField("geo_states", []);
+                      updateField("geo_cities", []);
+                    }} className="ml-2">×</button>
                   </Badge>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Radius Targeting */}
-          <div className="flex items-center gap-4 p-4 surface-secondary rounded-lg">
-            <Switch
-              checked={form.lat_long_targeting}
-              onCheckedChange={(v) => updateField("lat_long_targeting", v)}
-            />
-            <div>
-              <p className="text-sm text-[#F8FAFC]">Radius-based targeting</p>
-              <p className="text-xs text-[#64748B]">Target users within a specific distance from coordinates</p>
+          {/* States Dropdown */}
+          {availableStates.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-[#94A3B8]">States / Regions</Label>
+              <Select 
+                value={form.geo_states[0] || ""} 
+                onValueChange={(v) => {
+                  if (v && !form.geo_states.includes(v)) {
+                    updateField("geo_states", [...form.geo_states, v]);
+                  }
+                }}
+              >
+                <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                  <SelectValue placeholder="Select state/region" />
+                </SelectTrigger>
+                <SelectContent className="surface-primary border-[#2D3B55] max-h-[300px]">
+                  {availableStates.map((state) => (
+                    <SelectItem key={state} value={state} className="text-[#F8FAFC]">{state}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.geo_states.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {form.geo_states.map((state) => (
+                    <Badge key={state} variant="secondary" className="bg-[#10B981]/20 text-[#10B981]">
+                      {state}
+                      <button onClick={() => updateField("geo_states", form.geo_states.filter(s => s !== state))} className="ml-2">×</button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
-            {form.lat_long_targeting && (
-              <div className="ml-auto flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={form.radius_km}
-                  onChange={(e) => updateField("radius_km", parseInt(e.target.value) || 10)}
-                  className="w-20 surface-secondary border-[#2D3B55] text-[#F8FAFC]"
-                />
-                <span className="text-sm text-[#94A3B8]">km radius</span>
+          )}
+
+          {/* Cities Dropdown */}
+          {availableCities.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-[#94A3B8]">Cities</Label>
+              <Select 
+                value={form.geo_cities[0] || ""} 
+                onValueChange={(v) => {
+                  if (v && !form.geo_cities.includes(v)) {
+                    updateField("geo_cities", [...form.geo_cities, v]);
+                  }
+                }}
+              >
+                <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                  <SelectValue placeholder="Select city" />
+                </SelectTrigger>
+                <SelectContent className="surface-primary border-[#2D3B55] max-h-[300px]">
+                  {availableCities.map((city) => (
+                    <SelectItem key={city} value={city} className="text-[#F8FAFC]">{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.geo_cities.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {form.geo_cities.map((city) => (
+                    <Badge key={city} variant="secondary" className="bg-[#F59E0B]/20 text-[#F59E0B]">
+                      {city}
+                      <button onClick={() => updateField("geo_cities", form.geo_cities.filter(c => c !== city))} className="ml-2">×</button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Pincode */}
+          <div className="space-y-2">
+            <Label className="text-[#94A3B8]">Pincodes / ZIP Codes</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter pincode and press Enter"
+                className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.target.value.trim()) {
+                    const pincode = e.target.value.trim();
+                    if (!form.geo_pincodes.includes(pincode)) {
+                      updateField("geo_pincodes", [...form.geo_pincodes, pincode]);
+                    }
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </div>
+            {form.geo_pincodes.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {form.geo_pincodes.map((pin) => (
+                  <Badge key={pin} variant="secondary" className="bg-[#8B5CF6]/20 text-[#8B5CF6]">
+                    {pin}
+                    <button onClick={() => updateField("geo_pincodes", form.geo_pincodes.filter(p => p !== pin))} className="ml-2">×</button>
+                  </Badge>
+                ))}
               </div>
             )}
           </div>
+
+          {/* Lat/Long with Radius */}
+          <Card className="surface-secondary border-[#2D3B55]">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-4">
+                <Switch
+                  checked={form.lat_long_targeting}
+                  onCheckedChange={(v) => updateField("lat_long_targeting", v)}
+                />
+                <div>
+                  <p className="text-sm text-[#F8FAFC]">Radius-based Targeting</p>
+                  <p className="text-xs text-[#64748B]">Target users within a specific distance from coordinates</p>
+                </div>
+              </div>
+              
+              {form.lat_long_targeting && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[#94A3B8]">Latitude</Label>
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      value={form.geo_latitude}
+                      onChange={(e) => updateField("geo_latitude", e.target.value)}
+                      placeholder="e.g., 25.2048"
+                      className="surface-primary border-[#2D3B55] text-[#F8FAFC]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[#94A3B8]">Longitude</Label>
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      value={form.geo_longitude}
+                      onChange={(e) => updateField("geo_longitude", e.target.value)}
+                      placeholder="e.g., 55.2708"
+                      className="surface-primary border-[#2D3B55] text-[#F8FAFC]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[#94A3B8]">Radius (km)</Label>
+                    <Select value={form.radius_km.toString()} onValueChange={(v) => updateField("radius_km", parseInt(v))}>
+                      <SelectTrigger className="surface-primary border-[#2D3B55] text-[#F8FAFC]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="surface-primary border-[#2D3B55]">
+                        {[1, 5, 10, 25, 50, 100, 200, 500].map((r) => (
+                          <SelectItem key={r} value={r.toString()} className="text-[#F8FAFC]">{r} km</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Telecom Operators */}
+          {availableOperators.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-[#94A3B8]">Telecom Operators</Label>
+              <Select 
+                value={form.telecom_operators[0] || ""} 
+                onValueChange={(v) => {
+                  if (v && !form.telecom_operators.includes(v)) {
+                    updateField("telecom_operators", [...form.telecom_operators, v]);
+                  }
+                }}
+              >
+                <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                  <SelectValue placeholder="Select telecom operator" />
+                </SelectTrigger>
+                <SelectContent className="surface-primary border-[#2D3B55]">
+                  {availableOperators.map((op) => (
+                    <SelectItem key={op} value={op} className="text-[#F8FAFC]">{op}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.telecom_operators.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {form.telecom_operators.map((op) => (
+                    <Badge key={op} variant="secondary" className="bg-[#EC4899]/20 text-[#EC4899]">
+                      {op}
+                      <button onClick={() => updateField("telecom_operators", form.telecom_operators.filter(o => o !== op))} className="ml-2">×</button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         {/* Device Targeting */}
@@ -1166,6 +1786,7 @@ export default function CampaignWizard() {
       </Tabs>
     </div>
   );
+  };
 
   // Step 4: Audience
   const renderAudienceStep = () => (
@@ -1174,6 +1795,140 @@ export default function CampaignWizard() {
         <h2 className="text-xl font-semibold text-[#F8FAFC] mb-1">Audience</h2>
         <p className="text-sm text-[#64748B]">Define demographic and audience targeting</p>
       </div>
+
+      {/* First Party Audiences */}
+      <Card className="surface-primary border-panel">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base text-[#F8FAFC]">First Party Audiences</CardTitle>
+          <p className="text-xs text-[#64748B]">Your owned customer data (customer lists, site visitors)</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[#94A3B8]">Create / Import Audience</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.first_party_audience_input}
+                  onChange={(e) => updateField("first_party_audience_input", e.target.value)}
+                  placeholder="Audience name"
+                  className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (form.first_party_audience_input.trim()) {
+                      updateField("first_party_audiences", [...form.first_party_audiences, form.first_party_audience_input.trim()]);
+                      updateField("first_party_audience_input", "");
+                    }
+                  }}
+                  className="border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6]/10"
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[#94A3B8]">Select Existing</Label>
+              <Select onValueChange={(v) => {
+                if (v && !form.first_party_audiences.includes(v)) {
+                  updateField("first_party_audiences", [...form.first_party_audiences, v]);
+                }
+              }}>
+                <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                  <SelectValue placeholder="Select audience" />
+                </SelectTrigger>
+                <SelectContent className="surface-primary border-[#2D3B55]">
+                  <SelectItem value="All Site Visitors" className="text-[#F8FAFC]">All Site Visitors</SelectItem>
+                  <SelectItem value="Cart Abandoners" className="text-[#F8FAFC]">Cart Abandoners</SelectItem>
+                  <SelectItem value="Converters" className="text-[#F8FAFC]">Converters</SelectItem>
+                  <SelectItem value="Newsletter Subscribers" className="text-[#F8FAFC]">Newsletter Subscribers</SelectItem>
+                  <SelectItem value="App Users" className="text-[#F8FAFC]">App Users</SelectItem>
+                  <SelectItem value="High Value Customers" className="text-[#F8FAFC]">High Value Customers</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {form.first_party_audiences.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {form.first_party_audiences.map((aud) => (
+                <Badge key={aud} variant="secondary" className="bg-[#3B82F6]/20 text-[#3B82F6]">
+                  {aud}
+                  <button onClick={() => updateField("first_party_audiences", form.first_party_audiences.filter(a => a !== aud))} className="ml-2">×</button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Third Party Audiences */}
+      <Card className="surface-primary border-panel">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base text-[#F8FAFC]">Third Party Audiences</CardTitle>
+          <p className="text-xs text-[#64748B]">Data from external providers</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[#94A3B8]">Create / Import Audience</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.third_party_audience_input}
+                  onChange={(e) => updateField("third_party_audience_input", e.target.value)}
+                  placeholder="Audience name or segment ID"
+                  className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (form.third_party_audience_input.trim()) {
+                      updateField("third_party_audiences", [...form.third_party_audiences, form.third_party_audience_input.trim()]);
+                      updateField("third_party_audience_input", "");
+                    }
+                  }}
+                  className="border-[#10B981] text-[#10B981] hover:bg-[#10B981]/10"
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[#94A3B8]">Select Data Provider Segment</Label>
+              <Select onValueChange={(v) => {
+                if (v && !form.third_party_audiences.includes(v)) {
+                  updateField("third_party_audiences", [...form.third_party_audiences, v]);
+                }
+              }}>
+                <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                  <SelectValue placeholder="Select segment" />
+                </SelectTrigger>
+                <SelectContent className="surface-primary border-[#2D3B55]">
+                  <SelectItem value="Oracle - In-Market Auto" className="text-[#F8FAFC]">Oracle - In-Market Auto</SelectItem>
+                  <SelectItem value="Oracle - In-Market Travel" className="text-[#F8FAFC]">Oracle - In-Market Travel</SelectItem>
+                  <SelectItem value="Experian - Affluent Families" className="text-[#F8FAFC]">Experian - Affluent Families</SelectItem>
+                  <SelectItem value="Experian - Young Professionals" className="text-[#F8FAFC]">Experian - Young Professionals</SelectItem>
+                  <SelectItem value="Nielsen - Tech Enthusiasts" className="text-[#F8FAFC]">Nielsen - Tech Enthusiasts</SelectItem>
+                  <SelectItem value="Nielsen - Fitness Enthusiasts" className="text-[#F8FAFC]">Nielsen - Fitness Enthusiasts</SelectItem>
+                  <SelectItem value="IHS Markit - Business Decision Makers" className="text-[#F8FAFC]">IHS Markit - Business Decision Makers</SelectItem>
+                  <SelectItem value="Bombora - Intent - Cloud Solutions" className="text-[#F8FAFC]">Bombora - Intent - Cloud Solutions</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {form.third_party_audiences.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {form.third_party_audiences.map((aud) => (
+                <Badge key={aud} variant="secondary" className="bg-[#10B981]/20 text-[#10B981]">
+                  {aud}
+                  <button onClick={() => updateField("third_party_audiences", form.third_party_audiences.filter(a => a !== aud))} className="ml-2">×</button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Demographics */}
       <Card className="surface-primary border-panel">
@@ -1184,81 +1939,117 @@ export default function CampaignWizard() {
           {/* Age Ranges */}
           <div className="space-y-2">
             <Label className="text-[#94A3B8]">Age Ranges</Label>
-            <div className="flex flex-wrap gap-2">
-              {AGE_RANGES.map((age) => (
-                <Badge
-                  key={age}
-                  onClick={() => toggleArrayItem("age_ranges", age)}
-                  className={`cursor-pointer ${
-                    form.age_ranges.includes(age)
-                      ? "bg-[#3B82F6] text-white"
-                      : "bg-[#1E293B] text-[#94A3B8] hover:bg-[#2D3B55]"
-                  }`}
-                >
-                  {age}
-                </Badge>
-              ))}
-            </div>
+            <Select onValueChange={(v) => {
+              if (v && !form.age_ranges.includes(v)) {
+                updateField("age_ranges", [...form.age_ranges, v]);
+              }
+            }}>
+              <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                <SelectValue placeholder="Select age range" />
+              </SelectTrigger>
+              <SelectContent className="surface-primary border-[#2D3B55]">
+                {AGE_RANGES.map((age) => (
+                  <SelectItem key={age} value={age} className="text-[#F8FAFC]">{age}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.age_ranges.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {form.age_ranges.map((age) => (
+                  <Badge key={age} variant="secondary" className="bg-[#3B82F6]/20 text-[#3B82F6]">
+                    {age}
+                    <button onClick={() => updateField("age_ranges", form.age_ranges.filter(a => a !== age))} className="ml-2">×</button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Genders */}
           <div className="space-y-2">
             <Label className="text-[#94A3B8]">Genders</Label>
-            <div className="flex gap-3">
-              {GENDERS.map((gender) => (
-                <div
-                  key={gender}
-                  onClick={() => toggleArrayItem("genders", gender)}
-                  className={`flex-1 p-3 rounded-lg cursor-pointer border text-center ${
-                    form.genders.includes(gender)
-                      ? "bg-[#10B981]/20 border-[#10B981]"
-                      : "surface-secondary border-[#2D3B55] hover:border-[#10B981]/50"
-                  }`}
-                >
-                  <span className="text-sm text-[#F8FAFC] capitalize">{gender}</span>
-                </div>
-              ))}
-            </div>
+            <Select onValueChange={(v) => {
+              if (v && !form.genders.includes(v)) {
+                updateField("genders", [...form.genders, v]);
+              }
+            }}>
+              <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent className="surface-primary border-[#2D3B55]">
+                {GENDERS.map((gender) => (
+                  <SelectItem key={gender} value={gender} className="text-[#F8FAFC] capitalize">{gender}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.genders.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {form.genders.map((gender) => (
+                  <Badge key={gender} variant="secondary" className="bg-[#10B981]/20 text-[#10B981] capitalize">
+                    {gender}
+                    <button onClick={() => updateField("genders", form.genders.filter(g => g !== gender))} className="ml-2">×</button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Income Segments */}
           <div className="space-y-2">
             <Label className="text-[#94A3B8]">Income Segments</Label>
-            <div className="flex flex-wrap gap-2">
-              {INCOME_SEGMENTS.map((segment) => (
-                <Badge
-                  key={segment}
-                  onClick={() => toggleArrayItem("income_segments", segment)}
-                  className={`cursor-pointer capitalize ${
-                    form.income_segments.includes(segment)
-                      ? "bg-[#8B5CF6] text-white"
-                      : "bg-[#1E293B] text-[#94A3B8] hover:bg-[#2D3B55]"
-                  }`}
-                >
-                  {segment}
-                </Badge>
-              ))}
-            </div>
+            <Select onValueChange={(v) => {
+              if (v && !form.income_segments.includes(v)) {
+                updateField("income_segments", [...form.income_segments, v]);
+              }
+            }}>
+              <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                <SelectValue placeholder="Select income segment" />
+              </SelectTrigger>
+              <SelectContent className="surface-primary border-[#2D3B55]">
+                {INCOME_SEGMENTS.map((segment) => (
+                  <SelectItem key={segment} value={segment} className="text-[#F8FAFC] capitalize">{segment}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.income_segments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {form.income_segments.map((segment) => (
+                  <Badge key={segment} variant="secondary" className="bg-[#8B5CF6]/20 text-[#8B5CF6] capitalize">
+                    {segment}
+                    <button onClick={() => updateField("income_segments", form.income_segments.filter(s => s !== segment))} className="ml-2">×</button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Languages */}
           <div className="space-y-2">
             <Label className="text-[#94A3B8]">Languages</Label>
-            <div className="flex flex-wrap gap-2">
-              {LANGUAGES.map((lang) => (
-                <Badge
-                  key={lang.code}
-                  onClick={() => toggleArrayItem("languages", lang.code)}
-                  className={`cursor-pointer ${
-                    form.languages.includes(lang.code)
-                      ? "bg-[#F59E0B] text-white"
-                      : "bg-[#1E293B] text-[#94A3B8] hover:bg-[#2D3B55]"
-                  }`}
-                >
-                  {lang.name}
-                </Badge>
-              ))}
-            </div>
+            <Select onValueChange={(v) => {
+              if (v && !form.languages.includes(v)) {
+                updateField("languages", [...form.languages, v]);
+              }
+            }}>
+              <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                <SelectValue placeholder="Select language" />
+              </SelectTrigger>
+              <SelectContent className="surface-primary border-[#2D3B55]">
+                {LANGUAGES.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code} className="text-[#F8FAFC]">{lang.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.languages.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {form.languages.map((code) => (
+                  <Badge key={code} variant="secondary" className="bg-[#F59E0B]/20 text-[#F59E0B]">
+                    {LANGUAGES.find(l => l.code === code)?.name || code}
+                    <button onClick={() => updateField("languages", form.languages.filter(l => l !== code))} className="ml-2">×</button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1281,15 +2072,16 @@ export default function CampaignWizard() {
             {form.lookalike_enabled && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[#94A3B8]">Expansion:</span>
-                <Slider
-                  value={[form.lookalike_expansion]}
-                  onValueChange={([v]) => updateField("lookalike_expansion", v)}
-                  min={1}
-                  max={10}
-                  step={1}
-                  className="w-24"
-                />
-                <span className="text-sm text-[#F8FAFC] w-6">{form.lookalike_expansion}</span>
+                <Select value={form.lookalike_expansion.toString()} onValueChange={(v) => updateField("lookalike_expansion", parseInt(v))}>
+                  <SelectTrigger className="w-20 surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="surface-primary border-[#2D3B55]">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                      <SelectItem key={n} value={n.toString()} className="text-[#F8FAFC]">{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>

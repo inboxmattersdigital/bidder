@@ -241,6 +241,26 @@ Fraud | Audiences | Attribution | Migration
   - Auto-fills duration from valid VAST
   - Shows media file details (type, dimensions, bitrate)
   - Wrapper detection
+- [x] **Campaign Wizard UI Enhancements (Phase 16)**
+  - **Overview Step:**
+    - Replaced "Business/Product" with IAB Categories dropdown (200+ categories)
+    - Removed "Target Audience Description"
+  - **Budget & Bidding Step:**
+    - Removed Bid Price field
+    - Added Currency dropdown (AED, USD, INR)
+    - Added Bid Pricing Type dropdown (CPM, CPC, CPA, CPV)
+    - All selections use dropdowns
+  - **Targeting Step - Enhanced Geo Targeting:**
+    - Countries dropdown (50+ countries globally)
+    - States/Regions dropdown (dynamically based on selected country)
+    - Cities dropdown (dynamically based on selected country)
+    - Pincodes/ZIP codes input with tags
+    - Latitude/Longitude input with radius selector
+    - Telecom Operators dropdown (dynamically based on country)
+  - **Audience Step:**
+    - First Party Audiences: Create/Import input + Existing dropdown
+    - Third Party Audiences: Create/Import input + Data Provider segments dropdown
+    - All demographic selections converted to dropdowns (Age, Gender, Income, Languages)
 
 ### P1 - Upcoming
 - [ ] **Real YouTube & GDN API Integration** - Replace mock forecasting data
