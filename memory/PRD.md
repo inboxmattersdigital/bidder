@@ -224,11 +224,27 @@ Fraud | Audiences | Attribution | Migration
   - Creates copy with "(Copy)" suffix
   - Resets status to draft, clears metrics (bids/wins)
   - Resets budget spent counters
+- [x] **Video Upload to Cloud Storage**
+  - Video upload endpoint with chunked upload support (5MB chunks)
+  - Supports MP4, WebM, OGG formats up to 100MB
+  - Upload progress indicator with percentage
+  - Video preview after upload
+  - Three video source options in CreativeForm:
+    - VAST URL with validation
+    - VAST XML with validation
+    - Direct video upload
+- [x] **VAST Tag Validation**
+  - Full VAST 2.0/3.0/4.x XML parsing
+  - Validates: Ad element, InLine/Wrapper, Impression, Creatives, MediaFiles
+  - Extracts: Duration, Click URL, Media Files, Tracking Events
+  - Reports errors and warnings separately
+  - Auto-fills duration from valid VAST
+  - Shows media file details (type, dimensions, bitrate)
+  - Wrapper detection
 
 ### P1 - Upcoming
 - [ ] **Real YouTube & GDN API Integration** - Replace mock forecasting data
-- [ ] Video upload to cloud storage (currently local preview only)
-- [ ] VAST tag validation and parsing
+- [ ] CDN integration for video hosting (currently local storage)
 
 ### P2 - Future
 - [ ] Advanced fraud detection algorithms

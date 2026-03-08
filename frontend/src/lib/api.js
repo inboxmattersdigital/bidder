@@ -53,6 +53,39 @@ export const getBidLog = (id) => api.get(`/bid-logs/${id}`);
 // Migration Matrix
 export const getMigrationMatrix = () => api.get('/migration-matrix');
 
+// File Uploads
+export const uploadImage = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/upload/image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
+export const uploadVideo = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/upload/video', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
+export const uploadVideoChunk = (chunk, chunkIndex, totalChunks, uploadId, filename) => {
+  const formData = new FormData();
+  formData.append('chunk', chunk);
+  return api.post('/upload/video/chunk', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params: { chunk_index: chunkIndex, total_chunks: totalChunks, upload_id: uploadId, filename }
+  });
+};
+
+// VAST Validation
+export const validateVast = (vastUrl, vastXml) => 
+  api.post('/vast/validate', null, { params: { vast_url: vastUrl, vast_xml: vastXml } });
+
+export const previewVast = (vastUrl) => 
+  api.get('/vast/preview', { params: { vast_url: vastUrl } });
+
 // Reference Data
 export const getReferenceData = () => api.get('/reference/all');
 
@@ -190,14 +223,7 @@ export const trackAttributionEvent = (userId, campaignId, eventType, eventValue 
 export const getUserJourney = (userId) => api.get(`/attribution/user/${userId}`);
 export const getAttributionAnalysis = (model = 'last_touch') => api.get(`/attribution/analysis?model=${model}`);
 
-// File Upload
-export const uploadImage = async (file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  return api.post('/upload/image', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  });
-};
+// File Uploads (delete)
 export const deleteUploadedFile = (filename) => api.delete(`/uploads/${filename}`);
 
 // Media Planner

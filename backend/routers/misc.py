@@ -430,7 +430,11 @@ async def get_uploaded_file(filename: str):
         "jpeg": "image/jpeg",
         "png": "image/png",
         "gif": "image/gif",
-        "webp": "image/webp"
+        "webp": "image/webp",
+        "mp4": "video/mp4",
+        "webm": "video/webm",
+        "ogg": "video/ogg",
+        "mov": "video/quicktime"
     }
     content_type = content_types.get(ext, "application/octet-stream")
     
@@ -444,6 +448,308 @@ async def delete_uploaded_file(filename: str):
     if filepath.exists():
         filepath.unlink()
     return {"status": "deleted"}
+
+
+# ==================== VIDEO UPLOAD ====================
+
+@router.post("/upload/video")
+async def upload_video(file: UploadFile = File(...)):
+    """Upload a video file for creative assets"""
+    allowed_types = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed: {allowed_types}")
+    
+    ext = file.filename.split('.')[-1] if '.' in file.filename else 'mp4'
+    filename = f"video_{uuid.uuid4().hex}.{ext}"
+    filepath = UPLOAD_DIR / filename
+    
+    try:
+        # Save video file
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        file_size = filepath.stat().st_size
+        
+        # Check file size (max 100MB)
+        if file_size > 100 * 1024 * 1024:
+            filepath.unlink()
+            raise HTTPException(status_code=400, detail="Video file too large. Max 100MB allowed.")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+    
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+    file_url = f"{base_url}/api/uploads/{filename}"
+    
+    return {
+        "filename": filename,
+        "url": file_url,
+        "content_type": file.content_type,
+        "size": file_size
+    }
+
+
+@router.post("/upload/video/chunk")
+async def upload_video_chunk(
+    chunk: UploadFile = File(...),
+    chunk_index: int = 0,
+    total_chunks: int = 1,
+    upload_id: str = "",
+    filename: str = ""
+):
+    """Upload video in chunks for large files"""
+    if not upload_id:
+        upload_id = uuid.uuid4().hex
+    
+    # Create temp directory for chunks
+    chunks_dir = UPLOAD_DIR / f"chunks_{upload_id}"
+    chunks_dir.mkdir(exist_ok=True)
+    
+    # Save chunk
+    chunk_path = chunks_dir / f"chunk_{chunk_index:04d}"
+    try:
+        with open(chunk_path, "wb") as buffer:
+            shutil.copyfileobj(chunk.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save chunk: {str(e)}")
+    
+    # Check if all chunks uploaded
+    uploaded_chunks = list(chunks_dir.glob("chunk_*"))
+    
+    if len(uploaded_chunks) == total_chunks:
+        # Merge chunks
+        ext = filename.split('.')[-1] if '.' in filename else 'mp4'
+        final_filename = f"video_{upload_id}.{ext}"
+        final_path = UPLOAD_DIR / final_filename
+        
+        try:
+            with open(final_path, "wb") as final_file:
+                for i in range(total_chunks):
+                    chunk_file = chunks_dir / f"chunk_{i:04d}"
+                    with open(chunk_file, "rb") as cf:
+                        final_file.write(cf.read())
+            
+            # Clean up chunks
+            for chunk_file in chunks_dir.glob("*"):
+                chunk_file.unlink()
+            chunks_dir.rmdir()
+            
+            file_size = final_path.stat().st_size
+            base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+            file_url = f"{base_url}/api/uploads/{final_filename}"
+            
+            return {
+                "status": "complete",
+                "filename": final_filename,
+                "url": file_url,
+                "size": file_size,
+                "upload_id": upload_id
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to merge chunks: {str(e)}")
+    
+    return {
+        "status": "uploading",
+        "upload_id": upload_id,
+        "chunks_received": len(uploaded_chunks),
+        "total_chunks": total_chunks
+    }
+
+
+# ==================== VAST VALIDATION ====================
+
+@router.post("/vast/validate")
+async def validate_vast(vast_url: str = None, vast_xml: str = None):
+    """Validate a VAST tag and extract media information"""
+    import xml.etree.ElementTree as ET
+    import httpx
+    
+    if not vast_url and not vast_xml:
+        raise HTTPException(status_code=400, detail="Either vast_url or vast_xml is required")
+    
+    xml_content = vast_xml
+    
+    # Fetch VAST if URL provided
+    if vast_url and not vast_xml:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(vast_url)
+                response.raise_for_status()
+                xml_content = response.text
+        except httpx.TimeoutException:
+            return {
+                "valid": False,
+                "errors": ["VAST URL request timed out"],
+                "warnings": []
+            }
+        except Exception as e:
+            return {
+                "valid": False,
+                "errors": [f"Failed to fetch VAST URL: {str(e)}"],
+                "warnings": []
+            }
+    
+    errors = []
+    warnings = []
+    media_files = []
+    tracking_events = []
+    click_through = None
+    duration = None
+    ad_system = None
+    ad_title = None
+    
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError as e:
+        return {
+            "valid": False,
+            "errors": [f"Invalid XML: {str(e)}"],
+            "warnings": []
+        }
+    
+    # Check VAST version
+    vast_version = root.get("version")
+    if not vast_version:
+        warnings.append("VAST version not specified")
+    elif vast_version not in ["2.0", "3.0", "4.0", "4.1", "4.2"]:
+        warnings.append(f"Unknown VAST version: {vast_version}")
+    
+    # Find Ad element
+    ad = root.find(".//Ad")
+    if ad is None:
+        errors.append("No <Ad> element found")
+        return {"valid": False, "errors": errors, "warnings": warnings}
+    
+    # Check for InLine or Wrapper
+    inline = ad.find("InLine")
+    wrapper = ad.find("Wrapper")
+    
+    if inline is None and wrapper is None:
+        errors.append("No <InLine> or <Wrapper> element found inside <Ad>")
+        return {"valid": False, "errors": errors, "warnings": warnings}
+    
+    ad_content = inline if inline is not None else wrapper
+    is_wrapper = wrapper is not None
+    
+    # Get AdSystem
+    ad_system_elem = ad_content.find("AdSystem")
+    if ad_system_elem is not None:
+        ad_system = ad_system_elem.text
+    else:
+        warnings.append("No <AdSystem> element found")
+    
+    # Get AdTitle
+    ad_title_elem = ad_content.find("AdTitle")
+    if ad_title_elem is not None:
+        ad_title = ad_title_elem.text
+    
+    # Check Impression
+    impressions = ad_content.findall("Impression")
+    if not impressions:
+        errors.append("No <Impression> element found (required)")
+    
+    # Check Creatives (for InLine)
+    if not is_wrapper:
+        creatives = ad_content.find("Creatives")
+        if creatives is None:
+            errors.append("No <Creatives> element found in InLine")
+        else:
+            creative_list = creatives.findall("Creative")
+            if not creative_list:
+                errors.append("No <Creative> elements found")
+            
+            for creative in creative_list:
+                linear = creative.find("Linear")
+                if linear is not None:
+                    # Get duration
+                    duration_elem = linear.find("Duration")
+                    if duration_elem is not None:
+                        duration = duration_elem.text
+                    else:
+                        warnings.append("No <Duration> element in Linear creative")
+                    
+                    # Get MediaFiles
+                    media_files_elem = linear.find("MediaFiles")
+                    if media_files_elem is not None:
+                        for mf in media_files_elem.findall("MediaFile"):
+                            media_file = {
+                                "delivery": mf.get("delivery"),
+                                "type": mf.get("type"),
+                                "width": mf.get("width"),
+                                "height": mf.get("height"),
+                                "bitrate": mf.get("bitrate"),
+                                "url": mf.text.strip() if mf.text else None
+                            }
+                            media_files.append(media_file)
+                    else:
+                        errors.append("No <MediaFiles> element found in Linear creative")
+                    
+                    # Get VideoClicks
+                    video_clicks = linear.find("VideoClicks")
+                    if video_clicks is not None:
+                        click_through_elem = video_clicks.find("ClickThrough")
+                        if click_through_elem is not None:
+                            click_through = click_through_elem.text.strip() if click_through_elem.text else None
+                    
+                    # Get TrackingEvents
+                    tracking = linear.find("TrackingEvents")
+                    if tracking is not None:
+                        for event in tracking.findall("Tracking"):
+                            tracking_events.append({
+                                "event": event.get("event"),
+                                "url": event.text.strip() if event.text else None
+                            })
+    else:
+        # Wrapper - check VASTAdTagURI
+        vast_uri = ad_content.find("VASTAdTagURI")
+        if vast_uri is None:
+            errors.append("No <VASTAdTagURI> found in Wrapper")
+        else:
+            warnings.append("This is a VAST Wrapper - it references another VAST tag")
+    
+    # Validate media files
+    if not is_wrapper and not media_files:
+        errors.append("No valid MediaFile elements found")
+    
+    valid_mimes = ["video/mp4", "video/webm", "video/ogg", "video/3gpp", "application/javascript"]
+    for mf in media_files:
+        if mf.get("type") and mf["type"] not in valid_mimes:
+            warnings.append(f"Uncommon video MIME type: {mf['type']}")
+        if not mf.get("url"):
+            errors.append("MediaFile missing URL")
+    
+    is_valid = len(errors) == 0
+    
+    return {
+        "valid": is_valid,
+        "errors": errors,
+        "warnings": warnings,
+        "vast_version": vast_version,
+        "is_wrapper": is_wrapper,
+        "ad_system": ad_system,
+        "ad_title": ad_title,
+        "duration": duration,
+        "click_through": click_through,
+        "media_files": media_files,
+        "tracking_events_count": len(tracking_events),
+        "impressions_count": len(impressions) if 'impressions' in dir() else 0
+    }
+
+
+@router.get("/vast/preview")
+async def preview_vast(vast_url: str):
+    """Fetch and return VAST XML content for preview"""
+    import httpx
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(vast_url)
+            response.raise_for_status()
+            return {"xml": response.text}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch VAST: {str(e)}")
 
 
 # ==================== FRAUD DETECTION ====================
