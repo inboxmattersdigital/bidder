@@ -119,9 +119,20 @@ Fraud | Audiences | Attribution | Migration
     - Regenerate token button
   - Empty state when no SSPs exist
   - Refresh button for real-time updates
+- [x] **Automated Bid Optimization UI (Phase 13)**
+  - Overview stats cards: Total Campaigns, Optimization Enabled, Below Target, On Target
+  - Campaign Bid & Win Rate comparison bar chart
+  - Recommendations panel with actionable suggestions and "Optimize" buttons
+  - Campaign table with tabs (All, Enabled, Below Target)
+  - Win rate progress bar and status icons (up/down arrows)
+  - Enable optimization dialog with:
+    - Target win rate configuration
+    - Auto-adjust vs Manual mode toggle
+    - "How it works" explanation
+  - Run optimization, View history, Disable buttons
+  - Optimization history panel with bid adjustment timeline
 
 ### P1 - Upcoming
-- [ ] **Automated Bid Optimization UI** - Build frontend for /api/bid-optimization
 - [ ] Code Refactoring - Split server.py into modular routers
 - [ ] Video upload to cloud storage (currently local preview only)
 - [ ] VAST tag validation and parsing
