@@ -266,7 +266,7 @@ export default function CampaignWizard() {
         bid_price: parseFloat(form.bid_price),
         currency: form.currency,
         priority: parseInt(form.priority),
-        creative_ids: form.creative_ids,
+        creative_id: form.creative_ids[0],  // Backend expects single creative_id
         budget: {
           daily_budget: parseFloat(form.daily_budget) || 0,
           total_budget: parseFloat(form.total_budget) || 0,
@@ -309,7 +309,14 @@ export default function CampaignWizard() {
       
       navigate("/campaigns");
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Failed to save");
+      // Handle Pydantic validation errors (array of objects)
+      const detail = error.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        const messages = detail.map(err => `${err.loc?.join('.') || 'Field'}: ${err.msg}`).join(', ');
+        toast.error(messages || "Validation failed");
+      } else {
+        toast.error(detail || "Failed to save");
+      }
     } finally {
       setSaving(false);
     }

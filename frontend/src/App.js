@@ -3,7 +3,6 @@ import { Toaster } from "./components/ui/sonner";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
-import CampaignForm from "./pages/CampaignForm";
 import CampaignWizard from "./pages/CampaignWizard";
 import Creatives from "./pages/Creatives";
 import CreativeForm from "./pages/CreativeForm";
@@ -43,10 +42,8 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="campaigns" element={<Campaigns />} />
-          <Route path="campaigns/new" element={<CampaignForm />} />
-          <Route path="campaigns/wizard" element={<CampaignWizard />} />
-          <Route path="campaigns/wizard/:id" element={<CampaignWizard />} />
-          <Route path="campaigns/:id/edit" element={<CampaignForm />} />
+          <Route path="campaigns/new" element={<CampaignWizard />} />
+          <Route path="campaigns/:id/edit" element={<CampaignWizard />} />
           <Route path="campaigns/compare" element={<CampaignComparison />} />
           <Route path="creatives" element={<Creatives />} />
           <Route path="creatives/new" element={<CreativeForm />} />

@@ -1,0 +1,86 @@
+{
+  "summary": "Phase 10 - Tested Campaign Wizard DV360-style redesign. Found and fixed critical bug where wizard sent creative_ids (array) instead of creative_id (string) expected by backend API. All 5 wizard steps, validation, creation, and edit flows now working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Campaign Wizard creation",
+        "issue": "FIXED - Wizard was sending creative_ids (array) instead of creative_id (string) expected by API",
+        "fix_applied": "Modified CampaignWizard.jsx line 269 to send creative_id: form.creative_ids[0]"
+      },
+      {
+        "flow": "Campaign Wizard error handling",
+        "issue": "FIXED - Pydantic validation errors (array format) were not being displayed properly",
+        "fix_applied": "Added proper error handling for array-based validation errors in catch block"
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_10.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/frontend/src/pages/CampaignWizard.jsx - Fixed creative_id payload and error handling"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only testing)",
+    "frontend": "100% (All tested features working after fix)"
+  },
+  "seed_data_creation": "Created TEST_Wizard_Create_Final campaign during testing, deleted after tests",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Campaign Wizard uses DV360-style 5-step flow: Basics, Budget, Targeting, Creatives, Settings. Old CampaignForm.jsx removed - /campaigns/new and /campaigns/:id/edit both use CampaignWizard.jsx. Backend expects creative_id (string) not creative_ids (array).",
+  "tested_features": {
+    "campaign_wizard_navigation": {
+      "step_1_basics": "PASS - Campaign name, advertiser, description, start/end dates",
+      "step_2_budget": "PASS - Bid price, currency, daily/total budget, pacing type",
+      "step_3_targeting": "PASS - Geographic targeting, device types, operating systems",
+      "step_4_creatives": "PASS - Creative selection with visual feedback (checkmark)",
+      "step_5_settings": "PASS - Priority, frequency capping, bid shading, ML-powered bidding"
+    },
+    "campaign_wizard_validation": {
+      "name_required": "PASS - Cannot proceed from Step 1 without campaign name",
+      "creative_required": "PASS - Cannot proceed from Step 4 without selecting a creative"
+    },
+    "campaign_creation": {
+      "save_as_draft": "PASS - Successfully creates campaign with 'draft' status",
+      "create_active": "PASS - Successfully creates campaign with 'active' status",
+      "redirect_after_save": "PASS - Redirects to /campaigns after successful creation"
+    },
+    "campaign_edit": {
+      "route_access": "PASS - /campaigns/:id/edit loads wizard",
+      "pre_populated_fields": "PASS - Campaign name and other fields pre-filled",
+      "all_steps_completed": "PASS - All steps show green checkmarks in edit mode",
+      "update_button": "PASS - Shows 'Update campaign' instead of 'Create campaign'"
+    },
+    "campaigns_page": {
+      "single_create_button": "PASS - Only 'Create Campaign' button (no duplicate form)",
+      "navigation_to_wizard": "PASS - Clicking button navigates to /campaigns/new"
+    },
+    "sidebar_navigation": {
+      "dv360_style": "PASS - Persistent sidebar with 5 steps",
+      "step_indicators": "PASS - Blue active, green completed, gray pending",
+      "back_to_campaigns": "PASS - Back link in sidebar header"
+    }
+  },
+  "bugs_fixed": {
+    "creative_id_mismatch": {
+      "description": "Campaign creation failed with 422 error - creative_id field required",
+      "file": "/app/frontend/src/pages/CampaignWizard.jsx",
+      "root_cause": "Wizard sent creative_ids (array) but backend expected creative_id (string)",
+      "fix": "Changed line 269 from 'creative_ids: form.creative_ids' to 'creative_id: form.creative_ids[0]'"
+    },
+    "error_display": {
+      "description": "Pydantic validation errors displayed as '[object Object]'",
+      "file": "/app/frontend/src/pages/CampaignWizard.jsx",
+      "root_cause": "Error detail was array of objects, toast tried to render object directly",
+      "fix": "Added array check and proper message extraction in error catch block"
+    }
+  }
+}
