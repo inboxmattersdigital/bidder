@@ -26,7 +26,40 @@ Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid reque
 - Automated Bid Optimization
 - Cross-Campaign Attribution
 - WebSocket Real-time Bid Stream
-- Campaign Creation Wizard (5-step)
+- Campaign Creation Wizard (9-step)
+
+### Campaign Wizard Enhancements (December 2025)
+
+**Optimization & Pricing:**
+- New optimization goals: CPS (Cost per Session), CPTV (Cost per True View), CPCV (Cost per Completed View)
+- Bid Pricing Type dropdown with CPM, CPC, CPA, CPV, CPCV, CPS options
+
+**Advanced Geographic Targeting:**
+- Include/Exclude logic for countries, states, cities
+- Hyper-Local Radius Targeting with lat/lon coordinates
+- Include/Exclude type for each radius point
+
+**Audience Segments:**
+- Affinity Segments (15 categories: Tech Enthusiasts, Auto Enthusiasts, etc.)
+- In-Market Segments (16 categories: Autos, Real Estate, Travel, etc.)
+
+**Inventory & Supply Control:**
+- Domain/URL Allowlist and Blocklist
+- App Allowlist and Blocklist (bundle IDs)
+- Ad Placement Position targeting (Above Fold, Below Fold, Sticky, etc.)
+- Supply Source filtering with Include/Exclude SSPs (14 SSPs)
+
+**Device & Tech Targeting:**
+- OS Version targeting (Android 8-14, iOS 13-18, Windows 7-11, etc.)
+- Language Include/Exclude with full language list
+
+**Demographics:**
+- Parental Status (Parent vs Non-Parent)
+
+**Frequency Capping:**
+- User Level vs Campaign Level capping
+- Daily and Lifetime caps per user
+- Flexible period options (hour, day, week, month, lifetime)
 
 ### UI/UX Improvements (Phase 10 - December 2025)
 
@@ -88,10 +121,21 @@ Budget Pacing | Insights | ML Models | Bid Optimizer | A/B Testing |
 Fraud | Audiences | Attribution | Migration
 
 ## Routes
-- `/campaigns/new` - DV360-style Campaign Wizard (8 steps, create)
-- `/campaigns/:id/edit` - DV360-style Campaign Wizard (8 steps, edit)
+- `/campaigns/new` - DV360-style Campaign Wizard (9 steps, create)
+- `/campaigns/:id/edit` - DV360-style Campaign Wizard (9 steps, edit)
 - `/media-planner` - Media Planning & Forecasting
 - `/insertion-orders` - Insertion Orders & Line Items Management
+
+## Campaign Wizard Steps
+1. **Campaign Overview** - Name, IAB Categories, Goals, KPIs
+2. **Budget & Bidding** - Currency, Pricing Type, Budget, Pacing, Inventory Sources
+3. **Targeting** - Geography, Device, Inventory, Supply, Contextual, Technical (6 tabs)
+4. **Audience** - Affinity, In-Market, 1st/3rd Party Audiences, Demographics, Lookalike
+5. **Creatives** - Creative Selection
+6. **Schedule & Pacing** - Flight Dates, Frequency Capping, Dayparting
+7. **IO & Line Items** - Insertion Order Configuration, Line Item Management
+8. **Brand Safety** - Safety Level, Blocked Categories/Keywords/Domains
+9. **Measurement** - Conversion Tracking, Attribution Model
 
 ## Tech Stack
 - **Backend**: FastAPI, Motor, Pydantic, WebSockets
