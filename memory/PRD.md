@@ -115,6 +115,36 @@ Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid reque
 - Error: Clear red (#EF4444)
 - Info: Blue (#3B82F6)
 
+### Ad Performance Report (December 2025)
+
+**Report Builder UI:**
+- Interactive configuration with dimension selectors
+- Date range picker with start/end dates
+- Max rows selector (50, 100, 250, 500, 1000)
+- Generate Report button with loading state
+
+**Dimensions (Group By):**
+- Source (SSP/Exchange)
+- Domain (Publisher domain)
+- Insertion Order (IO identifier)
+- Line Item (Line item name)
+- Creative Name (Creative asset)
+
+**Performance Metrics:**
+- Impressions, Reach, Clicks, CTR (%), Conversions
+
+**Video Metrics:**
+- Q1 (25%), Q2/Midpoint (50%), Q3 (75%)
+- Completed Views (100%), Completion Rate (%)
+
+**Export Functionality:**
+- CSV download with all columns and headers
+- Excel (XLSX) download with colored headers and formatting
+- Preview table before export (first 20 rows)
+- Summary cards with key metrics
+
+**Note:** Uses MOCK DATA for demonstration
+
 ## Key API Endpoints
 
 ### Bidding
