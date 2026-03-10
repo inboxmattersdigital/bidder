@@ -161,7 +161,7 @@ async def get_ssp_analytics_details(ssp_id: str):
             else:
                 hour = ts.hour
             hourly_dist[hour] = hourly_dist.get(hour, 0) + 1
-        except:
+        except (ValueError, TypeError, AttributeError):
             pass
     
     response_times = [log.get("response_time_ms", 0) for log in recent_logs if log.get("response_time_ms")]
@@ -488,3 +488,374 @@ async def export_report_json(
         media_type="application/json",
         headers={"Content-Disposition": f"attachment; filename=report_{start_date}_{end_date}.json"}
     )
+
+
+# ==================== AD PERFORMANCE REPORT ====================
+
+import random
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+# Supply Sources for mock data
+SUPPLY_SOURCES = [
+    "Google AdX", "OpenX", "PubMatic", "Magnite", "Xandr", 
+    "Index Exchange", "TripleLift", "Sovrn", "Amazon TAM", "Yahoo SSP"
+]
+
+# Sample domains
+SAMPLE_DOMAINS = [
+    "news.example.com", "sports.example.com", "tech.example.com", 
+    "lifestyle.example.com", "entertainment.example.com", "finance.example.com",
+    "travel.example.com", "health.example.com", "auto.example.com", "gaming.example.com"
+]
+
+
+def generate_mock_ad_performance_data(
+    dimensions: List[str],
+    start_date: str,
+    end_date: str,
+    num_rows: int = 100
+) -> List[dict]:
+    """Generate mock ad performance data based on selected dimensions"""
+    random.seed(42)  # For consistent mock data
+    
+    data = []
+    
+    for i in range(num_rows):
+        row = {}
+        
+        # Add dimensions
+        if "source" in dimensions:
+            row["source"] = random.choice(SUPPLY_SOURCES)
+        if "domain" in dimensions:
+            row["domain"] = random.choice(SAMPLE_DOMAINS)
+        if "insertion_order" in dimensions:
+            row["insertion_order"] = f"IO-{random.randint(1000, 9999)}"
+        if "line_item" in dimensions:
+            row["line_item"] = f"LI-{random.choice(['Prospecting', 'Retargeting', 'Contextual', 'Lookalike'])}-{random.randint(100, 999)}"
+        if "creative_name" in dimensions:
+            creative_types = ["Banner_300x250", "Banner_728x90", "Video_15s", "Video_30s", "Native_InFeed"]
+            row["creative_name"] = f"{random.choice(creative_types)}_{random.randint(1, 50)}"
+        
+        # Performance metrics
+        impressions = random.randint(1000, 500000)
+        reach = int(impressions * random.uniform(0.3, 0.8))
+        clicks = int(impressions * random.uniform(0.001, 0.05))
+        ctr = (clicks / impressions * 100) if impressions > 0 else 0
+        conversions = int(clicks * random.uniform(0.01, 0.15))
+        
+        row["impressions"] = impressions
+        row["reach"] = reach
+        row["clicks"] = clicks
+        row["ctr"] = round(ctr, 2)
+        row["conversions"] = conversions
+        
+        # Video metrics (if video-related creative)
+        is_video = "creative_name" in row and "Video" in row.get("creative_name", "")
+        
+        # Always include video metrics, but they'll be 0 for non-video
+        q1_25 = int(impressions * random.uniform(0.6, 0.95)) if is_video else 0
+        q2_50 = int(q1_25 * random.uniform(0.7, 0.95)) if is_video else 0
+        q3_75 = int(q2_50 * random.uniform(0.7, 0.95)) if is_video else 0
+        completed = int(q3_75 * random.uniform(0.6, 0.9)) if is_video else 0
+        completion_rate = (completed / impressions * 100) if impressions > 0 and is_video else 0
+        
+        row["video_q1_25"] = q1_25
+        row["video_q2_50"] = q2_50
+        row["video_q3_75"] = q3_75
+        row["video_completed_100"] = completed
+        row["video_completion_rate"] = round(completion_rate, 2)
+        
+        data.append(row)
+    
+    return data
+
+
+@router.post("/reports/ad-performance")
+async def generate_ad_performance_report(
+    dimensions: str = "source,domain,creative_name",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    include_video_metrics: bool = True,
+    num_rows: int = 100
+):
+    """Generate ad performance report with mock data"""
+    # Parse comma-separated dimensions string
+    dims = [d.strip() for d in dimensions.split(",")]
+    
+    if not end_date:
+        end_dt = datetime.now(timezone.utc)
+        end_date = end_dt.strftime("%Y-%m-%d")
+    
+    if not start_date:
+        start_dt = datetime.now(timezone.utc) - timedelta(days=30)
+        start_date = start_dt.strftime("%Y-%m-%d")
+    
+    # Generate mock data
+    data = generate_mock_ad_performance_data(
+        dimensions=dims,
+        start_date=start_date,
+        end_date=end_date,
+        num_rows=min(num_rows, 1000)
+    )
+    
+    # Calculate summary
+    total_impressions = sum(d["impressions"] for d in data)
+    total_reach = sum(d["reach"] for d in data)
+    total_clicks = sum(d["clicks"] for d in data)
+    total_conversions = sum(d["conversions"] for d in data)
+    avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
+    
+    video_data = [d for d in data if d.get("video_completed_100", 0) > 0]
+    total_video_impressions = sum(d["impressions"] for d in video_data)
+    total_completed = sum(d["video_completed_100"] for d in video_data)
+    avg_completion_rate = (total_completed / total_video_impressions * 100) if total_video_impressions > 0 else 0
+    
+    return {
+        "report_metadata": {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "start_date": start_date,
+            "end_date": end_date,
+            "dimensions": dims,
+            "total_rows": len(data),
+            "data_source": "MOCK DATA (Demonstration)"
+        },
+        "summary": {
+            "total_impressions": total_impressions,
+            "total_reach": total_reach,
+            "total_clicks": total_clicks,
+            "total_conversions": total_conversions,
+            "avg_ctr": round(avg_ctr, 2),
+            "video_completion_rate": round(avg_completion_rate, 2)
+        },
+        "data": data
+    }
+
+
+@router.get("/reports/ad-performance/export/csv")
+async def export_ad_performance_csv(
+    dimensions: str = "source,domain,creative_name",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    num_rows: int = 100
+):
+    """Export ad performance report as CSV"""
+    dims = [d.strip() for d in dimensions.split(",")]
+    
+    if not end_date:
+        end_dt = datetime.now(timezone.utc)
+        end_date = end_dt.strftime("%Y-%m-%d")
+    
+    if not start_date:
+        start_dt = datetime.now(timezone.utc) - timedelta(days=30)
+        start_date = start_dt.strftime("%Y-%m-%d")
+    
+    data = generate_mock_ad_performance_data(
+        dimensions=dims,
+        start_date=start_date,
+        end_date=end_date,
+        num_rows=min(num_rows, 1000)
+    )
+    
+    # Define column headers
+    headers = []
+    
+    # Dimension headers
+    dimension_labels = {
+        "source": "Source",
+        "domain": "Domain", 
+        "insertion_order": "Insertion Order",
+        "line_item": "Line Item",
+        "creative_name": "Creative Name"
+    }
+    for dim in dims:
+        if dim in dimension_labels:
+            headers.append(dimension_labels[dim])
+    
+    # Performance metric headers
+    headers.extend([
+        "Impressions",
+        "Reach",
+        "Clicks",
+        "CTR (%)",
+        "Conversions"
+    ])
+    
+    # Video metric headers
+    headers.extend([
+        "Video Q1 (25%)",
+        "Video Q2 (50%)",
+        "Video Q3 (75%)",
+        "Video Completed (100%)",
+        "Video Completion Rate (%)"
+    ])
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    
+    for row in data:
+        csv_row = []
+        
+        # Dimensions
+        for dim in dims:
+            csv_row.append(row.get(dim, ""))
+        
+        # Performance metrics
+        csv_row.extend([
+            row["impressions"],
+            row["reach"],
+            row["clicks"],
+            row["ctr"],
+            row["conversions"]
+        ])
+        
+        # Video metrics
+        csv_row.extend([
+            row["video_q1_25"],
+            row["video_q2_50"],
+            row["video_q3_75"],
+            row["video_completed_100"],
+            row["video_completion_rate"]
+        ])
+        
+        writer.writerow(csv_row)
+    
+    filename = f"ad_performance_report_{start_date}_to_{end_date}.csv"
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/reports/ad-performance/export/excel")
+async def export_ad_performance_excel(
+    dimensions: str = "source,domain,creative_name",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    num_rows: int = 100
+):
+    """Export ad performance report as Excel (XLSX)"""
+    dims = [d.strip() for d in dimensions.split(",")]
+    
+    if not end_date:
+        end_dt = datetime.now(timezone.utc)
+        end_date = end_dt.strftime("%Y-%m-%d")
+    
+    if not start_date:
+        start_dt = datetime.now(timezone.utc) - timedelta(days=30)
+        start_date = start_dt.strftime("%Y-%m-%d")
+    
+    data = generate_mock_ad_performance_data(
+        dimensions=dims,
+        start_date=start_date,
+        end_date=end_date,
+        num_rows=min(num_rows, 1000)
+    )
+    
+    # Create workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Ad Performance Report"
+    
+    # Styling
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid")
+    dimension_fill = PatternFill(start_color="10B981", end_color="10B981", fill_type="solid")
+    video_fill = PatternFill(start_color="8B5CF6", end_color="8B5CF6", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Headers
+    headers = []
+    dimension_labels = {
+        "source": "Source",
+        "domain": "Domain", 
+        "insertion_order": "Insertion Order",
+        "line_item": "Line Item",
+        "creative_name": "Creative Name"
+    }
+    
+    dimension_cols = []
+    for dim in dims:
+        if dim in dimension_labels:
+            headers.append(dimension_labels[dim])
+            dimension_cols.append(len(headers))
+    
+    performance_headers = ["Impressions", "Reach", "Clicks", "CTR (%)", "Conversions"]
+    headers.extend(performance_headers)
+    
+    video_headers = ["Video Q1 (25%)", "Video Q2 (50%)", "Video Q3 (75%)", "Video Completed (100%)", "Video Completion Rate (%)"]
+    video_start_col = len(headers) + 1
+    headers.extend(video_headers)
+    
+    # Write headers
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+        cell.border = thin_border
+        
+        if col in dimension_cols:
+            cell.fill = dimension_fill
+        elif col >= video_start_col:
+            cell.fill = video_fill
+        else:
+            cell.fill = header_fill
+    
+    # Write data
+    for row_idx, row_data in enumerate(data, 2):
+        col = 1
+        
+        # Dimensions
+        for dim in dims:
+            cell = ws.cell(row=row_idx, column=col, value=row_data.get(dim, ""))
+            cell.border = thin_border
+            col += 1
+        
+        # Performance metrics
+        for field in ["impressions", "reach", "clicks", "ctr", "conversions"]:
+            cell = ws.cell(row=row_idx, column=col, value=row_data[field])
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='right')
+            col += 1
+        
+        # Video metrics
+        for field in ["video_q1_25", "video_q2_50", "video_q3_75", "video_completed_100", "video_completion_rate"]:
+            cell = ws.cell(row=row_idx, column=col, value=row_data[field])
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='right')
+            col += 1
+    
+    # Auto-adjust column widths
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except (TypeError, AttributeError):
+                pass
+        adjusted_width = min(max_length + 2, 30)
+        ws.column_dimensions[column].width = adjusted_width
+    
+    # Save to bytes
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    filename = f"ad_performance_report_{start_date}_to_{end_date}.xlsx"
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+

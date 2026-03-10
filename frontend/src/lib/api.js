@@ -257,4 +257,35 @@ export const recommendLineItems = (goal, budget, audienceType) =>
 // Fraud Analysis
 export const analyzeFraud = (campaignId) => api.get(`/fraud/detection/${campaignId}`);
 
+// Ad Performance Reports
+export const generateAdPerformanceReport = (dimensions, startDate, endDate, numRows = 100) => 
+  api.post('/reports/ad-performance', null, { 
+    params: { 
+      dimensions: dimensions.join(','), 
+      start_date: startDate, 
+      end_date: endDate,
+      num_rows: numRows
+    } 
+  });
+
+export const exportAdPerformanceCSV = (dimensions, startDate, endDate, numRows = 100) => {
+  const params = new URLSearchParams();
+  params.append('dimensions', dimensions.join(','));
+  params.append('start_date', startDate);
+  params.append('end_date', endDate);
+  params.append('num_rows', numRows.toString());
+  
+  window.open(`${API_BASE}/reports/ad-performance/export/csv?${params.toString()}`, '_blank');
+};
+
+export const exportAdPerformanceExcel = (dimensions, startDate, endDate, numRows = 100) => {
+  const params = new URLSearchParams();
+  params.append('dimensions', dimensions.join(','));
+  params.append('start_date', startDate);
+  params.append('end_date', endDate);
+  params.append('num_rows', numRows.toString());
+  
+  window.open(`${API_BASE}/reports/ad-performance/export/excel?${params.toString()}`, '_blank');
+};
+
 export default api;

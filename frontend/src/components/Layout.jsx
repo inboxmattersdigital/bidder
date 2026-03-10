@@ -22,7 +22,8 @@ import {
   TrendingUp,
   GitBranch,
   PieChart,
-  Target
+  Target,
+  FileSpreadsheet
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Switch } from "./ui/switch";
@@ -38,6 +39,7 @@ const navItems = [
   { to: "/bid-logs", icon: ScrollText, label: "Bid Logs" },
   { to: "/bid-stream", icon: Activity, label: "Bid Stream" },
   { to: "/reports", icon: BarChart3, label: "Reports" },
+  { to: "/reports/ad-performance", icon: FileSpreadsheet, label: "Ad Performance" },
   { to: "/pacing", icon: Gauge, label: "Budget Pacing" },
   { to: "/insights", icon: Lightbulb, label: "Insights" },
   { to: "/ml-models", icon: Brain, label: "ML Models" },

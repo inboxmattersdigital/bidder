@@ -12,6 +12,7 @@ import SSPAnalytics from "./pages/SSPAnalytics";
 import BidLogs from "./pages/BidLogs";
 import MigrationMatrix from "./pages/MigrationMatrix";
 import Reports from "./pages/Reports";
+import AdPerformanceReport from "./pages/AdPerformanceReport";
 import Pacing from "./pages/Pacing";
 import Insights from "./pages/Insights";
 import MLModels from "./pages/MLModels";
@@ -54,6 +55,7 @@ function App() {
           <Route path="bid-logs" element={<BidLogs />} />
           <Route path="bid-stream" element={<BidStream />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="reports/ad-performance" element={<AdPerformanceReport />} />
           <Route path="pacing" element={<Pacing />} />
           <Route path="insights" element={<Insights />} />
           <Route path="ml-models" element={<MLModels />} />
