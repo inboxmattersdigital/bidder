@@ -258,13 +258,14 @@ export const recommendLineItems = (goal, budget, audienceType) =>
 export const analyzeFraud = (campaignId) => api.get(`/fraud/detection/${campaignId}`);
 
 // Ad Performance Reports
-export const generateAdPerformanceReport = (dimensions, startDate, endDate, numRows = 100) => 
+export const generateAdPerformanceReport = (dimensions, startDate, endDate, numRows = 100, useRealData = true) => 
   api.post('/reports/ad-performance', null, { 
     params: { 
       dimensions: dimensions.join(','), 
       start_date: startDate, 
       end_date: endDate,
-      num_rows: numRows
+      num_rows: numRows,
+      use_real_data: useRealData
     } 
   });
 
@@ -287,5 +288,14 @@ export const exportAdPerformanceExcel = (dimensions, startDate, endDate, numRows
   
   window.open(`${API_BASE}/reports/ad-performance/export/excel?${params.toString()}`, '_blank');
 };
+
+// Report Templates
+export const getReportTemplates = () => api.get('/reports/templates');
+export const getReportTemplate = (id) => api.get(`/reports/templates/${id}`);
+export const saveReportTemplate = (name, description, dimensions, icon = "FileText") => 
+  api.post('/reports/templates', null, { 
+    params: { name, description, dimensions: dimensions.join(','), icon } 
+  });
+export const deleteReportTemplate = (id) => api.delete(`/reports/templates/${id}`);
 
 export default api;
