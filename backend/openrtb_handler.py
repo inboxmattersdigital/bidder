@@ -646,6 +646,7 @@ class BiddingEngine:
         )
         
         log_data["bid_made"] = True
+        log_data["bid_id"] = bid_id  # Store the bid_id for nurl/burl lookups
         log_data["bid_price"] = winning["original_price"]
         log_data["shaded_price"] = winning["price"]
         log_data["campaign_id"] = winning["campaign"]["id"]

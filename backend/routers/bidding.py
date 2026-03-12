@@ -209,7 +209,10 @@ async def _process_bid_request_internal(
         headers["x-openrtb-version"] = x_openrtb_version
     
     # Get base URL for nurl/burl callbacks
-    nurl_base = os.environ.get('NURL_BASE_URL', request.base_url.scheme + "://" + request.headers.get('host', ''))
+    # Check for X-Forwarded-Proto header (set by reverse proxy) or fallback to request scheme
+    scheme = request.headers.get('x-forwarded-proto', request.base_url.scheme)
+    host = request.headers.get('host', '')
+    nurl_base = os.environ.get('NURL_BASE_URL', f"{scheme}://{host}")
     
     # Process bid request
     try:
@@ -357,8 +360,13 @@ async def adjust_bid_shading(campaign_id: str, current_win_rate: float, shading_
 @router.post("/notify/win/{bid_id}")
 async def win_notification(bid_id: str, price: float = 0.0):
     """Handle win notification (nurl callback)"""
-    bid_log = await db.bid_logs.find_one({"id": bid_id}, {"_id": 0})
+    # First try to find by bid_id field
+    bid_log = await db.bid_logs.find_one({"bid_id": bid_id}, {"_id": 0})
     if not bid_log:
+        # Fallback to id field
+        bid_log = await db.bid_logs.find_one({"id": bid_id}, {"_id": 0})
+    if not bid_log:
+        # Fallback to request_id
         bid_log = await db.bid_logs.find_one(
             {"request_id": bid_id, "bid_made": True},
             {"_id": 0}
@@ -427,8 +435,13 @@ async def win_notification(bid_id: str, price: float = 0.0):
 @router.post("/notify/billing/{bid_id}")
 async def billing_notification(bid_id: str, price: float = 0.0):
     """Handle billing notification (burl callback)"""
-    bid_log = await db.bid_logs.find_one({"id": bid_id}, {"_id": 0})
+    # First try to find by bid_id field
+    bid_log = await db.bid_logs.find_one({"bid_id": bid_id}, {"_id": 0})
     if not bid_log:
+        # Fallback to id field
+        bid_log = await db.bid_logs.find_one({"id": bid_id}, {"_id": 0})
+    if not bid_log:
+        # Fallback to request_id
         bid_log = await db.bid_logs.find_one(
             {"request_id": bid_id, "bid_made": True},
             {"_id": 0}

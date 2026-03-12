@@ -916,6 +916,7 @@ class BidLog(BaseModel):
     
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     request_id: str
+    bid_id: Optional[str] = None  # The actual bid ID returned in the response (for nurl/burl callbacks)
     ssp_id: Optional[str] = None
     openrtb_version: str = Field(default="2.5")
     
