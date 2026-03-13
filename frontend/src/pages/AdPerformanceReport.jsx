@@ -4,7 +4,7 @@ import {
   MousePointerClick, Users, Target, Layers, Globe, CheckCircle, Loader2,
   AlertCircle, Save, Trash2, Server, Image, Database, BookMarked, Plus,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Search,
-  MapPin, Smartphone, Package, Monitor, Wifi
+  MapPin, Smartphone, Package, Monitor, Wifi, DollarSign
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -51,6 +51,14 @@ const PERFORMANCE_METRICS = [
   { id: "clicks", label: "Clicks", icon: MousePointerClick, color: "#F59E0B", default: true },
   { id: "ctr", label: "CTR", icon: Target, color: "#8B5CF6", default: true },
   { id: "conversions", label: "Conversions", icon: CheckCircle, color: "#EC4899", default: true },
+  { id: "spend", label: "Spend", icon: DollarSign, color: "#10B981", default: true },
+  { id: "win_rate", label: "Win Rate", icon: Target, color: "#6366F1", default: false },
+];
+
+const DERIVED_METRICS = [
+  { id: "ecpm", label: "eCPM", icon: Target, color: "#14B8A6", default: false },
+  { id: "cpc", label: "CPC", icon: MousePointerClick, color: "#F97316", default: false },
+  { id: "cpv", label: "CPV", icon: Video, color: "#8B5CF6", default: false },
 ];
 
 const VIDEO_METRICS = [
@@ -59,9 +67,10 @@ const VIDEO_METRICS = [
   { id: "video_q3_75", label: "Q3 (75%)", color: "#22C55E", default: true },
   { id: "video_completed_100", label: "Completed (100%)", color: "#10B981", default: true },
   { id: "video_completion_rate", label: "Completion Rate", color: "#059669", default: true },
+  { id: "vtr", label: "VTR", color: "#0D9488", default: false },
 ];
 
-const ALL_METRICS = [...PERFORMANCE_METRICS, ...VIDEO_METRICS];
+const ALL_METRICS = [...PERFORMANCE_METRICS, ...DERIVED_METRICS, ...VIDEO_METRICS];
 
 const TEMPLATE_ICONS = {
   BarChart3, Video, Globe, Image, Server, Target, Users,
@@ -136,7 +145,9 @@ function TemplateCard({ template, onApply, onDelete, isCustom }) {
 export default function AdPerformanceReport() {
   // State
   const [selectedDimensions, setSelectedDimensions] = useState(["campaign_name", "creative_name", "source", "domain"]);
-  const [selectedMetrics, setSelectedMetrics] = useState(ALL_METRICS.map(m => m.id));
+  const [selectedMetrics, setSelectedMetrics] = useState(
+    ALL_METRICS.filter(m => m.default).map(m => m.id)
+  );
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
     return d.toISOString().split('T')[0];
@@ -212,7 +223,7 @@ export default function AdPerformanceReport() {
   };
 
   const selectAllMetrics = () => setSelectedMetrics(ALL_METRICS.map(m => m.id));
-  const selectPerformanceMetrics = () => setSelectedMetrics(PERFORMANCE_METRICS.map(m => m.id));
+  const selectPerformanceMetrics = () => setSelectedMetrics([...PERFORMANCE_METRICS, ...DERIVED_METRICS].map(m => m.id));
   const selectVideoMetrics = () => setSelectedMetrics(VIDEO_METRICS.map(m => m.id));
 
   const applyTemplate = (template) => {
@@ -335,6 +346,7 @@ export default function AdPerformanceReport() {
       impressions: filteredAndSortedData.reduce((sum, row) => sum + (row.impressions || 0), 0),
       clicks: filteredAndSortedData.reduce((sum, row) => sum + (row.clicks || 0), 0),
       conversions: filteredAndSortedData.reduce((sum, row) => sum + (row.conversions || 0), 0),
+      spend: filteredAndSortedData.reduce((sum, row) => sum + (row.spend || 0), 0),
       video_completed: filteredAndSortedData.reduce((sum, row) => sum + (row.video_completed_100 || 0), 0),
     };
   }, [filteredAndSortedData]);
@@ -547,26 +559,95 @@ export default function AdPerformanceReport() {
             </Card>
           </div>
 
-          {/* Metrics Info */}
+          {/* Metrics Selection */}
           <Card className="surface-secondary border-[#2D3B55]">
             <CardHeader>
-              <CardTitle className="text-[#F8FAFC]">Included Metrics</CardTitle>
-              <CardDescription className="text-[#64748B]">All metrics are automatically included</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-[#F8FAFC] flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-[#3B82F6]" />Select Metrics
+                  </CardTitle>
+                  <CardDescription className="text-[#64748B]">Choose which metrics to include in your report</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={selectAllMetrics} className="border-[#3B82F6] text-[#3B82F6]">All</Button>
+                  <Button size="sm" variant="outline" onClick={selectPerformanceMetrics} className="border-[#10B981] text-[#10B981]">Core</Button>
+                  <Button size="sm" variant="outline" onClick={selectVideoMetrics} className="border-[#8B5CF6] text-[#8B5CF6]">Video</Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
-                {PERFORMANCE_METRICS.map((m) => (
-                  <div key={m.id} className="p-2 rounded-lg text-center" style={{ backgroundColor: `${m.color}20` }}>
-                    <m.icon className="w-4 h-4 mx-auto mb-1" style={{ color: m.color }} />
-                    <p className="text-xs text-[#F8FAFC]">{m.label}</p>
+              <div className="space-y-4">
+                {/* Core Performance Metrics */}
+                <div>
+                  <h4 className="text-sm font-medium text-[#94A3B8] mb-2">Core Metrics</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                    {PERFORMANCE_METRICS.map((m) => {
+                      const isSelected = selectedMetrics.includes(m.id);
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => toggleMetric(m.id)}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-all ${
+                            isSelected ? "border-[#3B82F6] bg-[#3B82F6]/20" : "border-[#2D3B55] hover:border-[#3B82F6]/50"
+                          }`}
+                        >
+                          <Checkbox checked={isSelected} onChange={() => {}} />
+                          <span className="text-sm text-[#F8FAFC]">{m.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-                {VIDEO_METRICS.map((m) => (
-                  <div key={m.id} className="p-2 rounded-lg text-center" style={{ backgroundColor: `${m.color}20` }}>
-                    <Video className="w-4 h-4 mx-auto mb-1" style={{ color: m.color }} />
-                    <p className="text-xs text-[#F8FAFC]">{m.label}</p>
+                </div>
+
+                {/* Derived Metrics */}
+                <div>
+                  <h4 className="text-sm font-medium text-[#94A3B8] mb-2">Derived Metrics</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                    {DERIVED_METRICS.map((m) => {
+                      const isSelected = selectedMetrics.includes(m.id);
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => toggleMetric(m.id)}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-all ${
+                            isSelected ? "border-[#14B8A6] bg-[#14B8A6]/20" : "border-[#2D3B55] hover:border-[#14B8A6]/50"
+                          }`}
+                        >
+                          <Checkbox checked={isSelected} onChange={() => {}} />
+                          <span className="text-sm text-[#F8FAFC]">{m.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+
+                {/* Video Metrics */}
+                <div>
+                  <h4 className="text-sm font-medium text-[#94A3B8] mb-2">Video Metrics</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                    {VIDEO_METRICS.map((m) => {
+                      const isSelected = selectedMetrics.includes(m.id);
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => toggleMetric(m.id)}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-all ${
+                            isSelected ? "border-[#8B5CF6] bg-[#8B5CF6]/20" : "border-[#2D3B55] hover:border-[#8B5CF6]/50"
+                          }`}
+                        >
+                          <Checkbox checked={isSelected} onChange={() => {}} />
+                          <span className="text-sm text-[#F8FAFC]">{m.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-[#64748B]">
+                  <CheckCircle className="w-4 h-4 text-[#10B981]" />
+                  <span>{selectedMetrics.length} metrics selected</span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -587,11 +668,12 @@ export default function AdPerformanceReport() {
           {reportData ? (
             <>
               {/* Total Summary - Top Section */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <SummaryCard label="Total Impressions" value={formatNumber(totals.impressions)} icon={Eye} color="#3B82F6" />
                 <SummaryCard label="Total Clicks" value={formatNumber(totals.clicks)} icon={MousePointerClick} color="#F59E0B" />
+                <SummaryCard label="Total Spend" value={`$${formatNumber(totals.spend)}`} icon={DollarSign} color="#10B981" />
                 <SummaryCard label="Total Conversions" value={formatNumber(totals.conversions)} icon={CheckCircle} color="#EC4899" />
-                <SummaryCard label="Video Completed" value={formatNumber(totals.video_completed)} icon={Video} color="#10B981" />
+                <SummaryCard label="Video Completed" value={formatNumber(totals.video_completed)} icon={Video} color="#8B5CF6" />
               </div>
 
               {/* Filters and Search Bar */}

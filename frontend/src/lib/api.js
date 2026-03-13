@@ -258,10 +258,11 @@ export const recommendLineItems = (goal, budget, audienceType) =>
 export const analyzeFraud = (campaignId) => api.get(`/fraud/detection/${campaignId}`);
 
 // Ad Performance Reports
-export const generateAdPerformanceReport = (dimensions, startDate, endDate, numRows = 10000, useRealData = true, campaignId = null, creativeId = null) => 
+export const generateAdPerformanceReport = (dimensions, metrics, startDate, endDate, numRows = 10000, useRealData = true, campaignId = null, creativeId = null) => 
   api.post('/reports/ad-performance', null, { 
     params: { 
       dimensions: dimensions.join(','), 
+      metrics: metrics.join(','),
       start_date: startDate, 
       end_date: endDate,
       num_rows: numRows,

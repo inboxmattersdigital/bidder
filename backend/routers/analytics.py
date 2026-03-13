@@ -564,7 +564,8 @@ async def get_real_ad_performance_data(
     end_date: str,
     num_rows: int = 10000,
     campaign_id: Optional[str] = None,
-    creative_id: Optional[str] = None
+    creative_id: Optional[str] = None,
+    metrics: Optional[List[str]] = None
 ) -> tuple[List[dict], bool]:
     """
     Get real ad performance data from bid_logs, campaigns, creatives, and ssp_endpoints.
@@ -627,10 +628,10 @@ async def get_real_ad_performance_data(
             
             # Creative name dimension
             if "creative_name" in dimensions:
-                creative_id = log.get("creative_id", "")
-                creative_info = creative_map.get(creative_id, {"name": "Unknown", "type": "banner"})
+                creative_id_val = log.get("creative_id", "")
+                creative_info = creative_map.get(creative_id_val, {"name": "Unknown", "type": "banner"})
                 row["creative_name"] = creative_info["name"]
-                row["creative_id"] = creative_id
+                row["creative_id"] = creative_id_val
                 key_parts.append(creative_info["name"])
             
             if "source" in dimensions:
@@ -645,18 +646,53 @@ async def get_real_ad_performance_data(
                 key_parts.append(domain)
             
             if "insertion_order" in dimensions:
-                # Extract from campaign targeting or generate
-                campaign_id = log.get("campaign_id", "")
-                io_name = f"IO-{campaign_id[:4]}" if campaign_id else "IO-Unknown"
+                campaign_id_val = log.get("campaign_id", "")
+                io_name = f"IO-{campaign_id_val[:4]}" if campaign_id_val else "IO-Unknown"
                 row["insertion_order"] = io_name
                 key_parts.append(io_name)
             
             if "line_item" in dimensions:
-                campaign_id = log.get("campaign_id", "")
-                campaign_name = campaign_map.get(campaign_id, "Unknown")
+                campaign_id_val = log.get("campaign_id", "")
+                campaign_name = campaign_map.get(campaign_id_val, "Unknown")
                 li_name = f"LI-{campaign_name}"
                 row["line_item"] = li_name
                 key_parts.append(li_name)
+            
+            # New dimensions from bid request
+            if "bundle" in dimensions:
+                bundle = log.get("request_summary", {}).get("bundle", "Unknown")
+                row["bundle"] = bundle
+                key_parts.append(bundle)
+            
+            if "app_name" in dimensions:
+                app_name = log.get("request_summary", {}).get("app_name", "Unknown")
+                row["app_name"] = app_name
+                key_parts.append(app_name)
+            
+            if "country" in dimensions:
+                country = log.get("request_summary", {}).get("country", "Unknown")
+                row["country"] = country
+                key_parts.append(country)
+            
+            if "city" in dimensions:
+                city = log.get("request_summary", {}).get("city", "Unknown")
+                row["city"] = city
+                key_parts.append(city)
+            
+            if "ip" in dimensions:
+                ip = log.get("request_summary", {}).get("ip", "Unknown")
+                row["ip"] = ip
+                key_parts.append(ip)
+            
+            if "os" in dimensions:
+                os_name = log.get("request_summary", {}).get("os", "Unknown")
+                row["os"] = os_name
+                key_parts.append(os_name)
+            
+            if "make" in dimensions:
+                make = log.get("request_summary", {}).get("make", "Unknown")
+                row["make"] = make
+                key_parts.append(make)
             
             key = "|".join(key_parts) if key_parts else "total"
             
@@ -667,6 +703,7 @@ async def get_real_ad_performance_data(
                     "reach": 0,
                     "clicks": 0,
                     "conversions": 0,
+                    "spend": 0,
                     "video_q1_25": 0,
                     "video_q2_50": 0,
                     "video_q3_75": 0,
@@ -677,6 +714,10 @@ async def get_real_ad_performance_data(
             # Count impressions (bid_made = impression)
             if log.get("bid_made"):
                 aggregated[key]["impressions"] += 1
+                
+                # Track spend from win price
+                if log.get("win_notified") and log.get("win_price"):
+                    aggregated[key]["spend"] += log.get("win_price", 0) / 1000  # Convert from micros
                 
                 # Track unique users for reach (using request_id as proxy)
                 user_id = log.get("request_summary", {}).get("user_id") or log.get("request_id", "")[:8]
@@ -691,10 +732,9 @@ async def get_real_ad_performance_data(
                     aggregated[key]["conversions"] += 1
                 
                 # Video metrics for video creatives
-                creative_id = log.get("creative_id", "")
-                creative_info = creative_map.get(creative_id, {"type": "banner"})
+                creative_id_val = log.get("creative_id", "")
+                creative_info = creative_map.get(creative_id_val, {"type": "banner"})
                 if creative_info.get("type") == "video":
-                    # Simulate video quartiles based on completion patterns
                     if random.random() < 0.85:
                         aggregated[key]["video_q1_25"] += 1
                     if random.random() < 0.70:
@@ -713,10 +753,23 @@ async def get_real_ad_performance_data(
             # Calculate CTR
             row["ctr"] = round((row["clicks"] / row["impressions"] * 100), 2) if row["impressions"] > 0 else 0
             
-            # Calculate video completion rate
+            # Calculate win rate
+            row["win_rate"] = round((row.get("wins", 0) / row["impressions"] * 100), 2) if row["impressions"] > 0 else 0
+            
+            # Calculate eCPM
+            row["ecpm"] = round((row["spend"] / row["impressions"] * 1000), 2) if row["impressions"] > 0 else 0
+            
+            # Calculate CPC
+            row["cpc"] = round((row["spend"] / row["clicks"]), 2) if row["clicks"] > 0 else 0
+            
+            # Calculate CPV (cost per video view/completion)
+            row["cpv"] = round((row["spend"] / row["video_completed_100"]), 2) if row["video_completed_100"] > 0 else 0
+            
+            # Calculate video completion rate (VTR)
             row["video_completion_rate"] = round(
                 (row["video_completed_100"] / row["impressions"] * 100), 2
             ) if row["impressions"] > 0 and row["video_completed_100"] > 0 else 0
+            row["vtr"] = row["video_completion_rate"]
             
             data.append(row)
         
@@ -737,7 +790,8 @@ def generate_mock_ad_performance_data(
     end_date: str,
     num_rows: int = 10000,
     campaign_id: Optional[str] = None,
-    creative_id: Optional[str] = None
+    creative_id: Optional[str] = None,
+    metrics: Optional[List[str]] = None
 ) -> List[dict]:
     """Generate mock ad performance data based on selected dimensions"""
     random.seed(42)  # For consistent mock data
@@ -746,6 +800,20 @@ def generate_mock_ad_performance_data(
     mock_campaigns = ["Brand Awareness Q1", "Retargeting Spring", "Performance Max", "Video Reach", "Display Prospecting"]
     # Mock creative names
     mock_creatives = ["Hero Banner 300x250", "Product Video 15s", "Native Card A", "Skyscraper 160x600", "Video Pre-roll 30s"]
+    # Mock bundles
+    mock_bundles = ["com.game.puzzle", "com.news.daily", "com.social.app", "com.video.streaming", "com.shopping.online"]
+    # Mock app names
+    mock_app_names = ["Puzzle Master", "Daily News", "Social Connect", "StreamTV", "ShopEase"]
+    # Mock countries
+    mock_countries = ["US", "UK", "IN", "DE", "FR", "CA", "AU", "JP", "BR", "MX"]
+    # Mock cities
+    mock_cities = ["New York", "London", "Mumbai", "Berlin", "Paris", "Toronto", "Sydney", "Tokyo", "Sao Paulo", "Mexico City"]
+    # Mock IPs (anonymized)
+    mock_ips = [f"192.168.{random.randint(1,255)}.xxx" for _ in range(20)]
+    # Mock OS
+    mock_os = ["Android", "iOS", "Windows", "macOS", "Linux"]
+    # Mock device makes
+    mock_makes = ["Samsung", "Apple", "Xiaomi", "OnePlus", "Oppo", "Vivo", "Google", "Huawei", "LG", "Sony"]
     
     data = []
     
@@ -768,18 +836,41 @@ def generate_mock_ad_performance_data(
         if "line_item" in dimensions:
             row["line_item"] = f"LI-{random.choice(['Prospecting', 'Retargeting', 'Contextual', 'Lookalike'])}-{random.randint(100, 999)}"
         
+        # New dimensions
+        if "bundle" in dimensions:
+            row["bundle"] = random.choice(mock_bundles)
+        if "app_name" in dimensions:
+            row["app_name"] = random.choice(mock_app_names)
+        if "country" in dimensions:
+            row["country"] = random.choice(mock_countries)
+        if "city" in dimensions:
+            row["city"] = random.choice(mock_cities)
+        if "ip" in dimensions:
+            row["ip"] = random.choice(mock_ips)
+        if "os" in dimensions:
+            row["os"] = random.choice(mock_os)
+        if "make" in dimensions:
+            row["make"] = random.choice(mock_makes)
+        
         # Performance metrics
         impressions = random.randint(1000, 500000)
         reach = int(impressions * random.uniform(0.3, 0.8))
         clicks = int(impressions * random.uniform(0.001, 0.05))
-        ctr = (clicks / impressions) if impressions > 0 else 0
+        ctr = (clicks / impressions * 100) if impressions > 0 else 0
         conversions = int(clicks * random.uniform(0.01, 0.15))
+        spend = impressions * random.uniform(0.5, 5) / 1000  # CPM between $0.5 and $5
         
         row["impressions"] = impressions
         row["reach"] = reach
         row["clicks"] = clicks
-        row["ctr"] = round(ctr, 4)
+        row["ctr"] = round(ctr, 2)
         row["conversions"] = conversions
+        row["spend"] = round(spend, 2)
+        row["win_rate"] = round(random.uniform(10, 50), 2)
+        
+        # Derived metrics
+        row["ecpm"] = round((spend / impressions * 1000), 2) if impressions > 0 else 0
+        row["cpc"] = round((spend / clicks), 2) if clicks > 0 else 0
         
         # Video metrics (if video-related creative)
         is_video = "Video" in row.get("creative_name", "") or "video" in row.get("creative_name", "").lower()
@@ -789,13 +880,15 @@ def generate_mock_ad_performance_data(
         q2_50 = int(q1_25 * random.uniform(0.7, 0.95)) if is_video else 0
         q3_75 = int(q2_50 * random.uniform(0.7, 0.95)) if is_video else 0
         completed = int(q3_75 * random.uniform(0.6, 0.9)) if is_video else 0
-        completion_rate = (completed / impressions) if impressions > 0 and is_video else 0
+        completion_rate = (completed / impressions * 100) if impressions > 0 and is_video else 0
         
         row["video_q1_25"] = q1_25
         row["video_q2_50"] = q2_50
         row["video_q3_75"] = q3_75
         row["video_completed_100"] = completed
-        row["video_completion_rate"] = round(completion_rate, 4)
+        row["video_completion_rate"] = round(completion_rate, 2)
+        row["vtr"] = row["video_completion_rate"]
+        row["cpv"] = round((spend / completed), 2) if completed > 0 else 0
         
         data.append(row)
     
@@ -805,6 +898,7 @@ def generate_mock_ad_performance_data(
 @router.post("/reports/ad-performance")
 async def generate_ad_performance_report(
     dimensions: str = "campaign_name,creative_name,source,domain",
+    metrics: str = "impressions,clicks,ctr,conversions,spend,win_rate,ecpm,cpc,cpv,video_q1_25,video_q2_50,video_q3_75,video_completed_100,video_completion_rate,vtr",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     include_video_metrics: bool = True,
@@ -816,6 +910,9 @@ async def generate_ad_performance_report(
     """Generate ad performance report with real data (if available) or mock data"""
     # Parse comma-separated dimensions string
     dims = [d.strip() for d in dimensions.split(",")]
+    
+    # Parse comma-separated metrics string
+    selected_metrics = [m.strip() for m in metrics.split(",") if m.strip()]
     
     if not end_date:
         end_dt = datetime.now(timezone.utc)
@@ -837,7 +934,8 @@ async def generate_ad_performance_report(
             end_date=end_date,
             num_rows=num_rows,
             campaign_id=campaign_id,
-            creative_id=creative_id
+            creative_id=creative_id,
+            metrics=selected_metrics
         )
         if is_real_data:
             data_source = "REAL DATA (From Bid Logs)"
@@ -850,20 +948,41 @@ async def generate_ad_performance_report(
             end_date=end_date,
             num_rows=num_rows,
             campaign_id=campaign_id,
-            creative_id=creative_id
+            creative_id=creative_id,
+            metrics=selected_metrics
         )
         data_source = "MOCK DATA (No bid activity in date range)"
     
-    # Calculate summary
-    total_impressions = sum(d["impressions"] for d in data)
-    total_reach = sum(d["reach"] for d in data)
-    total_clicks = sum(d["clicks"] for d in data)
-    total_conversions = sum(d["conversions"] for d in data)
+    # Filter data to only include selected metrics
+    if selected_metrics:
+        filtered_data = []
+        for row in data:
+            filtered_row = {}
+            # Keep dimension fields
+            for dim in dims:
+                if dim in row:
+                    filtered_row[dim] = row[dim]
+                # Also keep associated ID fields
+                if f"{dim}_id" in row:
+                    filtered_row[f"{dim}_id"] = row[f"{dim}_id"]
+            # Keep only selected metrics
+            for metric in selected_metrics:
+                if metric in row:
+                    filtered_row[metric] = row[metric]
+            filtered_data.append(filtered_row)
+        data = filtered_data
+    
+    # Calculate summary based on ALL data (not filtered)
+    total_impressions = sum(d.get("impressions", 0) for d in data)
+    total_reach = sum(d.get("reach", 0) for d in data)
+    total_clicks = sum(d.get("clicks", 0) for d in data)
+    total_conversions = sum(d.get("conversions", 0) for d in data)
+    total_spend = sum(d.get("spend", 0) for d in data)
     avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
     
     video_data = [d for d in data if d.get("video_completed_100", 0) > 0]
-    total_video_impressions = sum(d["impressions"] for d in video_data)
-    total_completed = sum(d["video_completed_100"] for d in video_data)
+    total_video_impressions = sum(d.get("impressions", 0) for d in video_data)
+    total_completed = sum(d.get("video_completed_100", 0) for d in video_data)
     avg_completion_rate = (total_completed / total_video_impressions * 100) if total_video_impressions > 0 else 0
     
     return {
@@ -872,6 +991,7 @@ async def generate_ad_performance_report(
             "start_date": start_date,
             "end_date": end_date,
             "dimensions": dims,
+            "metrics": selected_metrics,
             "total_rows": len(data),
             "data_source": data_source,
             "is_real_data": is_real_data
@@ -881,6 +1001,7 @@ async def generate_ad_performance_report(
             "total_reach": total_reach,
             "total_clicks": total_clicks,
             "total_conversions": total_conversions,
+            "total_spend": round(total_spend, 2),
             "avg_ctr": round(avg_ctr, 2),
             "video_completion_rate": round(avg_completion_rate, 2)
         },
