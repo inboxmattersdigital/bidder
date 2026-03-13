@@ -995,7 +995,8 @@ async def seed_sample_data():
                 "app_name": random.choice(app_names),
                 "country": country,
                 "city": city,
-                "ip": f"192.168.{random.randint(1, 255)}.{random.randint(1, 255)}",
+                "ip": f"{random.randint(1, 223)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}",
+                "device_ifa": str(uuid.uuid4()),  # Device ID (IDFA/GAID)
                 "os": random.choice(os_list),
                 "make": random.choice(makes),
                 "user_id": f"user_{random.randint(10000, 99999)}"
@@ -1069,3 +1070,39 @@ async def clear_seed_data():
         "ssp_endpoints_deleted": (await db.ssp_endpoints.delete_many({})).deleted_count
     }
     return {"status": "cleared", "deleted": result}
+
+
+
+@router.post("/seed-data/update-ip-device")
+async def update_bid_logs_with_ip_device():
+    """Update existing bid_logs to add IP and device_ifa fields"""
+    import random
+    
+    # Get all bid_logs that don't have ip or device_ifa
+    bid_logs = await db.bid_logs.find({}, {"_id": 1, "request_summary": 1}).to_list(100000)
+    
+    updated_count = 0
+    for log in bid_logs:
+        request_summary = log.get("request_summary", {})
+        needs_update = False
+        
+        if not request_summary.get("ip"):
+            request_summary["ip"] = f"{random.randint(1, 223)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+            needs_update = True
+        
+        if not request_summary.get("device_ifa"):
+            request_summary["device_ifa"] = str(uuid.uuid4())
+            needs_update = True
+        
+        if needs_update:
+            await db.bid_logs.update_one(
+                {"_id": log["_id"]},
+                {"$set": {"request_summary": request_summary}}
+            )
+            updated_count += 1
+    
+    return {
+        "status": "success",
+        "updated_count": updated_count,
+        "message": f"Updated {updated_count} bid_logs with IP and device_ifa"
+    }

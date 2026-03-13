@@ -684,6 +684,11 @@ async def get_real_ad_performance_data(
                 row["ip"] = ip
                 key_parts.append(ip)
             
+            if "device_ifa" in dimensions:
+                device_ifa = (log.get("request_summary") or {}).get("device_ifa") or "Unknown"
+                row["device_ifa"] = device_ifa
+                key_parts.append(device_ifa)
+            
             if "os" in dimensions:
                 os_name = (log.get("request_summary") or {}).get("os") or "Unknown"
                 row["os"] = os_name
@@ -808,8 +813,10 @@ def generate_mock_ad_performance_data(
     mock_countries = ["US", "UK", "IN", "DE", "FR", "CA", "AU", "JP", "BR", "MX"]
     # Mock cities
     mock_cities = ["New York", "London", "Mumbai", "Berlin", "Paris", "Toronto", "Sydney", "Tokyo", "Sao Paulo", "Mexico City"]
-    # Mock IPs (anonymized)
-    mock_ips = [f"192.168.{random.randint(1,255)}.xxx" for _ in range(20)]
+    # Mock IPs
+    mock_ips = [f"192.168.{random.randint(1,255)}.{random.randint(1,255)}" for _ in range(100)]
+    # Mock Device IFAs (IDFA/GAID format)
+    mock_device_ifas = [f"{uuid.uuid4()}" for _ in range(100)]
     # Mock OS
     mock_os = ["Android", "iOS", "Windows", "macOS", "Linux"]
     # Mock device makes
@@ -847,6 +854,8 @@ def generate_mock_ad_performance_data(
             row["city"] = random.choice(mock_cities)
         if "ip" in dimensions:
             row["ip"] = random.choice(mock_ips)
+        if "device_ifa" in dimensions:
+            row["device_ifa"] = random.choice(mock_device_ifas)
         if "os" in dimensions:
             row["os"] = random.choice(mock_os)
         if "make" in dimensions:
@@ -1085,13 +1094,17 @@ async def get_report_template(template_id: str):
 @router.get("/reports/ad-performance/export/csv")
 async def export_ad_performance_csv(
     dimensions: str = "source,domain,creative_name",
+    metrics: str = "impressions,clicks,ctr,conversions,spend",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     num_rows: int = 100,
-    use_real_data: bool = True
+    use_real_data: bool = True,
+    campaign_id: Optional[str] = None,
+    creative_id: Optional[str] = None
 ):
     """Export ad performance report as CSV"""
     dims = [d.strip() for d in dimensions.split(",")]
+    selected_metrics = [m.strip() for m in metrics.split(",") if m.strip()]
     
     if not end_date:
         end_dt = datetime.now(timezone.utc)
@@ -1108,7 +1121,10 @@ async def export_ad_performance_csv(
             dimensions=dims,
             start_date=start_date,
             end_date=end_date,
-            num_rows=min(num_rows, 1000)
+            num_rows=min(num_rows, 10000),
+            campaign_id=campaign_id,
+            creative_id=creative_id,
+            metrics=selected_metrics
         )
     
     # Fall back to mock data
@@ -1117,41 +1133,57 @@ async def export_ad_performance_csv(
             dimensions=dims,
             start_date=start_date,
             end_date=end_date,
-            num_rows=min(num_rows, 1000)
+            num_rows=min(num_rows, 10000),
+            campaign_id=campaign_id,
+            creative_id=creative_id,
+            metrics=selected_metrics
         )
     
-    # Define column headers
-    headers = []
-    
-    # Dimension headers
+    # Define all dimension labels
     dimension_labels = {
+        "campaign_name": "Campaign Name",
+        "creative_name": "Creative Name",
         "source": "Source",
         "domain": "Domain", 
         "insertion_order": "Insertion Order",
         "line_item": "Line Item",
-        "creative_name": "Creative Name"
+        "bundle": "Bundle",
+        "app_name": "App Name",
+        "country": "Country",
+        "city": "City",
+        "ip": "IP Address",
+        "device_ifa": "Device ID",
+        "os": "OS",
+        "make": "Make"
     }
+    
+    # Define all metric labels
+    metric_labels = {
+        "impressions": "Impressions",
+        "reach": "Reach",
+        "clicks": "Clicks",
+        "ctr": "CTR (%)",
+        "conversions": "Conversions",
+        "spend": "Spend",
+        "win_rate": "Win Rate (%)",
+        "ecpm": "eCPM",
+        "cpc": "CPC",
+        "cpv": "CPV",
+        "video_q1_25": "Video Q1 (25%)",
+        "video_q2_50": "Video Q2 (50%)",
+        "video_q3_75": "Video Q3 (75%)",
+        "video_completed_100": "Video Completed (100%)",
+        "video_completion_rate": "Video Completion Rate (%)",
+        "vtr": "VTR (%)"
+    }
+    
+    # Build headers
+    headers = []
     for dim in dims:
-        if dim in dimension_labels:
-            headers.append(dimension_labels[dim])
+        headers.append(dimension_labels.get(dim, dim.replace("_", " ").title()))
     
-    # Performance metric headers
-    headers.extend([
-        "Impressions",
-        "Reach",
-        "Clicks",
-        "CTR (%)",
-        "Conversions"
-    ])
-    
-    # Video metric headers
-    headers.extend([
-        "Video Q1 (25%)",
-        "Video Q2 (50%)",
-        "Video Q3 (75%)",
-        "Video Completed (100%)",
-        "Video Completion Rate (%)"
-    ])
+    for metric in selected_metrics:
+        headers.append(metric_labels.get(metric, metric.replace("_", " ").title()))
     
     output = io.StringIO()
     writer = csv.writer(output)
@@ -1164,23 +1196,9 @@ async def export_ad_performance_csv(
         for dim in dims:
             csv_row.append(row.get(dim, ""))
         
-        # Performance metrics
-        csv_row.extend([
-            row["impressions"],
-            row["reach"],
-            row["clicks"],
-            row["ctr"],
-            row["conversions"]
-        ])
-        
-        # Video metrics
-        csv_row.extend([
-            row["video_q1_25"],
-            row["video_q2_50"],
-            row["video_q3_75"],
-            row["video_completed_100"],
-            row["video_completion_rate"]
-        ])
+        # Selected metrics
+        for metric in selected_metrics:
+            csv_row.append(row.get(metric, 0))
         
         writer.writerow(csv_row)
     
@@ -1196,13 +1214,17 @@ async def export_ad_performance_csv(
 @router.get("/reports/ad-performance/export/excel")
 async def export_ad_performance_excel(
     dimensions: str = "source,domain,creative_name",
+    metrics: str = "impressions,clicks,ctr,conversions,spend",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     num_rows: int = 100,
-    use_real_data: bool = True
+    use_real_data: bool = True,
+    campaign_id: Optional[str] = None,
+    creative_id: Optional[str] = None
 ):
     """Export ad performance report as Excel (XLSX)"""
     dims = [d.strip() for d in dimensions.split(",")]
+    selected_metrics = [m.strip() for m in metrics.split(",") if m.strip()]
     
     if not end_date:
         end_dt = datetime.now(timezone.utc)
@@ -1219,7 +1241,10 @@ async def export_ad_performance_excel(
             dimensions=dims,
             start_date=start_date,
             end_date=end_date,
-            num_rows=min(num_rows, 1000)
+            num_rows=min(num_rows, 10000),
+            campaign_id=campaign_id,
+            creative_id=creative_id,
+            metrics=selected_metrics
         )
     
     # Fall back to mock data
@@ -1228,7 +1253,10 @@ async def export_ad_performance_excel(
             dimensions=dims,
             start_date=start_date,
             end_date=end_date,
-            num_rows=min(num_rows, 1000)
+            num_rows=min(num_rows, 10000),
+            campaign_id=campaign_id,
+            creative_id=creative_id,
+            metrics=selected_metrics
         )
     
     # Create workbook
@@ -1248,28 +1276,58 @@ async def export_ad_performance_excel(
         bottom=Side(style='thin')
     )
     
-    # Headers
-    headers = []
+    # Define all dimension labels
     dimension_labels = {
+        "campaign_name": "Campaign Name",
+        "creative_name": "Creative Name",
         "source": "Source",
         "domain": "Domain", 
         "insertion_order": "Insertion Order",
         "line_item": "Line Item",
-        "creative_name": "Creative Name"
+        "bundle": "Bundle",
+        "app_name": "App Name",
+        "country": "Country",
+        "city": "City",
+        "ip": "IP Address",
+        "device_ifa": "Device ID",
+        "os": "OS",
+        "make": "Make"
     }
     
+    # Define all metric labels
+    metric_labels = {
+        "impressions": "Impressions",
+        "reach": "Reach",
+        "clicks": "Clicks",
+        "ctr": "CTR (%)",
+        "conversions": "Conversions",
+        "spend": "Spend",
+        "win_rate": "Win Rate (%)",
+        "ecpm": "eCPM",
+        "cpc": "CPC",
+        "cpv": "CPV",
+        "video_q1_25": "Video Q1 (25%)",
+        "video_q2_50": "Video Q2 (50%)",
+        "video_q3_75": "Video Q3 (75%)",
+        "video_completed_100": "Video Completed (100%)",
+        "video_completion_rate": "Video Completion Rate (%)",
+        "vtr": "VTR (%)"
+    }
+    
+    video_metrics = ["video_q1_25", "video_q2_50", "video_q3_75", "video_completed_100", "video_completion_rate", "vtr"]
+    
+    # Build headers
+    headers = []
     dimension_cols = []
     for dim in dims:
-        if dim in dimension_labels:
-            headers.append(dimension_labels[dim])
-            dimension_cols.append(len(headers))
+        headers.append(dimension_labels.get(dim, dim.replace("_", " ").title()))
+        dimension_cols.append(len(headers))
     
-    performance_headers = ["Impressions", "Reach", "Clicks", "CTR (%)", "Conversions"]
-    headers.extend(performance_headers)
-    
-    video_headers = ["Video Q1 (25%)", "Video Q2 (50%)", "Video Q3 (75%)", "Video Completed (100%)", "Video Completion Rate (%)"]
-    video_start_col = len(headers) + 1
-    headers.extend(video_headers)
+    video_start_col = None
+    for metric in selected_metrics:
+        headers.append(metric_labels.get(metric, metric.replace("_", " ").title()))
+        if metric in video_metrics and video_start_col is None:
+            video_start_col = len(headers)
     
     # Write headers
     for col, header in enumerate(headers, 1):
@@ -1280,7 +1338,7 @@ async def export_ad_performance_excel(
         
         if col in dimension_cols:
             cell.fill = dimension_fill
-        elif col >= video_start_col:
+        elif video_start_col and col >= video_start_col:
             cell.fill = video_fill
         else:
             cell.fill = header_fill
@@ -1295,16 +1353,9 @@ async def export_ad_performance_excel(
             cell.border = thin_border
             col += 1
         
-        # Performance metrics
-        for field in ["impressions", "reach", "clicks", "ctr", "conversions"]:
-            cell = ws.cell(row=row_idx, column=col, value=row_data[field])
-            cell.border = thin_border
-            cell.alignment = Alignment(horizontal='right')
-            col += 1
-        
-        # Video metrics
-        for field in ["video_q1_25", "video_q2_50", "video_q3_75", "video_completed_100", "video_completion_rate"]:
-            cell = ws.cell(row=row_idx, column=col, value=row_data[field])
+        # Selected metrics
+        for metric in selected_metrics:
+            cell = ws.cell(row=row_idx, column=col, value=row_data.get(metric, 0))
             cell.border = thin_border
             cell.alignment = Alignment(horizontal='right')
             col += 1
@@ -1319,7 +1370,7 @@ async def export_ad_performance_excel(
                     max_length = len(str(cell.value))
             except (TypeError, AttributeError):
                 pass
-        adjusted_width = min(max_length + 2, 30)
+        adjusted_width = min(max_length + 2, 40)
         ws.column_dimensions[column].width = adjusted_width
     
     # Save to bytes

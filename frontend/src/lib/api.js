@@ -272,9 +272,10 @@ export const generateAdPerformanceReport = (dimensions, metrics, startDate, endD
     } 
   });
 
-export const exportAdPerformanceCSV = (dimensions, startDate, endDate, numRows = 10000) => {
+export const exportAdPerformanceCSV = (dimensions, metrics, startDate, endDate, numRows = 10000) => {
   const params = new URLSearchParams();
   params.append('dimensions', dimensions.join(','));
+  params.append('metrics', metrics.join(','));
   params.append('start_date', startDate);
   params.append('end_date', endDate);
   params.append('num_rows', numRows.toString());
@@ -282,9 +283,10 @@ export const exportAdPerformanceCSV = (dimensions, startDate, endDate, numRows =
   window.open(`${API_BASE}/reports/ad-performance/export/csv?${params.toString()}`, '_blank');
 };
 
-export const exportAdPerformanceExcel = (dimensions, startDate, endDate, numRows = 10000) => {
+export const exportAdPerformanceExcel = (dimensions, metrics, startDate, endDate, numRows = 10000) => {
   const params = new URLSearchParams();
   params.append('dimensions', dimensions.join(','));
+  params.append('metrics', metrics.join(','));
   params.append('start_date', startDate);
   params.append('end_date', endDate);
   params.append('num_rows', numRows.toString());

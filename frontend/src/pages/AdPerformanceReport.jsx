@@ -41,6 +41,7 @@ const DIMENSIONS = [
   { id: "country", label: "Country", icon: Globe, description: "User country" },
   { id: "city", label: "City", icon: MapPin, description: "User city" },
   { id: "ip", label: "IP Address", icon: Wifi, description: "User IP address" },
+  { id: "device_ifa", label: "Device ID", icon: Smartphone, description: "Device IFA (IDFA/GAID)" },
   { id: "os", label: "OS", icon: Monitor, description: "Operating system" },
   { id: "make", label: "Make", icon: Smartphone, description: "Device manufacturer" },
 ];
@@ -290,12 +291,12 @@ export default function AdPerformanceReport() {
   };
 
   const handleExportCSV = () => {
-    exportAdPerformanceCSV(selectedDimensions, startDate, endDate, 10000);
+    exportAdPerformanceCSV(selectedDimensions, selectedMetrics, startDate, endDate, 10000);
     toast.success("Downloading CSV...");
   };
 
   const handleExportExcel = () => {
-    exportAdPerformanceExcel(selectedDimensions, startDate, endDate, 10000);
+    exportAdPerformanceExcel(selectedDimensions, selectedMetrics, startDate, endDate, 10000);
     toast.success("Downloading Excel...");
   };
 
