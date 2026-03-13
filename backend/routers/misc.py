@@ -832,3 +832,231 @@ async def analyze_fraud_indicators(campaign_id: str):
         "unique_ips": len(ip_counts),
         "unique_user_agents": len(ua_counts)
     }
+
+
+
+# ==================== SEED DATA ====================
+
+import random
+from datetime import timedelta
+
+@router.post("/seed-data")
+async def seed_sample_data():
+    """Seed database with sample campaigns, creatives, SSPs, and bid logs for testing"""
+    
+    # Clear existing data (optional - comment out if you want to preserve existing)
+    # await db.campaigns.delete_many({})
+    # await db.creatives.delete_many({})
+    # await db.ssp_endpoints.delete_many({})
+    # await db.bid_logs.delete_many({})
+    
+    # Sample data
+    countries = ["US", "UK", "DE", "FR", "IN", "CA", "AU", "JP", "BR", "MX"]
+    cities = {
+        "US": ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix"],
+        "UK": ["London", "Manchester", "Birmingham", "Leeds", "Glasgow"],
+        "DE": ["Berlin", "Munich", "Hamburg", "Frankfurt", "Cologne"],
+        "FR": ["Paris", "Lyon", "Marseille", "Toulouse", "Nice"],
+        "IN": ["Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad"],
+        "CA": ["Toronto", "Vancouver", "Montreal", "Calgary", "Ottawa"],
+        "AU": ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide"],
+        "JP": ["Tokyo", "Osaka", "Nagoya", "Sapporo", "Fukuoka"],
+        "BR": ["Sao Paulo", "Rio de Janeiro", "Brasilia", "Salvador", "Fortaleza"],
+        "MX": ["Mexico City", "Guadalajara", "Monterrey", "Puebla", "Tijuana"]
+    }
+    os_list = ["Android", "iOS", "Windows", "macOS", "Linux"]
+    makes = ["Samsung", "Apple", "Xiaomi", "OnePlus", "Google", "Oppo", "Vivo", "Huawei"]
+    bundles = ["com.news.app", "com.game.puzzle", "com.social.chat", "com.video.stream", "com.shop.online", "com.fitness.tracker"]
+    app_names = ["Daily News", "Puzzle Master", "ChatConnect", "StreamTV", "ShopEasy", "FitTrack"]
+    domains = ["news.example.com", "sports.example.com", "tech.example.com", "finance.example.com", "entertainment.example.com"]
+    
+    # Create SSP Endpoints
+    ssps = [
+        {"id": str(uuid.uuid4()), "name": "Google AdX", "status": "active", "endpoint_token": uuid.uuid4().hex[:16]},
+        {"id": str(uuid.uuid4()), "name": "OpenX", "status": "active", "endpoint_token": uuid.uuid4().hex[:16]},
+        {"id": str(uuid.uuid4()), "name": "PubMatic", "status": "active", "endpoint_token": uuid.uuid4().hex[:16]},
+        {"id": str(uuid.uuid4()), "name": "Magnite", "status": "active", "endpoint_token": uuid.uuid4().hex[:16]},
+        {"id": str(uuid.uuid4()), "name": "Index Exchange", "status": "active", "endpoint_token": uuid.uuid4().hex[:16]},
+    ]
+    
+    for ssp in ssps:
+        ssp["total_requests"] = 0
+        ssp["total_bids"] = 0
+        ssp["total_wins"] = 0
+        ssp["total_spend"] = 0
+        ssp["impressions"] = 0
+        ssp["created_at"] = datetime.now(timezone.utc).isoformat()
+        existing = await db.ssp_endpoints.find_one({"name": ssp["name"]})
+        if not existing:
+            await db.ssp_endpoints.insert_one(ssp)
+    
+    # Reload SSPs with IDs
+    ssps = await db.ssp_endpoints.find({}, {"_id": 0}).to_list(100)
+    
+    # Create Creatives
+    creatives = [
+        {"id": str(uuid.uuid4()), "name": "Hero Banner 300x250", "type": "banner", "size": "300x250", "status": "active"},
+        {"id": str(uuid.uuid4()), "name": "Video Pre-roll 15s", "type": "video", "duration": 15, "status": "active"},
+        {"id": str(uuid.uuid4()), "name": "Video Pre-roll 30s", "type": "video", "duration": 30, "status": "active"},
+        {"id": str(uuid.uuid4()), "name": "Native Card A", "type": "native", "status": "active"},
+        {"id": str(uuid.uuid4()), "name": "Skyscraper 160x600", "type": "banner", "size": "160x600", "status": "active"},
+    ]
+    
+    for creative in creatives:
+        creative["created_at"] = datetime.now(timezone.utc).isoformat()
+        existing = await db.creatives.find_one({"name": creative["name"]})
+        if not existing:
+            await db.creatives.insert_one(creative)
+    
+    # Reload creatives with IDs
+    creatives = await db.creatives.find({}, {"_id": 0}).to_list(100)
+    
+    # Create Campaigns
+    campaigns = [
+        {"id": str(uuid.uuid4()), "name": "Brand Awareness Q1", "status": "active", "goal": "awareness"},
+        {"id": str(uuid.uuid4()), "name": "Retargeting Spring", "status": "active", "goal": "conversions"},
+        {"id": str(uuid.uuid4()), "name": "Performance Max", "status": "active", "goal": "performance"},
+        {"id": str(uuid.uuid4()), "name": "Video Reach", "status": "active", "goal": "reach"},
+        {"id": str(uuid.uuid4()), "name": "Display Prospecting", "status": "active", "goal": "prospecting"},
+    ]
+    
+    for campaign in campaigns:
+        campaign["budget"] = {"total_budget": 10000, "daily_budget": 500, "total_spend": 0, "daily_spend": 0}
+        campaign["bid_price"] = random.uniform(1.5, 5.0)
+        campaign["impressions"] = 0
+        campaign["clicks"] = 0
+        campaign["bids"] = 0
+        campaign["wins"] = 0
+        campaign["created_at"] = datetime.now(timezone.utc).isoformat()
+        existing = await db.campaigns.find_one({"name": campaign["name"]})
+        if not existing:
+            await db.campaigns.insert_one(campaign)
+    
+    # Reload campaigns with IDs
+    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(100)
+    
+    # Generate Bid Logs (last 30 days of data)
+    bid_logs = []
+    now = datetime.now(timezone.utc)
+    
+    for i in range(5000):  # Generate 5000 bid logs
+        campaign = random.choice(campaigns)
+        creative = random.choice(creatives)
+        ssp = random.choice(ssps)
+        country = random.choice(countries)
+        city = random.choice(cities.get(country, ["Unknown"]))
+        
+        # Random timestamp in last 30 days
+        days_ago = random.randint(0, 30)
+        hours_ago = random.randint(0, 23)
+        timestamp = now - timedelta(days=days_ago, hours=hours_ago)
+        
+        bid_made = random.random() < 0.85  # 85% bid rate
+        win_notified = bid_made and random.random() < 0.35  # 35% win rate
+        
+        bid_price = random.uniform(1.0, 5.0)
+        win_price = bid_price * random.uniform(0.6, 0.95) if win_notified else 0
+        
+        # Video metrics for video creatives
+        is_video = creative.get("type") == "video"
+        q1 = win_notified and is_video and random.random() < 0.85
+        q2 = q1 and random.random() < 0.80
+        q3 = q2 and random.random() < 0.75
+        q4 = q3 and random.random() < 0.70
+        
+        log = {
+            "id": str(uuid.uuid4()),
+            "request_id": str(uuid.uuid4()),
+            "bid_id": str(uuid.uuid4()),
+            "campaign_id": campaign["id"],
+            "campaign_name": campaign["name"],
+            "creative_id": creative["id"],
+            "creative_name": creative["name"],
+            "ssp_id": ssp["id"],
+            "ssp_name": ssp["name"],
+            "timestamp": timestamp.isoformat(),
+            "bid_made": bid_made,
+            "bid_price": round(bid_price, 4) if bid_made else 0,
+            "win_notified": win_notified,
+            "win_price": round(win_price, 4) if win_notified else 0,
+            "billing_notified": win_notified,
+            "request_summary": {
+                "domain": random.choice(domains),
+                "bundle": random.choice(bundles),
+                "app_name": random.choice(app_names),
+                "country": country,
+                "city": city,
+                "ip": f"192.168.{random.randint(1, 255)}.{random.randint(1, 255)}",
+                "os": random.choice(os_list),
+                "make": random.choice(makes),
+                "user_id": f"user_{random.randint(10000, 99999)}"
+            },
+            "q1": q1,
+            "q2": q2,
+            "q3": q3,
+            "q4": q4
+        }
+        bid_logs.append(log)
+    
+    # Bulk insert bid logs
+    if bid_logs:
+        await db.bid_logs.insert_many(bid_logs)
+    
+    # Update campaign stats
+    for campaign in campaigns:
+        logs = [l for l in bid_logs if l["campaign_id"] == campaign["id"]]
+        impressions = sum(1 for l in logs if l["win_notified"])
+        clicks = int(impressions * random.uniform(0.01, 0.03))
+        spend = sum(l["win_price"] for l in logs if l["win_notified"])
+        
+        await db.campaigns.update_one(
+            {"id": campaign["id"]},
+            {"$set": {
+                "impressions": impressions,
+                "clicks": clicks,
+                "bids": len([l for l in logs if l["bid_made"]]),
+                "wins": impressions,
+                "budget.total_spend": round(spend, 2)
+            }}
+        )
+    
+    # Update SSP stats
+    for ssp in ssps:
+        logs = [l for l in bid_logs if l["ssp_id"] == ssp["id"]]
+        total_bids = len([l for l in logs if l["bid_made"]])
+        total_wins = len([l for l in logs if l["win_notified"]])
+        total_spend = sum(l["win_price"] for l in logs if l["win_notified"])
+        
+        await db.ssp_endpoints.update_one(
+            {"id": ssp["id"]},
+            {"$set": {
+                "total_requests": len(logs),
+                "total_bids": total_bids,
+                "total_wins": total_wins,
+                "total_spend": round(total_spend, 2),
+                "impressions": total_wins
+            }}
+        )
+    
+    return {
+        "status": "success",
+        "created": {
+            "campaigns": len(campaigns),
+            "creatives": len(creatives),
+            "ssp_endpoints": len(ssps),
+            "bid_logs": len(bid_logs)
+        },
+        "message": "Sample data seeded successfully. Ad Performance Report will now show REAL DATA."
+    }
+
+
+@router.delete("/seed-data")
+async def clear_seed_data():
+    """Clear all seeded data from database"""
+    result = {
+        "bid_logs_deleted": (await db.bid_logs.delete_many({})).deleted_count,
+        "campaigns_deleted": (await db.campaigns.delete_many({})).deleted_count,
+        "creatives_deleted": (await db.creatives.delete_many({})).deleted_count,
+        "ssp_endpoints_deleted": (await db.ssp_endpoints.delete_many({})).deleted_count
+    }
+    return {"status": "cleared", "deleted": result}

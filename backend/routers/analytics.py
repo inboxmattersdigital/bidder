@@ -620,77 +620,77 @@ async def get_real_ad_performance_data(
             
             # Campaign name dimension
             if "campaign_name" in dimensions:
-                cid = log.get("campaign_id", "")
+                cid = log.get("campaign_id") or ""
                 cname = campaign_map.get(cid, "Unknown Campaign")
-                row["campaign_name"] = cname
+                row["campaign_name"] = cname or "Unknown"
                 row["campaign_id"] = cid
-                key_parts.append(cname)
+                key_parts.append(row["campaign_name"])
             
             # Creative name dimension
             if "creative_name" in dimensions:
-                creative_id_val = log.get("creative_id", "")
+                creative_id_val = log.get("creative_id") or ""
                 creative_info = creative_map.get(creative_id_val, {"name": "Unknown", "type": "banner"})
-                row["creative_name"] = creative_info["name"]
+                row["creative_name"] = creative_info["name"] or "Unknown"
                 row["creative_id"] = creative_id_val
-                key_parts.append(creative_info["name"])
+                key_parts.append(row["creative_name"])
             
             if "source" in dimensions:
-                ssp_id = log.get("ssp_id", "")
+                ssp_id = log.get("ssp_id") or ""
                 source_name = ssp_map.get(ssp_id, ssp_id or "Unknown")
-                row["source"] = source_name
-                key_parts.append(source_name)
+                row["source"] = source_name or "Unknown"
+                key_parts.append(row["source"])
             
             if "domain" in dimensions:
-                domain = log.get("request_summary", {}).get("domain", "Unknown")
+                domain = (log.get("request_summary") or {}).get("domain") or "Unknown"
                 row["domain"] = domain
                 key_parts.append(domain)
             
             if "insertion_order" in dimensions:
-                campaign_id_val = log.get("campaign_id", "")
+                campaign_id_val = log.get("campaign_id") or ""
                 io_name = f"IO-{campaign_id_val[:4]}" if campaign_id_val else "IO-Unknown"
                 row["insertion_order"] = io_name
                 key_parts.append(io_name)
             
             if "line_item" in dimensions:
-                campaign_id_val = log.get("campaign_id", "")
+                campaign_id_val = log.get("campaign_id") or ""
                 campaign_name = campaign_map.get(campaign_id_val, "Unknown")
-                li_name = f"LI-{campaign_name}"
+                li_name = f"LI-{campaign_name or 'Unknown'}"
                 row["line_item"] = li_name
                 key_parts.append(li_name)
             
             # New dimensions from bid request
             if "bundle" in dimensions:
-                bundle = log.get("request_summary", {}).get("bundle", "Unknown")
+                bundle = (log.get("request_summary") or {}).get("bundle") or "Unknown"
                 row["bundle"] = bundle
                 key_parts.append(bundle)
             
             if "app_name" in dimensions:
-                app_name = log.get("request_summary", {}).get("app_name", "Unknown")
+                app_name = (log.get("request_summary") or {}).get("app_name") or "Unknown"
                 row["app_name"] = app_name
                 key_parts.append(app_name)
             
             if "country" in dimensions:
-                country = log.get("request_summary", {}).get("country", "Unknown")
+                country = (log.get("request_summary") or {}).get("country") or "Unknown"
                 row["country"] = country
                 key_parts.append(country)
             
             if "city" in dimensions:
-                city = log.get("request_summary", {}).get("city", "Unknown")
+                city = (log.get("request_summary") or {}).get("city") or "Unknown"
                 row["city"] = city
                 key_parts.append(city)
             
             if "ip" in dimensions:
-                ip = log.get("request_summary", {}).get("ip", "Unknown")
+                ip = (log.get("request_summary") or {}).get("ip") or "Unknown"
                 row["ip"] = ip
                 key_parts.append(ip)
             
             if "os" in dimensions:
-                os_name = log.get("request_summary", {}).get("os", "Unknown")
+                os_name = (log.get("request_summary") or {}).get("os") or "Unknown"
                 row["os"] = os_name
                 key_parts.append(os_name)
             
             if "make" in dimensions:
-                make = log.get("request_summary", {}).get("make", "Unknown")
+                make = (log.get("request_summary") or {}).get("make") or "Unknown"
                 row["make"] = make
                 key_parts.append(make)
             
