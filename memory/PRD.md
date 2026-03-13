@@ -115,35 +115,58 @@ Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid reque
 - Error: Clear red (#EF4444)
 - Info: Blue (#3B82F6)
 
-### Ad Performance Report (December 2025)
+### Ad Performance Report (December 2025 - March 2026 Enhancements)
 
 **Report Builder UI:**
 - Interactive configuration with dimension selectors
 - Date range picker with start/end dates
-- Max rows selector (50, 100, 250, 500, 1000)
+- Campaign and Creative filter dropdowns
 - Generate Report button with loading state
+- Three-tab workflow: Templates → Configure → Results
 
-**Dimensions (Group By):**
-- Source (SSP/Exchange)
+**Dimensions (11 Total - Group By):**
+- Campaign Name (Campaign identifier)
+- Creative Name (Creative asset name)
+- Source (SSP/Exchange source)
 - Domain (Publisher domain)
-- Insertion Order (IO identifier)
-- Line Item (Line item name)
-- Creative Name (Creative asset)
+- Bundle (App bundle ID) - NEW
+- App Name (Application name) - NEW
+- Country (User country) - NEW
+- City (User city) - NEW
+- IP Address (User IP) - NEW
+- OS (Operating system) - NEW
+- Make (Device manufacturer) - NEW
 
-**Performance Metrics:**
-- Impressions, Reach, Clicks, CTR (%), Conversions
+**Selectable Metrics (15 Total):**
 
-**Video Metrics:**
-- Q1 (25%), Q2/Midpoint (50%), Q3 (75%)
-- Completed Views (100%), Completion Rate (%)
+*Core Metrics (6):*
+- Impressions, Clicks, CTR, Conversions, Spend, Win Rate
+
+*Derived Metrics (3):*
+- eCPM, CPC, CPV
+
+*Video Metrics (6):*
+- Q1 (25%), Q2 (50%), Q3 (75%), Completed (100%), Completion Rate, VTR
+
+**Quick Metric Selection:**
+- "All" button - selects all 15 metrics
+- "Core" button - selects core + derived metrics
+- "Video" button - selects video metrics only
+
+**Results Display:**
+- 5 Summary Cards: Total Impressions, Total Clicks, Total Spend, Total Conversions, Video Completed
+- Search in results functionality
+- Sortable columns (click headers)
+- Pagination with configurable rows per page (10/25/50/100)
+- Real Data / Mock Data badge indicator
 
 **Export Functionality:**
 - CSV download with all columns and headers
 - Excel (XLSX) download with colored headers and formatting
-- Preview table before export (first 20 rows)
-- Summary cards with key metrics
 
-**Note:** Uses MOCK DATA for demonstration
+**Data Sources:**
+- Uses REAL DATA from bid_logs when available
+- Falls back to MOCK DATA for demonstration when no bid activity exists
 
 ## Key API Endpoints
 
