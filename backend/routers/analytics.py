@@ -562,7 +562,9 @@ async def get_real_ad_performance_data(
     dimensions: List[str],
     start_date: str,
     end_date: str,
-    num_rows: int = 100
+    num_rows: int = 10000,
+    campaign_id: Optional[str] = None,
+    creative_id: Optional[str] = None
 ) -> tuple[List[dict], bool]:
     """
     Get real ad performance data from bid_logs, campaigns, creatives, and ssp_endpoints.
@@ -573,13 +575,24 @@ async def get_real_ad_performance_data(
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date)
         
-        # Get bid logs within date range
-        bid_logs = await db.bid_logs.find({
+        # Build query
+        query = {
             "timestamp": {
                 "$gte": start_dt.isoformat(),
                 "$lte": end_dt.isoformat()
             }
-        }, {"_id": 0}).to_list(10000)
+        }
+        
+        # Add campaign filter
+        if campaign_id:
+            query["campaign_id"] = campaign_id
+        
+        # Add creative filter
+        if creative_id:
+            query["creative_id"] = creative_id
+        
+        # Get bid logs within date range
+        bid_logs = await db.bid_logs.find(query, {"_id": 0}).to_list(100000)
         
         if not bid_logs:
             return [], False
@@ -603,6 +616,22 @@ async def get_real_ad_performance_data(
             # Build key from dimensions
             key_parts = []
             row = {}
+            
+            # Campaign name dimension
+            if "campaign_name" in dimensions:
+                cid = log.get("campaign_id", "")
+                cname = campaign_map.get(cid, "Unknown Campaign")
+                row["campaign_name"] = cname
+                row["campaign_id"] = cid
+                key_parts.append(cname)
+            
+            # Creative name dimension
+            if "creative_name" in dimensions:
+                creative_id = log.get("creative_id", "")
+                creative_info = creative_map.get(creative_id, {"name": "Unknown", "type": "banner"})
+                row["creative_name"] = creative_info["name"]
+                row["creative_id"] = creative_id
+                key_parts.append(creative_info["name"])
             
             if "source" in dimensions:
                 ssp_id = log.get("ssp_id", "")
@@ -629,13 +658,7 @@ async def get_real_ad_performance_data(
                 row["line_item"] = li_name
                 key_parts.append(li_name)
             
-            if "creative_name" in dimensions:
-                creative_id = log.get("creative_id", "")
-                creative_info = creative_map.get(creative_id, {"name": "Unknown", "type": "banner"})
-                row["creative_name"] = creative_info["name"]
-                key_parts.append(creative_info["name"])
-            
-            key = "|".join(key_parts)
+            key = "|".join(key_parts) if key_parts else "total"
             
             if key not in aggregated:
                 aggregated[key] = {
@@ -712,10 +735,17 @@ def generate_mock_ad_performance_data(
     dimensions: List[str],
     start_date: str,
     end_date: str,
-    num_rows: int = 100
+    num_rows: int = 10000,
+    campaign_id: Optional[str] = None,
+    creative_id: Optional[str] = None
 ) -> List[dict]:
     """Generate mock ad performance data based on selected dimensions"""
     random.seed(42)  # For consistent mock data
+    
+    # Mock campaign names
+    mock_campaigns = ["Brand Awareness Q1", "Retargeting Spring", "Performance Max", "Video Reach", "Display Prospecting"]
+    # Mock creative names
+    mock_creatives = ["Hero Banner 300x250", "Product Video 15s", "Native Card A", "Skyscraper 160x600", "Video Pre-roll 30s"]
     
     data = []
     
@@ -723,6 +753,12 @@ def generate_mock_ad_performance_data(
         row = {}
         
         # Add dimensions
+        if "campaign_name" in dimensions:
+            row["campaign_name"] = random.choice(mock_campaigns)
+            row["campaign_id"] = f"camp-{hash(row['campaign_name']) % 10000}"
+        if "creative_name" in dimensions:
+            row["creative_name"] = random.choice(mock_creatives)
+            row["creative_id"] = f"creat-{hash(row['creative_name']) % 10000}"
         if "source" in dimensions:
             row["source"] = random.choice(SUPPLY_SOURCES)
         if "domain" in dimensions:
@@ -731,38 +767,35 @@ def generate_mock_ad_performance_data(
             row["insertion_order"] = f"IO-{random.randint(1000, 9999)}"
         if "line_item" in dimensions:
             row["line_item"] = f"LI-{random.choice(['Prospecting', 'Retargeting', 'Contextual', 'Lookalike'])}-{random.randint(100, 999)}"
-        if "creative_name" in dimensions:
-            creative_types = ["Banner_300x250", "Banner_728x90", "Video_15s", "Video_30s", "Native_InFeed"]
-            row["creative_name"] = f"{random.choice(creative_types)}_{random.randint(1, 50)}"
         
         # Performance metrics
         impressions = random.randint(1000, 500000)
         reach = int(impressions * random.uniform(0.3, 0.8))
         clicks = int(impressions * random.uniform(0.001, 0.05))
-        ctr = (clicks / impressions * 100) if impressions > 0 else 0
+        ctr = (clicks / impressions) if impressions > 0 else 0
         conversions = int(clicks * random.uniform(0.01, 0.15))
         
         row["impressions"] = impressions
         row["reach"] = reach
         row["clicks"] = clicks
-        row["ctr"] = round(ctr, 2)
+        row["ctr"] = round(ctr, 4)
         row["conversions"] = conversions
         
         # Video metrics (if video-related creative)
-        is_video = "creative_name" in row and "Video" in row.get("creative_name", "")
+        is_video = "Video" in row.get("creative_name", "") or "video" in row.get("creative_name", "").lower()
         
         # Always include video metrics, but they'll be 0 for non-video
         q1_25 = int(impressions * random.uniform(0.6, 0.95)) if is_video else 0
         q2_50 = int(q1_25 * random.uniform(0.7, 0.95)) if is_video else 0
         q3_75 = int(q2_50 * random.uniform(0.7, 0.95)) if is_video else 0
         completed = int(q3_75 * random.uniform(0.6, 0.9)) if is_video else 0
-        completion_rate = (completed / impressions * 100) if impressions > 0 and is_video else 0
+        completion_rate = (completed / impressions) if impressions > 0 and is_video else 0
         
         row["video_q1_25"] = q1_25
         row["video_q2_50"] = q2_50
         row["video_q3_75"] = q3_75
         row["video_completed_100"] = completed
-        row["video_completion_rate"] = round(completion_rate, 2)
+        row["video_completion_rate"] = round(completion_rate, 4)
         
         data.append(row)
     
@@ -771,12 +804,14 @@ def generate_mock_ad_performance_data(
 
 @router.post("/reports/ad-performance")
 async def generate_ad_performance_report(
-    dimensions: str = "source,domain,creative_name",
+    dimensions: str = "campaign_name,creative_name,source,domain",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     include_video_metrics: bool = True,
-    num_rows: int = 100,
-    use_real_data: bool = True
+    num_rows: int = 10000,
+    use_real_data: bool = True,
+    campaign_id: Optional[str] = None,
+    creative_id: Optional[str] = None
 ):
     """Generate ad performance report with real data (if available) or mock data"""
     # Parse comma-separated dimensions string
@@ -800,7 +835,9 @@ async def generate_ad_performance_report(
             dimensions=dims,
             start_date=start_date,
             end_date=end_date,
-            num_rows=min(num_rows, 1000)
+            num_rows=num_rows,
+            campaign_id=campaign_id,
+            creative_id=creative_id
         )
         if is_real_data:
             data_source = "REAL DATA (From Bid Logs)"
@@ -811,7 +848,9 @@ async def generate_ad_performance_report(
             dimensions=dims,
             start_date=start_date,
             end_date=end_date,
-            num_rows=min(num_rows, 1000)
+            num_rows=num_rows,
+            campaign_id=campaign_id,
+            creative_id=creative_id
         )
         data_source = "MOCK DATA (No bid activity in date range)"
     

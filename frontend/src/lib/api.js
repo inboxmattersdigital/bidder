@@ -258,18 +258,20 @@ export const recommendLineItems = (goal, budget, audienceType) =>
 export const analyzeFraud = (campaignId) => api.get(`/fraud/detection/${campaignId}`);
 
 // Ad Performance Reports
-export const generateAdPerformanceReport = (dimensions, startDate, endDate, numRows = 100, useRealData = true) => 
+export const generateAdPerformanceReport = (dimensions, startDate, endDate, numRows = 10000, useRealData = true, campaignId = null, creativeId = null) => 
   api.post('/reports/ad-performance', null, { 
     params: { 
       dimensions: dimensions.join(','), 
       start_date: startDate, 
       end_date: endDate,
       num_rows: numRows,
-      use_real_data: useRealData
+      use_real_data: useRealData,
+      ...(campaignId && { campaign_id: campaignId }),
+      ...(creativeId && { creative_id: creativeId })
     } 
   });
 
-export const exportAdPerformanceCSV = (dimensions, startDate, endDate, numRows = 100) => {
+export const exportAdPerformanceCSV = (dimensions, startDate, endDate, numRows = 10000) => {
   const params = new URLSearchParams();
   params.append('dimensions', dimensions.join(','));
   params.append('start_date', startDate);
@@ -279,7 +281,7 @@ export const exportAdPerformanceCSV = (dimensions, startDate, endDate, numRows =
   window.open(`${API_BASE}/reports/ad-performance/export/csv?${params.toString()}`, '_blank');
 };
 
-export const exportAdPerformanceExcel = (dimensions, startDate, endDate, numRows = 100) => {
+export const exportAdPerformanceExcel = (dimensions, startDate, endDate, numRows = 10000) => {
   const params = new URLSearchParams();
   params.append('dimensions', dimensions.join(','));
   params.append('start_date', startDate);

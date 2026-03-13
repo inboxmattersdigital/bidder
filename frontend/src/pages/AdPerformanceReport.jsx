@@ -1,31 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
-  Download, 
-  FileSpreadsheet, 
-  FileText,
-  BarChart3,
-  RefreshCw,
-  Calendar,
-  Filter,
-  Eye,
-  Video,
-  MousePointerClick,
-  Users,
-  Target,
-  Layers,
-  Globe,
-  Play,
-  CheckCircle,
-  Loader2,
-  AlertCircle,
-  Save,
-  Trash2,
-  Server,
-  Image,
-  Database,
-  Zap,
-  BookMarked,
-  Plus
+  Download, FileSpreadsheet, BarChart3, RefreshCw, Calendar, Filter, Eye, Video,
+  MousePointerClick, Users, Target, Layers, Globe, CheckCircle, Loader2,
+  AlertCircle, Save, Trash2, Server, Image, Database, BookMarked, Plus,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Search
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -36,56 +14,37 @@ import { Label } from "../components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Switch } from "../components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "../components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "../components/ui/dialog";
 import { toast } from "sonner";
 import { 
-  generateAdPerformanceReport, 
-  exportAdPerformanceCSV, 
-  exportAdPerformanceExcel,
-  getReportTemplates,
-  saveReportTemplate,
-  deleteReportTemplate
+  generateAdPerformanceReport, exportAdPerformanceCSV, exportAdPerformanceExcel,
+  getReportTemplates, saveReportTemplate, deleteReportTemplate,
+  getCampaigns, getCreatives
 } from "../lib/api";
 
-// Available dimensions
+// Dimensions configuration
 const DIMENSIONS = [
-  { id: "source", label: "Source", icon: Globe, description: "SSP/Exchange source" },
-  { id: "domain", label: "Domain", icon: Layers, description: "Publisher domain" },
-  { id: "insertion_order", label: "Insertion Order", icon: FileText, description: "IO identifier" },
-  { id: "line_item", label: "Line Item", icon: Target, description: "Line item name" },
-  { id: "creative_name", label: "Creative Name", icon: Eye, description: "Creative asset" },
+  { id: "campaign_name", label: "Campaign Name", icon: Target, description: "Campaign identifier" },
+  { id: "creative_name", label: "Creative Name", icon: Image, description: "Creative asset name" },
+  { id: "source", label: "Source", icon: Server, description: "SSP/Exchange source" },
+  { id: "domain", label: "Domain", icon: Globe, description: "Publisher domain" },
 ];
 
-// Performance metrics info
+// Metrics configuration
 const PERFORMANCE_METRICS = [
   { id: "impressions", label: "Impressions", icon: Eye, color: "#3B82F6" },
-  { id: "reach", label: "Reach", icon: Users, color: "#10B981" },
   { id: "clicks", label: "Clicks", icon: MousePointerClick, color: "#F59E0B" },
   { id: "ctr", label: "CTR", icon: Target, color: "#8B5CF6" },
   { id: "conversions", label: "Conversions", icon: CheckCircle, color: "#EC4899" },
 ];
 
-// Video metrics info
 const VIDEO_METRICS = [
   { id: "video_q1_25", label: "Q1 (25%)", color: "#06B6D4" },
   { id: "video_q2_50", label: "Q2 (50%)", color: "#14B8A6" },
@@ -94,33 +53,39 @@ const VIDEO_METRICS = [
   { id: "video_completion_rate", label: "Completion Rate", color: "#059669" },
 ];
 
-// Template icon mapping
 const TEMPLATE_ICONS = {
-  BarChart3: BarChart3,
-  Video: Video,
-  Globe: Globe,
-  Image: Image,
-  Server: Server,
-  FileText: FileText,
-  Target: Target,
-  Users: Users,
+  BarChart3, Video, Globe, Image, Server, Target, Users,
 };
 
-function MetricCard({ label, value, icon: Icon, color, subValue }) {
+// Summary Stat Card
+function SummaryCard({ label, value, icon: Icon, color, className = "" }) {
   return (
-    <div className="p-4 surface-secondary rounded-lg border border-[#2D3B55]">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-4 h-4" style={{ color }} />
-        <span className="text-xs text-[#64748B] uppercase tracking-wider">{label}</span>
+    <div className={`p-4 rounded-lg border ${className}`} style={{ borderColor: `${color}40`, backgroundColor: `${color}10` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className="w-5 h-5" style={{ color }} />
+        <span className="text-sm text-[#94A3B8]">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-[#F8FAFC]">{value}</p>
-      {subValue && <p className="text-xs text-[#94A3B8] mt-1">{subValue}</p>}
+      <p className="text-3xl font-bold text-[#F8FAFC]">{value}</p>
     </div>
   );
 }
 
+// Metric Card
+function MetricCard({ label, value, icon: Icon, color }) {
+  return (
+    <div className="p-3 surface-secondary rounded-lg border border-[#2D3B55]">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className="w-4 h-4" style={{ color }} />
+        <span className="text-xs text-[#64748B] uppercase">{label}</span>
+      </div>
+      <p className="text-xl font-bold text-[#F8FAFC]">{value}</p>
+    </div>
+  );
+}
+
+// Template Card
 function TemplateCard({ template, onApply, onDelete, isCustom }) {
-  const IconComponent = TEMPLATE_ICONS[template.icon] || FileText;
+  const IconComponent = TEMPLATE_ICONS[template.icon] || BarChart3;
   
   return (
     <Card 
@@ -136,11 +101,8 @@ function TemplateCard({ template, onApply, onDelete, isCustom }) {
             <Button
               size="icon"
               variant="ghost"
-              className="h-8 w-8 opacity-0 group-hover:opacity-100 text-[#EF4444] hover:text-[#EF4444] hover:bg-[#EF4444]/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(template.id);
-              }}
+              className="h-8 w-8 opacity-0 group-hover:opacity-100 text-[#EF4444]"
+              onClick={(e) => { e.stopPropagation(); onDelete(template.id); }}
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -150,14 +112,10 @@ function TemplateCard({ template, onApply, onDelete, isCustom }) {
         <p className="text-xs text-[#64748B] mb-3">{template.description}</p>
         <div className="flex flex-wrap gap-1">
           {template.dimensions.slice(0, 3).map((dim) => (
-            <Badge key={dim} className="bg-[#10B981]/20 text-[#10B981] text-[10px]">
-              {dim}
-            </Badge>
+            <Badge key={dim} className="bg-[#10B981]/20 text-[#10B981] text-[10px]">{dim}</Badge>
           ))}
           {template.dimensions.length > 3 && (
-            <Badge className="bg-[#64748B]/20 text-[#64748B] text-[10px]">
-              +{template.dimensions.length - 3}
-            </Badge>
+            <Badge className="bg-[#64748B]/20 text-[#64748B] text-[10px]">+{template.dimensions.length - 3}</Badge>
           )}
         </div>
       </CardContent>
@@ -166,18 +124,32 @@ function TemplateCard({ template, onApply, onDelete, isCustom }) {
 }
 
 export default function AdPerformanceReport() {
-  const [selectedDimensions, setSelectedDimensions] = useState(["source", "domain", "creative_name"]);
+  // State
+  const [selectedDimensions, setSelectedDimensions] = useState(["campaign_name", "creative_name", "source", "domain"]);
   const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
+    const d = new Date(); d.setDate(d.getDate() - 30);
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [numRows, setNumRows] = useState(100);
   const [useRealData, setUseRealData] = useState(true);
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("templates");
+  
+  // Filter state
+  const [campaigns, setCampaigns] = useState([]);
+  const [creatives, setCreatives] = useState([]);
+  const [selectedCampaign, setSelectedCampaign] = useState("all");
+  const [selectedCreative, setSelectedCreative] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState("impressions");
+  const [sortDirection, setSortDirection] = useState("desc");
   
   // Templates state
   const [templates, setTemplates] = useState({ built_in: [], custom: [] });
@@ -186,18 +158,23 @@ export default function AdPerformanceReport() {
   const [newTemplateName, setNewTemplateName] = useState("");
   const [newTemplateDesc, setNewTemplateDesc] = useState("");
 
-  // Load templates on mount
+  // Load campaigns and creatives on mount
   useEffect(() => {
-    fetchTemplates();
+    fetchInitialData();
   }, []);
 
-  const fetchTemplates = async () => {
+  const fetchInitialData = async () => {
     try {
-      setLoadingTemplates(true);
-      const response = await getReportTemplates();
-      setTemplates(response.data);
+      const [campaignsRes, creativesRes, templatesRes] = await Promise.all([
+        getCampaigns(),
+        getCreatives(),
+        getReportTemplates()
+      ]);
+      setCampaigns(campaignsRes.data || []);
+      setCreatives(creativesRes.data || []);
+      setTemplates(templatesRes.data || { built_in: [], custom: [] });
     } catch (error) {
-      console.error("Failed to load templates:", error);
+      console.error("Failed to load data:", error);
     } finally {
       setLoadingTemplates(false);
     }
@@ -224,18 +201,14 @@ export default function AdPerformanceReport() {
       toast.error("Please enter a template name");
       return;
     }
-    
     try {
-      await saveReportTemplate(
-        newTemplateName,
-        newTemplateDesc || `Custom template with ${selectedDimensions.length} dimensions`,
-        selectedDimensions
-      );
-      toast.success("Template saved successfully");
+      await saveReportTemplate(newTemplateName, newTemplateDesc || `Custom template`, selectedDimensions);
+      toast.success("Template saved");
       setShowSaveDialog(false);
       setNewTemplateName("");
       setNewTemplateDesc("");
-      fetchTemplates();
+      const res = await getReportTemplates();
+      setTemplates(res.data);
     } catch (error) {
       toast.error("Failed to save template");
     }
@@ -245,9 +218,10 @@ export default function AdPerformanceReport() {
     try {
       await deleteReportTemplate(id);
       toast.success("Template deleted");
-      fetchTemplates();
+      const res = await getReportTemplates();
+      setTemplates(res.data);
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Failed to delete template");
+      toast.error("Failed to delete template");
     }
   };
 
@@ -258,10 +232,13 @@ export default function AdPerformanceReport() {
         selectedDimensions,
         startDate,
         endDate,
-        numRows,
-        useRealData
+        10000, // Get all rows
+        useRealData,
+        selectedCampaign !== "all" ? selectedCampaign : null,
+        selectedCreative !== "all" ? selectedCreative : null
       );
       setReportData(response.data);
+      setCurrentPage(1);
       setActiveTab("preview");
       toast.success("Report generated successfully");
     } catch (error) {
@@ -273,20 +250,111 @@ export default function AdPerformanceReport() {
   };
 
   const handleExportCSV = () => {
-    exportAdPerformanceCSV(selectedDimensions, startDate, endDate, numRows);
-    toast.success("Downloading CSV report...");
+    exportAdPerformanceCSV(selectedDimensions, startDate, endDate, 10000);
+    toast.success("Downloading CSV...");
   };
 
   const handleExportExcel = () => {
-    exportAdPerformanceExcel(selectedDimensions, startDate, endDate, numRows);
-    toast.success("Downloading Excel report...");
+    exportAdPerformanceExcel(selectedDimensions, startDate, endDate, 10000);
+    toast.success("Downloading Excel...");
+  };
+
+  // Filter and sort data
+  const filteredAndSortedData = useMemo(() => {
+    if (!reportData?.data) return [];
+    
+    let filtered = reportData.data;
+    
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(row => 
+        Object.values(row).some(val => 
+          String(val).toLowerCase().includes(term)
+        )
+      );
+    }
+    
+    // Apply campaign filter
+    if (selectedCampaign !== "all") {
+      filtered = filtered.filter(row => row.campaign_name === selectedCampaign || row.campaign_id === selectedCampaign);
+    }
+    
+    // Apply creative filter
+    if (selectedCreative !== "all") {
+      filtered = filtered.filter(row => row.creative_name === selectedCreative || row.creative_id === selectedCreative);
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      const aVal = a[sortColumn] || 0;
+      const bVal = b[sortColumn] || 0;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      return sortDirection === 'asc' 
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal));
+    });
+    
+    return filtered;
+  }, [reportData, searchTerm, selectedCampaign, selectedCreative, sortColumn, sortDirection]);
+
+  // Calculate totals from filtered data
+  const totals = useMemo(() => {
+    return {
+      impressions: filteredAndSortedData.reduce((sum, row) => sum + (row.impressions || 0), 0),
+      clicks: filteredAndSortedData.reduce((sum, row) => sum + (row.clicks || 0), 0),
+      conversions: filteredAndSortedData.reduce((sum, row) => sum + (row.conversions || 0), 0),
+      video_completed: filteredAndSortedData.reduce((sum, row) => sum + (row.video_completed_100 || 0), 0),
+    };
+  }, [filteredAndSortedData]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedData.length / rowsPerPage);
+  const paginatedData = filteredAndSortedData.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
+
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
   };
 
   const formatNumber = (num) => {
+    if (num === undefined || num === null) return '0';
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num?.toLocaleString() || '0';
+    return num.toLocaleString();
   };
+
+  const formatPercent = (num) => {
+    if (num === undefined || num === null) return '0%';
+    return `${(num * 100).toFixed(2)}%`;
+  };
+
+  // Column headers for the table
+  const columns = [
+    ...selectedDimensions.map(dim => ({
+      key: dim,
+      label: DIMENSIONS.find(d => d.id === dim)?.label || dim,
+      sortable: true
+    })),
+    { key: "impressions", label: "Impressions", sortable: true },
+    { key: "clicks", label: "Clicks", sortable: true },
+    { key: "ctr", label: "CTR", sortable: true, format: formatPercent },
+    { key: "conversions", label: "Conversions", sortable: true },
+    { key: "video_q1_25", label: "Q1 (25%)", sortable: true },
+    { key: "video_q2_50", label: "Q2 (50%)", sortable: true },
+    { key: "video_q3_75", label: "Q3 (75%)", sortable: true },
+    { key: "video_completed_100", label: "Completed", sortable: true },
+    { key: "video_completion_rate", label: "Completion Rate", sortable: true, format: formatPercent },
+  ];
 
   return (
     <div className="p-6" data-testid="ad-performance-report-page">
@@ -294,48 +362,32 @@ export default function AdPerformanceReport() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-[#F8FAFC]">Ad Performance Report</h1>
-          <p className="text-sm text-[#94A3B8] mt-1">
-            Generate comprehensive reports for video and display campaigns
-          </p>
+          <p className="text-sm text-[#94A3B8] mt-1">Comprehensive reporting with all dimensions and metrics</p>
         </div>
-        <div className="flex items-center gap-2">
-          {reportData && (
-            <>
-              <Button
-                variant="outline"
-                onClick={handleExportCSV}
-                className="border-[#10B981] text-[#10B981] hover:bg-[#10B981]/10"
-                data-testid="export-csv-btn"
-              >
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Export CSV
-              </Button>
-              <Button
-                onClick={handleExportExcel}
-                className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white"
-                data-testid="export-excel-btn"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export Excel
-              </Button>
-            </>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Label className="text-[#94A3B8]">Real Data</Label>
+            <Switch checked={useRealData} onCheckedChange={setUseRealData} />
+          </div>
+          <Button variant="outline" onClick={handleExportCSV} className="border-[#10B981] text-[#10B981]">
+            <FileSpreadsheet className="w-4 h-4 mr-2" />CSV
+          </Button>
+          <Button onClick={handleExportExcel} className="bg-[#3B82F6]">
+            <Download className="w-4 h-4 mr-2" />Excel
+          </Button>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full justify-start bg-[#0A0F1C] mb-6 p-1 h-auto">
-          <TabsTrigger value="templates" className="data-[state=active]:bg-[#8B5CF6] px-4 py-2">
-            <BookMarked className="w-4 h-4 mr-2" />
-            Templates
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full max-w-md grid-cols-3 mb-6 bg-[#0A0F1C]">
+          <TabsTrigger value="templates" className="data-[state=active]:bg-[#3B82F6]">
+            <BookMarked className="w-4 h-4 mr-2" />Templates
           </TabsTrigger>
-          <TabsTrigger value="config" className="data-[state=active]:bg-[#3B82F6] px-4 py-2">
-            <Filter className="w-4 h-4 mr-2" />
-            Configure
+          <TabsTrigger value="config" className="data-[state=active]:bg-[#3B82F6]">
+            <Filter className="w-4 h-4 mr-2" />Configure
           </TabsTrigger>
-          <TabsTrigger value="preview" className="data-[state=active]:bg-[#10B981] px-4 py-2" disabled={!reportData}>
-            <Eye className="w-4 h-4 mr-2" />
-            Results
+          <TabsTrigger value="preview" className="data-[state=active]:bg-[#3B82F6]">
+            <BarChart3 className="w-4 h-4 mr-2" />Results
           </TabsTrigger>
         </TabsList>
 
@@ -343,445 +395,359 @@ export default function AdPerformanceReport() {
         <TabsContent value="templates" className="space-y-6">
           {/* Built-in Templates */}
           <div>
-            <h2 className="text-lg font-semibold text-[#F8FAFC] mb-4 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-[#F59E0B]" />
-              Quick Start Templates
-            </h2>
-            {loadingTemplates ? (
-              <div className="flex items-center justify-center h-32">
-                <Loader2 className="w-6 h-6 animate-spin text-[#64748B]" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                {templates.built_in.map((template) => (
-                  <TemplateCard
-                    key={template.id}
-                    template={template}
-                    onApply={applyTemplate}
-                    onDelete={() => {}}
-                    isCustom={false}
-                  />
-                ))}
-              </div>
-            )}
+            <h3 className="text-lg font-semibold text-[#F8FAFC] mb-4">Quick Start Templates</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {templates.built_in?.map((template) => (
+                <TemplateCard key={template.id} template={template} onApply={applyTemplate} onDelete={() => {}} isCustom={false} />
+              ))}
+            </div>
           </div>
 
           {/* Custom Templates */}
-          <div>
-            <h2 className="text-lg font-semibold text-[#F8FAFC] mb-4 flex items-center gap-2">
-              <BookMarked className="w-5 h-5 text-[#3B82F6]" />
-              My Templates
-            </h2>
-            {templates.custom.length === 0 ? (
-              <Card className="surface-secondary border-dashed border-[#2D3B55]">
-                <CardContent className="py-8 text-center">
-                  <Plus className="w-10 h-10 mx-auto text-[#64748B] mb-3" />
-                  <p className="text-sm text-[#94A3B8] mb-2">No custom templates yet</p>
-                  <p className="text-xs text-[#64748B]">
-                    Configure a report and save it as a template for quick access
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          {templates.custom?.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-[#F8FAFC] mb-4">Your Templates</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {templates.custom.map((template) => (
-                  <TemplateCard
-                    key={template.id}
-                    template={template}
-                    onApply={applyTemplate}
-                    onDelete={handleDeleteTemplate}
-                    isCustom={true}
-                  />
+                  <TemplateCard key={template.id} template={template} onApply={applyTemplate} onDelete={handleDeleteTemplate} isCustom={true} />
                 ))}
               </div>
-            )}
+            </div>
+          )}
+
+          <div className="flex justify-center pt-4">
+            <Button onClick={() => setActiveTab("config")} className="bg-[#3B82F6]">
+              <Plus className="w-4 h-4 mr-2" />Create Custom Report
+            </Button>
           </div>
         </TabsContent>
 
-        {/* Configuration Tab */}
+        {/* Config Tab */}
         <TabsContent value="config" className="space-y-6">
-          {/* Data Source Toggle */}
-          <Card className="surface-primary border-panel">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[#10B981]/20">
-                    <Database className="w-5 h-5 text-[#10B981]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[#F8FAFC]">Use Real Data</p>
-                    <p className="text-xs text-[#64748B]">
-                      Pull data from bid logs, campaigns, and creatives. Falls back to mock data if none available.
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={useRealData}
-                  onCheckedChange={setUseRealData}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Date Range */}
-          <Card className="surface-primary border-panel">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base text-[#F8FAFC] flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#3B82F6]" />
-                Date Range
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Filters */}
+            <Card className="surface-secondary border-[#2D3B55]">
+              <CardHeader>
+                <CardTitle className="text-[#F8FAFC] flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-[#3B82F6]" />Filters
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Campaign Filter */}
                 <div className="space-y-2">
-                  <Label className="text-[#94A3B8]">Start Date</Label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[#94A3B8]">End Date</Label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[#94A3B8]">Max Rows</Label>
-                  <Select value={numRows.toString()} onValueChange={(v) => setNumRows(parseInt(v))}>
-                    <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
-                      <SelectValue />
+                  <Label className="text-[#94A3B8]">Campaign</Label>
+                  <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+                    <SelectTrigger className="surface-primary border-[#2D3B55] text-[#F8FAFC]">
+                      <SelectValue placeholder="All Campaigns" />
                     </SelectTrigger>
                     <SelectContent className="surface-primary border-[#2D3B55]">
-                      <SelectItem value="50">50 rows</SelectItem>
-                      <SelectItem value="100">100 rows</SelectItem>
-                      <SelectItem value="250">250 rows</SelectItem>
-                      <SelectItem value="500">500 rows</SelectItem>
-                      <SelectItem value="1000">1,000 rows</SelectItem>
+                      <SelectItem value="all" className="text-[#F8FAFC]">All Campaigns</SelectItem>
+                      {campaigns.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-[#F8FAFC]">{c.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Dimensions Selection */}
-          <Card className="surface-primary border-panel">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base text-[#F8FAFC] flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[#10B981]" />
-                Dimensions (Group By)
-              </CardTitle>
-              <CardDescription className="text-[#64748B]">
-                Select at least one dimension to group your report data
-              </CardDescription>
+                {/* Creative Filter */}
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">Creative</Label>
+                  <Select value={selectedCreative} onValueChange={setSelectedCreative}>
+                    <SelectTrigger className="surface-primary border-[#2D3B55] text-[#F8FAFC]">
+                      <SelectValue placeholder="All Creatives" />
+                    </SelectTrigger>
+                    <SelectContent className="surface-primary border-[#2D3B55]">
+                      <SelectItem value="all" className="text-[#F8FAFC]">All Creatives</SelectItem>
+                      {creatives.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-[#F8FAFC]">{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date Range */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[#94A3B8]">Start Date</Label>
+                    <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                      className="surface-primary border-[#2D3B55] text-[#F8FAFC]" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[#94A3B8]">End Date</Label>
+                    <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                      className="surface-primary border-[#2D3B55] text-[#F8FAFC]" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Dimensions */}
+            <Card className="surface-secondary border-[#2D3B55]">
+              <CardHeader>
+                <CardTitle className="text-[#F8FAFC] flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-[#10B981]" />Dimensions (Group By)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {DIMENSIONS.map((dim) => {
+                    const Icon = dim.icon;
+                    const isSelected = selectedDimensions.includes(dim.id);
+                    return (
+                      <div
+                        key={dim.id}
+                        onClick={() => toggleDimension(dim.id)}
+                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
+                          isSelected ? "bg-[#10B981]/20 border-[#10B981]" : "surface-primary border-[#2D3B55] hover:border-[#10B981]/50"
+                        }`}
+                      >
+                        <Checkbox checked={isSelected} onChange={() => {}} />
+                        <Icon className={`w-5 h-5 ${isSelected ? "text-[#10B981]" : "text-[#64748B]"}`} />
+                        <div>
+                          <p className="text-sm font-medium text-[#F8FAFC]">{dim.label}</p>
+                          <p className="text-xs text-[#64748B]">{dim.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Metrics Info */}
+          <Card className="surface-secondary border-[#2D3B55]">
+            <CardHeader>
+              <CardTitle className="text-[#F8FAFC]">Included Metrics</CardTitle>
+              <CardDescription className="text-[#64748B]">All metrics are automatically included</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-5 gap-3">
-                {DIMENSIONS.map((dim) => (
-                  <div
-                    key={dim.id}
-                    onClick={() => toggleDimension(dim.id)}
-                    className={`p-4 rounded-lg cursor-pointer border transition-all ${
-                      selectedDimensions.includes(dim.id)
-                        ? "bg-[#10B981]/20 border-[#10B981]"
-                        : "surface-secondary border-[#2D3B55] hover:border-[#10B981]/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Checkbox
-                        checked={selectedDimensions.includes(dim.id)}
-                        onCheckedChange={() => toggleDimension(dim.id)}
-                      />
-                      <dim.icon className="w-4 h-4 text-[#10B981]" />
-                    </div>
-                    <p className="text-sm font-medium text-[#F8FAFC]">{dim.label}</p>
-                    <p className="text-xs text-[#64748B] mt-1">{dim.description}</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
+                {PERFORMANCE_METRICS.map((m) => (
+                  <div key={m.id} className="p-2 rounded-lg text-center" style={{ backgroundColor: `${m.color}20` }}>
+                    <m.icon className="w-4 h-4 mx-auto mb-1" style={{ color: m.color }} />
+                    <p className="text-xs text-[#F8FAFC]">{m.label}</p>
+                  </div>
+                ))}
+                {VIDEO_METRICS.map((m) => (
+                  <div key={m.id} className="p-2 rounded-lg text-center" style={{ backgroundColor: `${m.color}20` }}>
+                    <Video className="w-4 h-4 mx-auto mb-1" style={{ color: m.color }} />
+                    <p className="text-xs text-[#F8FAFC]">{m.label}</p>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          {/* Metrics Preview */}
-          <div className="grid grid-cols-2 gap-6">
-            <Card className="surface-primary border-panel">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base text-[#F8FAFC] flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-[#3B82F6]" />
-                  Performance Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {PERFORMANCE_METRICS.map((metric) => (
-                    <div key={metric.id} className="flex items-center gap-3 p-2 rounded surface-secondary">
-                      <metric.icon className="w-4 h-4" style={{ color: metric.color }} />
-                      <span className="text-sm text-[#F8FAFC]">{metric.label}</span>
-                      <Badge className="ml-auto bg-[#3B82F6]/20 text-[#3B82F6]">Included</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="surface-primary border-panel">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base text-[#F8FAFC] flex items-center gap-2">
-                  <Video className="w-4 h-4 text-[#8B5CF6]" />
-                  Video Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {VIDEO_METRICS.map((metric) => (
-                    <div key={metric.id} className="flex items-center gap-3 p-2 rounded surface-secondary">
-                      <Play className="w-4 h-4" style={{ color: metric.color }} />
-                      <span className="text-sm text-[#F8FAFC]">{metric.label}</span>
-                      <Badge className="ml-auto bg-[#8B5CF6]/20 text-[#8B5CF6]">Included</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Action Buttons */}
+          {/* Actions */}
           <div className="flex justify-center gap-4 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowSaveDialog(true)}
-              className="border-[#8B5CF6] text-[#8B5CF6] hover:bg-[#8B5CF6]/10"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save as Template
+            <Button variant="outline" onClick={() => setShowSaveDialog(true)} className="border-[#8B5CF6] text-[#8B5CF6]">
+              <Save className="w-4 h-4 mr-2" />Save as Template
             </Button>
-            <Button
-              size="lg"
-              onClick={generateReport}
-              disabled={loading || selectedDimensions.length === 0}
-              className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white px-8"
-              data-testid="generate-report-btn"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Generate Report
-                </>
-              )}
+            <Button size="lg" onClick={generateReport} disabled={loading} className="bg-[#3B82F6] px-8">
+              {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><RefreshCw className="w-4 h-4 mr-2" />Generate Report</>}
             </Button>
           </div>
         </TabsContent>
 
-        {/* Preview Tab */}
+        {/* Preview/Results Tab */}
         <TabsContent value="preview" className="space-y-6">
-          {reportData && (
+          {reportData ? (
             <>
-              {/* Data Source Badge */}
-              <Card className={`surface-secondary ${reportData.report_metadata.is_real_data ? 'border-[#10B981]/30' : 'border-[#F59E0B]/30'}`}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {reportData.report_metadata.is_real_data ? (
-                      <Badge className="bg-[#10B981]/20 text-[#10B981]">
-                        <Database className="w-3 h-3 mr-1" />
-                        REAL DATA
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-[#F59E0B]/20 text-[#F59E0B]">
-                        <AlertCircle className="w-3 h-3 mr-1" />
-                        {reportData.report_metadata.data_source}
-                      </Badge>
-                    )}
-                    <span className="text-sm text-[#94A3B8]">
-                      {reportData.report_metadata.start_date} to {reportData.report_metadata.end_date}
-                    </span>
-                    <span className="text-sm text-[#64748B]">
-                      {reportData.report_metadata.total_rows} rows
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportCSV}
-                      className="border-[#10B981] text-[#10B981] hover:bg-[#10B981]/10"
-                    >
-                      <FileSpreadsheet className="w-4 h-4 mr-1" />
-                      CSV
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleExportExcel}
-                      className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white"
-                    >
-                      <Download className="w-4 h-4 mr-1" />
-                      Excel
-                    </Button>
+              {/* Total Summary - Top Section */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <SummaryCard label="Total Impressions" value={formatNumber(totals.impressions)} icon={Eye} color="#3B82F6" />
+                <SummaryCard label="Total Clicks" value={formatNumber(totals.clicks)} icon={MousePointerClick} color="#F59E0B" />
+                <SummaryCard label="Total Conversions" value={formatNumber(totals.conversions)} icon={CheckCircle} color="#EC4899" />
+                <SummaryCard label="Video Completed" value={formatNumber(totals.video_completed)} icon={Video} color="#10B981" />
+              </div>
+
+              {/* Filters and Search Bar */}
+              <Card className="surface-secondary border-[#2D3B55]">
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* Search */}
+                    <div className="flex-1 min-w-[200px]">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                        <Input
+                          placeholder="Search in results..."
+                          value={searchTerm}
+                          onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                          className="pl-10 surface-primary border-[#2D3B55] text-[#F8FAFC]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Campaign Filter */}
+                    <Select value={selectedCampaign} onValueChange={(v) => { setSelectedCampaign(v); setCurrentPage(1); }}>
+                      <SelectTrigger className="w-[200px] surface-primary border-[#2D3B55] text-[#F8FAFC]">
+                        <SelectValue placeholder="All Campaigns" />
+                      </SelectTrigger>
+                      <SelectContent className="surface-primary border-[#2D3B55]">
+                        <SelectItem value="all" className="text-[#F8FAFC]">All Campaigns</SelectItem>
+                        {campaigns.map((c) => (
+                          <SelectItem key={c.id} value={c.name} className="text-[#F8FAFC]">{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Creative Filter */}
+                    <Select value={selectedCreative} onValueChange={(v) => { setSelectedCreative(v); setCurrentPage(1); }}>
+                      <SelectTrigger className="w-[200px] surface-primary border-[#2D3B55] text-[#F8FAFC]">
+                        <SelectValue placeholder="All Creatives" />
+                      </SelectTrigger>
+                      <SelectContent className="surface-primary border-[#2D3B55]">
+                        <SelectItem value="all" className="text-[#F8FAFC]">All Creatives</SelectItem>
+                        {creatives.map((c) => (
+                          <SelectItem key={c.id} value={c.name} className="text-[#F8FAFC]">{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Data Source Badge */}
+                    <Badge className={reportData.report_metadata?.is_real_data ? "bg-[#10B981]/20 text-[#10B981]" : "bg-[#F59E0B]/20 text-[#F59E0B]"}>
+                      <Database className="w-3 h-3 mr-1" />
+                      {reportData.report_metadata?.is_real_data ? "REAL DATA" : "MOCK DATA"}
+                    </Badge>
+
+                    {/* Row count */}
+                    <span className="text-sm text-[#94A3B8]">{filteredAndSortedData.length} rows</span>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <MetricCard
-                  label="Impressions"
-                  value={formatNumber(reportData.summary.total_impressions)}
-                  icon={Eye}
-                  color="#3B82F6"
-                />
-                <MetricCard
-                  label="Reach"
-                  value={formatNumber(reportData.summary.total_reach)}
-                  icon={Users}
-                  color="#10B981"
-                />
-                <MetricCard
-                  label="Clicks"
-                  value={formatNumber(reportData.summary.total_clicks)}
-                  icon={MousePointerClick}
-                  color="#F59E0B"
-                />
-                <MetricCard
-                  label="CTR"
-                  value={`${reportData.summary.avg_ctr}%`}
-                  icon={Target}
-                  color="#8B5CF6"
-                />
-                <MetricCard
-                  label="Conversions"
-                  value={formatNumber(reportData.summary.total_conversions)}
-                  icon={CheckCircle}
-                  color="#EC4899"
-                />
-                <MetricCard
-                  label="Video Completion"
-                  value={`${reportData.summary.video_completion_rate}%`}
-                  icon={Video}
-                  color="#06B6D4"
-                />
-              </div>
-
               {/* Data Table */}
-              <Card className="surface-primary border-panel">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base text-[#F8FAFC]">Report Data</CardTitle>
-                  <CardDescription className="text-[#64748B]">
-                    Showing first 20 rows. Export to view all {reportData.data.length} rows.
-                  </CardDescription>
-                </CardHeader>
+              <Card className="surface-secondary border-[#2D3B55]">
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-b border-[#2D3B55] hover:bg-transparent">
-                          {selectedDimensions.map((dim) => (
-                            <TableHead key={dim} className="text-[#10B981] font-semibold bg-[#10B981]/10">
-                              {DIMENSIONS.find(d => d.id === dim)?.label}
+                          {columns.map((col) => (
+                            <TableHead
+                              key={col.key}
+                              className={`text-[#94A3B8] font-semibold ${col.sortable ? 'cursor-pointer hover:text-[#F8FAFC]' : ''}`}
+                              onClick={() => col.sortable && handleSort(col.key)}
+                            >
+                              <div className="flex items-center gap-1">
+                                {col.label}
+                                {col.sortable && (
+                                  <ArrowUpDown className={`w-3 h-3 ${sortColumn === col.key ? 'text-[#3B82F6]' : ''}`} />
+                                )}
+                              </div>
                             </TableHead>
                           ))}
-                          <TableHead className="text-[#3B82F6] font-semibold">Impressions</TableHead>
-                          <TableHead className="text-[#3B82F6] font-semibold">Reach</TableHead>
-                          <TableHead className="text-[#3B82F6] font-semibold">Clicks</TableHead>
-                          <TableHead className="text-[#3B82F6] font-semibold">CTR (%)</TableHead>
-                          <TableHead className="text-[#3B82F6] font-semibold">Conversions</TableHead>
-                          <TableHead className="text-[#8B5CF6] font-semibold bg-[#8B5CF6]/10">Q1 (25%)</TableHead>
-                          <TableHead className="text-[#8B5CF6] font-semibold bg-[#8B5CF6]/10">Q2 (50%)</TableHead>
-                          <TableHead className="text-[#8B5CF6] font-semibold bg-[#8B5CF6]/10">Q3 (75%)</TableHead>
-                          <TableHead className="text-[#8B5CF6] font-semibold bg-[#8B5CF6]/10">Completed</TableHead>
-                          <TableHead className="text-[#8B5CF6] font-semibold bg-[#8B5CF6]/10">Completion %</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {reportData.data.slice(0, 20).map((row, idx) => (
-                          <TableRow key={idx} className="border-b border-[#2D3B55] hover:bg-[#151F32]/50">
-                            {selectedDimensions.map((dim) => (
-                              <TableCell key={dim} className="text-[#F8FAFC] font-mono text-xs">
-                                {row[dim] || "-"}
+                        {paginatedData.map((row, idx) => (
+                          <TableRow key={idx} className="border-b border-[#2D3B55]/50 hover:bg-[#1E293B]/50">
+                            {columns.map((col) => (
+                              <TableCell key={col.key} className="text-[#F8FAFC]">
+                                {col.format ? col.format(row[col.key]) : (typeof row[col.key] === 'number' ? formatNumber(row[col.key]) : row[col.key] || '-')}
                               </TableCell>
                             ))}
-                            <TableCell className="text-[#F8FAFC] font-mono">{formatNumber(row.impressions)}</TableCell>
-                            <TableCell className="text-[#F8FAFC] font-mono">{formatNumber(row.reach)}</TableCell>
-                            <TableCell className="text-[#F8FAFC] font-mono">{formatNumber(row.clicks)}</TableCell>
-                            <TableCell className="text-[#F59E0B] font-mono">{row.ctr}%</TableCell>
-                            <TableCell className="text-[#10B981] font-mono">{row.conversions}</TableCell>
-                            <TableCell className="text-[#94A3B8] font-mono">{formatNumber(row.video_q1_25)}</TableCell>
-                            <TableCell className="text-[#94A3B8] font-mono">{formatNumber(row.video_q2_50)}</TableCell>
-                            <TableCell className="text-[#94A3B8] font-mono">{formatNumber(row.video_q3_75)}</TableCell>
-                            <TableCell className="text-[#94A3B8] font-mono">{formatNumber(row.video_completed_100)}</TableCell>
-                            <TableCell className="text-[#10B981] font-mono">{row.video_completion_rate}%</TableCell>
                           </TableRow>
                         ))}
+                        {paginatedData.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={columns.length} className="text-center text-[#64748B] py-8">
+                              No data found
+                            </TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
+                  </div>
+
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between p-4 border-t border-[#2D3B55]">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-[#64748B]">Rows per page:</span>
+                      <Select value={String(rowsPerPage)} onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}>
+                        <SelectTrigger className="w-[80px] surface-primary border-[#2D3B55] text-[#F8FAFC]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="surface-primary border-[#2D3B55]">
+                          <SelectItem value="10" className="text-[#F8FAFC]">10</SelectItem>
+                          <SelectItem value="25" className="text-[#F8FAFC]">25</SelectItem>
+                          <SelectItem value="50" className="text-[#F8FAFC]">50</SelectItem>
+                          <SelectItem value="100" className="text-[#F8FAFC]">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-sm text-[#94A3B8]">
+                        Showing {((currentPage - 1) * rowsPerPage) + 1}-{Math.min(currentPage * rowsPerPage, filteredAndSortedData.length)} of {filteredAndSortedData.length}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
+                        className="border-[#2D3B55] text-[#94A3B8]">
+                        <ChevronsLeft className="w-4 h-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                        className="border-[#2D3B55] text-[#94A3B8]">
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <span className="text-sm text-[#F8FAFC] px-2">Page {currentPage} of {totalPages || 1}</span>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}
+                        className="border-[#2D3B55] text-[#94A3B8]">
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}
+                        className="border-[#2D3B55] text-[#94A3B8]">
+                        <ChevronsRight className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </>
+          ) : (
+            <Card className="surface-secondary border-[#2D3B55]">
+              <CardContent className="py-16 text-center">
+                <BarChart3 className="w-16 h-16 mx-auto text-[#3B82F6] mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold text-[#F8FAFC] mb-2">No Report Generated</h3>
+                <p className="text-sm text-[#64748B] mb-4">Configure your report and click Generate</p>
+                <Button onClick={() => setActiveTab("config")} className="bg-[#3B82F6]">
+                  <Filter className="w-4 h-4 mr-2" />Configure Report
+                </Button>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
 
       {/* Save Template Dialog */}
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-        <DialogContent className="surface-primary border-panel">
+        <DialogContent className="surface-primary border-[#2D3B55]">
           <DialogHeader>
-            <DialogTitle className="text-[#F8FAFC]">Save as Template</DialogTitle>
+            <DialogTitle className="text-[#F8FAFC]">Save Report Template</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label className="text-[#94A3B8]">Template Name</Label>
-              <Input
-                value={newTemplateName}
-                onChange={(e) => setNewTemplateName(e.target.value)}
-                placeholder="My Custom Report"
-                className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
-              />
+              <Input value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)}
+                placeholder="My Custom Report" className="surface-secondary border-[#2D3B55] text-[#F8FAFC]" />
             </div>
             <div className="space-y-2">
-              <Label className="text-[#94A3B8]">Description (Optional)</Label>
-              <Input
-                value={newTemplateDesc}
-                onChange={(e) => setNewTemplateDesc(e.target.value)}
-                placeholder="Description of this report configuration"
-                className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
-              />
+              <Label className="text-[#94A3B8]">Description</Label>
+              <Input value={newTemplateDesc} onChange={(e) => setNewTemplateDesc(e.target.value)}
+                placeholder="Optional description" className="surface-secondary border-[#2D3B55] text-[#F8FAFC]" />
             </div>
-            <div className="space-y-2">
-              <Label className="text-[#94A3B8]">Selected Dimensions</Label>
-              <div className="flex flex-wrap gap-2">
+            <div className="p-3 rounded-lg bg-[#1E293B]">
+              <p className="text-xs text-[#64748B] mb-2">Selected Dimensions:</p>
+              <div className="flex flex-wrap gap-1">
                 {selectedDimensions.map((dim) => (
-                  <Badge key={dim} className="bg-[#10B981]/20 text-[#10B981]">
-                    {DIMENSIONS.find(d => d.id === dim)?.label}
-                  </Badge>
+                  <Badge key={dim} className="bg-[#10B981]/20 text-[#10B981]">{dim}</Badge>
                 ))}
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowSaveDialog(false)}
-              className="border-[#2D3B55] text-[#94A3B8]"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveTemplate}
-              className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save Template
-            </Button>
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)} className="border-[#2D3B55] text-[#94A3B8]">Cancel</Button>
+            <Button onClick={handleSaveTemplate} className="bg-[#3B82F6]">Save Template</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
