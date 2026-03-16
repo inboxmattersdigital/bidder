@@ -48,12 +48,15 @@ const DIMENSIONS = [
 
 // Metrics configuration - Selectable
 const PERFORMANCE_METRICS = [
-  { id: "impressions", label: "Impressions", icon: Eye, color: "#3B82F6", default: true },
-  { id: "clicks", label: "Clicks", icon: MousePointerClick, color: "#F59E0B", default: true },
-  { id: "ctr", label: "CTR", icon: Target, color: "#8B5CF6", default: true },
-  { id: "conversions", label: "Conversions", icon: CheckCircle, color: "#EC4899", default: true },
-  { id: "spend", label: "Spend", icon: DollarSign, color: "#10B981", default: true },
-  { id: "win_rate", label: "Win Rate", icon: Target, color: "#6366F1", default: false },
+  { id: "requests", label: "Requests", icon: Server, color: "#64748B", default: true },
+  { id: "bids", label: "Bids", icon: Target, color: "#3B82F6", default: true },
+  { id: "wins", label: "Wins", icon: CheckCircle, color: "#10B981", default: true },
+  { id: "impressions", label: "Impressions", icon: Eye, color: "#8B5CF6", default: true },
+  { id: "spend", label: "Spend", icon: DollarSign, color: "#F59E0B", default: true },
+  { id: "win_rate", label: "Win Rate", icon: Target, color: "#6366F1", default: true },
+  { id: "clicks", label: "Clicks", icon: MousePointerClick, color: "#EC4899", default: false },
+  { id: "ctr", label: "CTR", icon: Target, color: "#8B5CF6", default: false },
+  { id: "conversions", label: "Conversions", icon: CheckCircle, color: "#EC4899", default: false },
 ];
 
 const DERIVED_METRICS = [
@@ -344,6 +347,9 @@ export default function AdPerformanceReport() {
   // Calculate totals from filtered data
   const totals = useMemo(() => {
     return {
+      requests: filteredAndSortedData.reduce((sum, row) => sum + (row.requests || 0), 0),
+      bids: filteredAndSortedData.reduce((sum, row) => sum + (row.bids || 0), 0),
+      wins: filteredAndSortedData.reduce((sum, row) => sum + (row.wins || 0), 0),
       impressions: filteredAndSortedData.reduce((sum, row) => sum + (row.impressions || 0), 0),
       clicks: filteredAndSortedData.reduce((sum, row) => sum + (row.clicks || 0), 0),
       conversions: filteredAndSortedData.reduce((sum, row) => sum + (row.conversions || 0), 0),
@@ -669,12 +675,13 @@ export default function AdPerformanceReport() {
           {reportData ? (
             <>
               {/* Total Summary - Top Section */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <SummaryCard label="Total Impressions" value={formatNumber(totals.impressions)} icon={Eye} color="#3B82F6" />
-                <SummaryCard label="Total Clicks" value={formatNumber(totals.clicks)} icon={MousePointerClick} color="#F59E0B" />
-                <SummaryCard label="Total Spend" value={`$${formatNumber(totals.spend)}`} icon={DollarSign} color="#10B981" />
-                <SummaryCard label="Total Conversions" value={formatNumber(totals.conversions)} icon={CheckCircle} color="#EC4899" />
-                <SummaryCard label="Video Completed" value={formatNumber(totals.video_completed)} icon={Video} color="#8B5CF6" />
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                <SummaryCard label="Total Bids" value={formatNumber(totals.bids)} icon={Target} color="#3B82F6" />
+                <SummaryCard label="Total Wins" value={formatNumber(totals.wins)} icon={CheckCircle} color="#10B981" />
+                <SummaryCard label="Impressions" value={formatNumber(totals.impressions)} icon={Eye} color="#8B5CF6" />
+                <SummaryCard label="Total Spend" value={`$${formatNumber(totals.spend)}`} icon={DollarSign} color="#F59E0B" />
+                <SummaryCard label="Win Rate" value={`${totals.bids > 0 ? ((totals.wins / totals.bids) * 100).toFixed(2) : 0}%`} icon={Target} color="#6366F1" />
+                <SummaryCard label="eCPM" value={`$${totals.impressions > 0 ? ((totals.spend / totals.impressions) * 1000).toFixed(2) : 0}`} icon={DollarSign} color="#14B8A6" />
               </div>
 
               {/* Filters and Search Bar */}
