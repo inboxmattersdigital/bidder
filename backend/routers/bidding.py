@@ -9,6 +9,7 @@ import uuid
 import time
 import os
 import asyncio
+import json
 
 from models import (
     SSPEndpoint, SSPEndpointCreate, BidLog,
@@ -27,12 +28,20 @@ bidding_engine = BiddingEngine(db)
 recent_bids = []
 MAX_RECENT_BIDS = 100
 
+# Global counters for real-time stats (in-memory, resets on restart)
+bid_stream_stats = {
+    "total_requests": 0,
+    "total_bids": 0,
+    "total_no_bids": 0
+}
+
 
 async def broadcast_new_bid(bid_data: dict):
-    """Broadcast new bid to all connected WebSocket clients"""
+    """Broadcast new bid to all connected WebSocket clients with stats"""
     await ws_manager.broadcast({
         "type": "new_bid",
-        "bid": bid_data
+        "bid": bid_data,
+        "stats": bid_stream_stats.copy()
     })
 
 
@@ -159,15 +168,48 @@ async def get_bid_stream(limit: int = 20):
     return recent_bids[-limit:]
 
 
+@router.get("/bid-stream/stats")
+async def get_bid_stream_stats(force_refresh: bool = False):
+    """Get bid stream statistics - syncs from DB if counters are 0 or force_refresh is True"""
+    global bid_stream_stats
+    
+    # Force refresh or sync from database if counters are 0 (server restart scenario)
+    if force_refresh or bid_stream_stats["total_requests"] == 0:
+        # Get totals from ssp_endpoints
+        endpoints = await db.ssp_endpoints.find({}, {"_id": 0, "total_requests": 1, "total_bids": 1}).to_list(100)
+        total_requests = sum(e.get("total_requests", 0) for e in endpoints)
+        total_bids = sum(e.get("total_bids", 0) for e in endpoints)
+        
+        bid_stream_stats["total_requests"] = total_requests
+        bid_stream_stats["total_bids"] = total_bids
+        bid_stream_stats["total_no_bids"] = total_requests - total_bids
+    
+    return bid_stream_stats
+
+
 @router.websocket("/ws/bid-stream")
 async def websocket_bid_stream(websocket: WebSocket):
     """WebSocket endpoint for real-time bid stream"""
+    global bid_stream_stats
+    
     await ws_manager.connect(websocket)
     try:
-        # Send recent bids on connection (use "initial" type for frontend compatibility)
+        # If counters are 0, sync from database (server restart scenario)
+        if bid_stream_stats["total_requests"] == 0:
+            endpoints = await db.ssp_endpoints.find({}, {"_id": 0, "total_requests": 1, "total_bids": 1}).to_list(100)
+            total_requests = sum(e.get("total_requests", 0) for e in endpoints)
+            total_bids = sum(e.get("total_bids", 0) for e in endpoints)
+            
+            if total_requests > 0:
+                bid_stream_stats["total_requests"] = total_requests
+                bid_stream_stats["total_bids"] = total_bids
+                bid_stream_stats["total_no_bids"] = total_requests - total_bids
+        
+        # Send recent bids and stats on connection
         await websocket.send_json({
             "type": "initial",
-            "bids": recent_bids[-20:]
+            "bids": recent_bids[-20:],
+            "stats": bid_stream_stats.copy()
         })
         
         # Keep connection alive
@@ -175,11 +217,23 @@ async def websocket_bid_stream(websocket: WebSocket):
             try:
                 # Wait for ping/pong or messages
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                if data == "ping":
+                msg = json.loads(data) if data.startswith('{') else {"type": data}
+                
+                if msg.get("type") == "ping" or data == "ping":
                     await websocket.send_text("pong")
+                elif msg.get("type") == "get_recent":
+                    limit = msg.get("limit", 50)
+                    await websocket.send_json({
+                        "type": "recent",
+                        "bids": recent_bids[-limit:],
+                        "stats": bid_stream_stats.copy()
+                    })
             except asyncio.TimeoutError:
-                # Send heartbeat
-                await websocket.send_json({"type": "heartbeat"})
+                # Send heartbeat with current stats
+                await websocket.send_json({
+                    "type": "heartbeat",
+                    "stats": bid_stream_stats.copy()
+                })
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
     except Exception as e:
@@ -232,6 +286,14 @@ async def _process_bid_request_internal(
     log_doc = log.model_dump()
     log_doc["timestamp"] = log_doc["timestamp"].isoformat()
     await db.bid_logs.insert_one(log_doc)
+    
+    # Update global in-memory counters for real-time stats
+    global bid_stream_stats
+    bid_stream_stats["total_requests"] += 1
+    if log_data.get("bid_made"):
+        bid_stream_stats["total_bids"] += 1
+    else:
+        bid_stream_stats["total_no_bids"] += 1
     
     # Update SSP stats
     if ssp_id:

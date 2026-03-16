@@ -144,7 +144,90 @@ async def get_ssp_analytics_overview():
     }
 
 
-@router.get("/ssp-analytics/{ssp_id}/details")
+@router.post("/ssp-analytics/recalculate-stats")
+async def recalculate_ssp_stats():
+    """
+    Recalculate SSP statistics from bid_logs.
+    This fixes any data inconsistencies by recomputing totals from the source of truth.
+    
+    Spend calculation: sum(win_price / 1000) for each win
+    - win_price is in CPM (Cost Per Mille = per 1000 impressions)
+    - For 1 impression, cost = win_price / 1000
+    """
+    # Get all SSP endpoints
+    endpoints = await db.ssp_endpoints.find({}).to_list(100)
+    
+    results = []
+    for endpoint in endpoints:
+        ssp_id = endpoint.get("id")
+        old_stats = {
+            "total_requests": endpoint.get("total_requests", 0),
+            "total_bids": endpoint.get("total_bids", 0),
+            "total_wins": endpoint.get("total_wins", 0),
+            "total_spend": endpoint.get("total_spend", 0)
+        }
+        
+        # Recalculate from bid_logs
+        pipeline = [
+            {"$match": {"ssp_id": ssp_id}},
+            {"$group": {
+                "_id": None,
+                "total_requests": {"$sum": 1},
+                "total_bids": {"$sum": {"$cond": ["$bid_made", 1, 0]}},
+                "total_wins": {"$sum": {"$cond": ["$win_notified", 1, 0]}},
+                # Correct spend calculation: win_price / 1000 for each win
+                "total_spend": {"$sum": {
+                    "$cond": [
+                        "$win_notified",
+                        {"$divide": [{"$ifNull": ["$win_price", 0]}, 1000]},
+                        0
+                    ]
+                }}
+            }}
+        ]
+        
+        result = await db.bid_logs.aggregate(pipeline).to_list(1)
+        
+        if result:
+            new_stats = {
+                "total_requests": result[0]["total_requests"],
+                "total_bids": result[0]["total_bids"],
+                "total_wins": result[0]["total_wins"],
+                "total_spend": round(result[0]["total_spend"], 4)
+            }
+        else:
+            new_stats = {
+                "total_requests": 0,
+                "total_bids": 0,
+                "total_wins": 0,
+                "total_spend": 0
+            }
+        
+        # Update SSP endpoint with corrected stats
+        await db.ssp_endpoints.update_one(
+            {"id": ssp_id},
+            {"$set": new_stats}
+        )
+        
+        results.append({
+            "ssp_id": ssp_id,
+            "name": endpoint.get("name"),
+            "old_stats": old_stats,
+            "new_stats": new_stats,
+            "changes": {
+                "requests": new_stats["total_requests"] - old_stats["total_requests"],
+                "bids": new_stats["total_bids"] - old_stats["total_bids"],
+                "wins": new_stats["total_wins"] - old_stats["total_wins"],
+                "spend": round(new_stats["total_spend"] - old_stats["total_spend"], 4)
+            }
+        })
+    
+    return {
+        "status": "recalculated",
+        "endpoints_updated": len(results),
+        "details": results,
+        "note": "Spend is calculated as sum(win_price/1000) where win_price is in CPM. For each impression, cost = CPM / 1000."
+    }
 async def get_ssp_analytics_details(ssp_id: str):
     """Get detailed analytics for a specific SSP"""
     endpoint = await db.ssp_endpoints.find_one({"id": ssp_id}, {"_id": 0})

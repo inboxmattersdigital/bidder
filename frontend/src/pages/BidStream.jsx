@@ -16,14 +16,30 @@ export default function BidStream() {
   const [loading, setLoading] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [stats, setStats] = useState({ total: 0, wins: 0, noResponse: 0 });
+  const [stats, setStats] = useState({ 
+    total_requests: 0, 
+    total_bids: 0, 
+    total_no_bids: 0,
+    // Local session stats for displayed bids
+    displayed_total: 0,
+    displayed_wins: 0 
+  });
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
 
-  const updateStats = useCallback((bidList) => {
-    const total = bidList.length;
-    const wins = bidList.filter(b => b.bid_made).length;
-    setStats({ total, wins, noResponse: total - wins });
+  const updateLocalStats = useCallback((bidList, serverStats = null) => {
+    const displayedTotal = bidList.length;
+    const displayedWins = bidList.filter(b => b.bid_made).length;
+    
+    setStats(prev => ({
+      // Use server stats if provided, otherwise keep existing
+      total_requests: serverStats?.total_requests ?? prev.total_requests,
+      total_bids: serverStats?.total_bids ?? prev.total_bids,
+      total_no_bids: serverStats?.total_no_bids ?? prev.total_no_bids,
+      // Always update local display stats
+      displayed_total: displayedTotal,
+      displayed_wins: displayedWins
+    }));
   }, []);
 
   const connectWebSocket = useCallback(() => {
@@ -43,15 +59,23 @@ export default function BidStream() {
         
         if (data.type === "initial" || data.type === "recent") {
           setBids(data.bids || []);
-          updateStats(data.bids || []);
+          updateLocalStats(data.bids || [], data.stats);
         } else if (data.type === "new_bid" && !isPaused) {
           setBids(prev => {
             const updated = [...prev, data.bid].slice(-50);
-            updateStats(updated);
+            updateLocalStats(updated, data.stats);
             return updated;
           });
         } else if (data.type === "heartbeat") {
-          // Connection alive, no action needed
+          // Update stats from heartbeat if available
+          if (data.stats) {
+            setStats(prev => ({
+              ...prev,
+              total_requests: data.stats.total_requests ?? prev.total_requests,
+              total_bids: data.stats.total_bids ?? prev.total_bids,
+              total_no_bids: data.stats.total_no_bids ?? prev.total_no_bids
+            }));
+          }
         }
       };
       
@@ -76,7 +100,7 @@ export default function BidStream() {
       setLoading(false);
       toast.error("Failed to connect to bid stream");
     }
-  }, [isPaused, updateStats]);
+  }, [isPaused, updateLocalStats]);
 
   useEffect(() => {
     connectWebSocket();
@@ -208,7 +232,7 @@ export default function BidStream() {
             </div>
             <div>
               <p className="text-xs text-[#64748B]">Total Requests</p>
-              <p className="text-xl font-bold text-[#F8FAFC]">{stats.total}</p>
+              <p className="text-xl font-bold text-[#F8FAFC]">{stats.total_requests.toLocaleString()}</p>
             </div>
           </CardContent>
         </Card>
@@ -219,7 +243,7 @@ export default function BidStream() {
             </div>
             <div>
               <p className="text-xs text-[#64748B]">Bids Made</p>
-              <p className="text-xl font-bold text-[#10B981]">{stats.wins}</p>
+              <p className="text-xl font-bold text-[#10B981]">{stats.total_bids.toLocaleString()}</p>
             </div>
           </CardContent>
         </Card>
@@ -230,7 +254,7 @@ export default function BidStream() {
             </div>
             <div>
               <p className="text-xs text-[#64748B]">No Bids</p>
-              <p className="text-xl font-bold text-[#F59E0B]">{stats.noResponse}</p>
+              <p className="text-xl font-bold text-[#F59E0B]">{stats.total_no_bids.toLocaleString()}</p>
             </div>
           </CardContent>
         </Card>
@@ -242,7 +266,7 @@ export default function BidStream() {
             <div>
               <p className="text-xs text-[#64748B]">Bid Rate</p>
               <p className="text-xl font-bold text-[#8B5CF6]">
-                {stats.total > 0 ? ((stats.wins / stats.total) * 100).toFixed(1) : 0}%
+                {stats.total_requests > 0 ? ((stats.total_bids / stats.total_requests) * 100).toFixed(1) : 0}%
               </p>
             </div>
           </CardContent>
