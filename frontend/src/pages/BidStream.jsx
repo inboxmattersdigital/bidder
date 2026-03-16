@@ -55,7 +55,18 @@ export default function BidStream() {
       };
       
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+        // Handle plain text responses (like "pong")
+        if (event.data === "pong") {
+          return; // Ignore pong responses
+        }
+        
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch (e) {
+          console.warn("Non-JSON message received:", event.data);
+          return;
+        }
         
         if (data.type === "initial" || data.type === "recent") {
           setBids(data.bids || []);
