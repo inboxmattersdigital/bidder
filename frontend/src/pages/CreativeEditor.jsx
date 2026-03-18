@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Save, Upload, Image, Video, 
-  Eye, Palette, Maximize2, Check, RefreshCw, Play, Film
+  Eye, Palette, Maximize2, Check, RefreshCw, Play, Film, Music
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -63,6 +63,7 @@ export default function CreativeEditor() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
+  const audioInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -71,9 +72,12 @@ export default function CreativeEditor() {
   const [selectedSize, setSelectedSize] = useState(BANNER_SIZES[0]);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadedVideo, setUploadedVideo] = useState(null);
+  const [uploadedAudio, setUploadedAudio] = useState(null);
   
   // Video source type: 'vast' or 'upload'
   const [videoSourceType, setVideoSourceType] = useState("vast");
+  // Audio source type: 'vast' or 'upload'
+  const [audioSourceType, setAudioSourceType] = useState("vast");
   
   const [form, setForm] = useState({
     name: "",
@@ -97,6 +101,15 @@ export default function CreativeEditor() {
     videoUrl: "",
     videoWidth: 1920,
     videoHeight: 1080,
+    // Audio
+    audioVastUrl: "",
+    audioVastXml: "",
+    audioUrl: "",
+    audioDuration: 30,
+    audioMimes: "audio/mpeg, audio/mp3, audio/ogg",
+    companionBannerUrl: "",
+    companionWidth: 300,
+    companionHeight: 250,
   });
 
   const updateField = (field, value) => {
@@ -160,6 +173,35 @@ export default function CreativeEditor() {
     }
   };
 
+  const handleAudioUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate audio file
+    const allowedTypes = ["audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav", "audio/aac"];
+    if (!allowedTypes.includes(file.type) && !file.type.startsWith('audio/')) {
+      toast.error("Please select a valid audio file (MP3, OGG, WAV, AAC)");
+      return;
+    }
+    
+    setUploading(true);
+    try {
+      const audioUrl = URL.createObjectURL(file);
+      setUploadedAudio({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url: audioUrl
+      });
+      updateField("audioUrl", audioUrl);
+      toast.success("Audio loaded for preview");
+    } catch (error) {
+      toast.error("Failed to load audio");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const generateBannerMarkup = () => {
     const { imageUrl, clickUrl, ctaText, ctaColor, backgroundColor } = form;
     if (!imageUrl) return "";
@@ -215,6 +257,17 @@ export default function CreativeEditor() {
           vast_version: videoSourceType === "vast" ? form.vastVersion : null,
           video_url: videoSourceType === "upload" ? form.videoUrl : null,
           source_type: videoSourceType
+        };
+      } else if (creativeType === "audio") {
+        payload.audio_data = {
+          duration: parseInt(form.audioDuration),
+          mimes: form.audioMimes.split(',').map(s => s.trim()).filter(Boolean),
+          vast_url: audioSourceType === "vast" ? form.audioVastUrl : null,
+          vast_xml: audioSourceType === "vast" && form.audioVastXml ? form.audioVastXml : null,
+          audio_url: audioSourceType === "upload" ? form.audioUrl : null,
+          companion_banner_url: form.companionBannerUrl || null,
+          companion_width: form.companionBannerUrl ? parseInt(form.companionWidth) : null,
+          companion_height: form.companionBannerUrl ? parseInt(form.companionHeight) : null
         };
       }
       
@@ -341,6 +394,68 @@ export default function CreativeEditor() {
       );
     }
     
+    if (creativeType === "audio") {
+      return (
+        <div className="w-full max-w-[400px] p-6 bg-gradient-to-br from-[#EC4899]/10 to-[#8B5CF6]/10 rounded-lg border border-[#2D3B55]">
+          {audioSourceType === "upload" && form.audioUrl ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-[#EC4899]/20 flex items-center justify-center">
+                  <Music className="w-10 h-10 text-[#EC4899]" />
+                </div>
+              </div>
+              <p className="text-center text-[#F8FAFC] font-medium">Audio Preview</p>
+              <audio src={form.audioUrl} controls className="w-full" />
+              <p className="text-xs text-[#94A3B8] text-center">Duration: {form.audioDuration}s</p>
+            </div>
+          ) : audioSourceType === "vast" && (form.audioVastUrl || form.audioVastXml) ? (
+            <div className="space-y-4 text-center">
+              <div className="flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-[#EC4899]/20 flex items-center justify-center">
+                  <Music className="w-10 h-10 text-[#EC4899]" />
+                </div>
+              </div>
+              <p className="text-[#F8FAFC] font-medium">Audio VAST Tag</p>
+              <Badge className="bg-[#EC4899]/20 text-[#EC4899]">
+                {form.audioDuration}s Audio
+              </Badge>
+              {form.audioVastUrl && (
+                <p className="text-xs text-[#64748B] break-all">
+                  {form.audioVastUrl.length > 50 ? form.audioVastUrl.substring(0, 50) + "..." : form.audioVastUrl}
+                </p>
+              )}
+              {form.audioVastUrl && (
+                <Button
+                  size="sm"
+                  className="bg-[#EC4899] hover:bg-[#EC4899]/90"
+                  onClick={() => window.open(form.audioVastUrl, '_blank')}
+                >
+                  Test VAST Tag
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-[#64748B]">
+              <Music className="w-12 h-12 mb-2" />
+              <p className="text-sm">Configure audio settings</p>
+            </div>
+          )}
+          {/* Companion Banner Preview */}
+          {form.companionBannerUrl && (
+            <div className="mt-4 pt-4 border-t border-[#2D3B55]">
+              <p className="text-xs text-[#94A3B8] mb-2">Companion Banner:</p>
+              <img 
+                src={form.companionBannerUrl} 
+                alt="Companion" 
+                className="rounded border border-[#2D3B55]"
+                style={{ maxWidth: form.companionWidth, maxHeight: form.companionHeight }}
+              />
+            </div>
+          )}
+        </div>
+      );
+    }
+    
     return null;
   };
 
@@ -410,6 +525,7 @@ export default function CreativeEditor() {
                       <SelectItem value="banner" className="text-[#F8FAFC]">Banner</SelectItem>
                       <SelectItem value="native" className="text-[#F8FAFC]">Native</SelectItem>
                       <SelectItem value="video" className="text-[#F8FAFC]">Video</SelectItem>
+                      <SelectItem value="audio" className="text-[#F8FAFC]">Audio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -728,12 +844,196 @@ export default function CreativeEditor() {
               </CardContent>
             </Card>
           )}
+
+          {/* Audio Settings */}
+          {creativeType === "audio" && (
+            <Card className="surface-primary border-panel">
+              <CardHeader>
+                <CardTitle className="text-base text-[#F8FAFC] flex items-center gap-2">
+                  <Music className="w-4 h-4 text-[#EC4899]" />
+                  Audio Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">Audio Source Type</Label>
+                  <RadioGroup 
+                    value={audioSourceType} 
+                    onValueChange={setAudioSourceType}
+                    className="flex gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem 
+                        value="vast" 
+                        id="audio-vast"
+                        className="border-[#EC4899] text-[#EC4899]"
+                      />
+                      <Label htmlFor="audio-vast" className="text-[#F8FAFC] cursor-pointer">Audio VAST Tag</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem 
+                        value="upload" 
+                        id="audio-upload"
+                        className="border-[#EC4899] text-[#EC4899]"
+                      />
+                      <Label htmlFor="audio-upload" className="text-[#F8FAFC] cursor-pointer">Upload Audio</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Audio VAST Options */}
+                {audioSourceType === "vast" && (
+                  <div className="space-y-4 p-4 surface-secondary rounded-lg border border-[#2D3B55]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Music className="w-5 h-5 text-[#EC4899]" />
+                      <span className="text-sm font-medium text-[#F8FAFC]">Audio VAST Configuration</span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[#94A3B8]">Audio VAST URL</Label>
+                      <Input
+                        value={form.audioVastUrl}
+                        onChange={(e) => updateField("audioVastUrl", e.target.value)}
+                        placeholder="https://ad-server.com/audio-vast.xml"
+                        className="surface-primary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[#94A3B8]">Or Paste VAST XML</Label>
+                      <Textarea
+                        value={form.audioVastXml}
+                        onChange={(e) => updateField("audioVastXml", e.target.value)}
+                        placeholder='<?xml version="1.0"?><VAST version="3.0">...</VAST>'
+                        className="surface-primary border-[#2D3B55] text-[#F8FAFC] font-mono h-24 dark:bg-[#0F172A] dark:border-[#334155]"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">Duration (sec)</Label>
+                        <Select value={form.audioDuration.toString()} onValueChange={(v) => updateField("audioDuration", parseInt(v))}>
+                          <SelectTrigger className="surface-primary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="surface-primary border-[#2D3B55] dark:bg-[#0F172A] dark:border-[#334155]">
+                            <SelectItem value="15" className="text-[#F8FAFC]">15 seconds</SelectItem>
+                            <SelectItem value="30" className="text-[#F8FAFC]">30 seconds</SelectItem>
+                            <SelectItem value="60" className="text-[#F8FAFC]">60 seconds</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[#94A3B8]">MIME Types</Label>
+                        <Input
+                          value={form.audioMimes}
+                          onChange={(e) => updateField("audioMimes", e.target.value)}
+                          className="surface-primary border-[#2D3B55] text-[#F8FAFC] font-mono text-xs dark:bg-[#0F172A] dark:border-[#334155]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Audio Upload Options */}
+                {audioSourceType === "upload" && (
+                  <div className="space-y-4 p-4 surface-secondary rounded-lg border border-[#2D3B55]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Music className="w-5 h-5 text-[#EC4899]" />
+                      <span className="text-sm font-medium text-[#F8FAFC]">Audio Upload</span>
+                    </div>
+                    
+                    <input
+                      type="file"
+                      ref={audioInputRef}
+                      onChange={handleAudioUpload}
+                      accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/aac"
+                      className="hidden"
+                    />
+                    
+                    <Button 
+                      variant="outline"
+                      onClick={() => audioInputRef.current?.click()}
+                      disabled={uploading}
+                      className="w-full border-dashed border-[#EC4899] text-[#EC4899] hover:bg-[#EC4899]/10"
+                    >
+                      {uploading ? (
+                        <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+                      ) : (
+                        <><Upload className="w-4 h-4 mr-2" /> Upload Audio File</>
+                      )}
+                    </Button>
+                    
+                    {uploadedAudio && (
+                      <div className="p-3 surface-primary rounded border border-[#EC4899]/30">
+                        <div className="flex items-center gap-2">
+                          <Music className="w-5 h-5 text-[#EC4899]" />
+                          <div>
+                            <p className="text-sm text-[#F8FAFC]">{uploadedAudio.name}</p>
+                            <p className="text-xs text-[#64748B]">{(uploadedAudio.size / (1024*1024)).toFixed(2)} MB</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[#94A3B8]">Duration (sec)</Label>
+                      <Select value={form.audioDuration.toString()} onValueChange={(v) => updateField("audioDuration", parseInt(v))}>
+                        <SelectTrigger className="surface-primary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="surface-primary border-[#2D3B55] dark:bg-[#0F172A] dark:border-[#334155]">
+                          <SelectItem value="15" className="text-[#F8FAFC]">15 seconds</SelectItem>
+                          <SelectItem value="30" className="text-[#F8FAFC]">30 seconds</SelectItem>
+                          <SelectItem value="60" className="text-[#F8FAFC]">60 seconds</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Companion Banner */}
+                <div className="space-y-3 pt-4 border-t border-[#2D3B55]">
+                  <Label className="text-[#94A3B8]">Companion Banner (Optional)</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-[#64748B]">Width</Label>
+                      <Input
+                        type="number"
+                        value={form.companionWidth}
+                        onChange={(e) => updateField("companionWidth", e.target.value)}
+                        className="surface-primary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-[#64748B]">Height</Label>
+                      <Input
+                        type="number"
+                        value={form.companionHeight}
+                        onChange={(e) => updateField("companionHeight", e.target.value)}
+                        className="surface-primary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
+                      />
+                    </div>
+                    <div className="space-y-1 col-span-3">
+                      <Label className="text-xs text-[#64748B]">Banner URL</Label>
+                      <Input
+                        value={form.companionBannerUrl}
+                        onChange={(e) => updateField("companionBannerUrl", e.target.value)}
+                        placeholder="https://..."
+                        className="surface-primary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Sidebar */}
         <div className="space-y-4">
           {/* Image Upload */}
-          {creativeType !== "video" && (
+          {creativeType !== "video" && creativeType !== "audio" && (
             <Card className="surface-primary border-panel">
               <CardHeader>
                 <CardTitle className="text-base text-[#F8FAFC] flex items-center gap-2">

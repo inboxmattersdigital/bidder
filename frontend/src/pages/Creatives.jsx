@@ -645,53 +645,15 @@ export default function Creatives() {
           <h1 className="text-3xl font-bold text-[#F8FAFC]">Creatives</h1>
           <p className="text-sm text-[#94A3B8] mt-1">Manage ad creatives for your campaigns</p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button 
-              className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white btn-press shadow-[0_0_10px_rgba(59,130,246,0.3)]"
-              data-testid="create-creative-btn"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Creative
-              <ChevronDown className="w-4 h-4 ml-2" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="surface-primary border-panel w-56">
-            <DropdownMenuLabel className="text-[#94A3B8]">Standard Creatives</DropdownMenuLabel>
-            <Link to="/creatives/new?type=banner">
-              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
-                <Image className="w-4 h-4 mr-2 text-[#3B82F6]" />
-                Banner / Display
-              </DropdownMenuItem>
-            </Link>
-            <Link to="/creatives/new?type=video">
-              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
-                <Video className="w-4 h-4 mr-2 text-[#EF4444]" />
-                Video
-              </DropdownMenuItem>
-            </Link>
-            <Link to="/creatives/new?type=native">
-              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
-                <Smartphone className="w-4 h-4 mr-2 text-[#F59E0B]" />
-                Native
-              </DropdownMenuItem>
-            </Link>
-            <Link to="/creatives/new?type=audio">
-              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
-                <Volume2 className="w-4 h-4 mr-2 text-[#EC4899]" />
-                Audio
-              </DropdownMenuItem>
-            </Link>
-            <DropdownMenuSeparator className="bg-[#2D3B55]" />
-            <DropdownMenuLabel className="text-[#94A3B8]">Advanced</DropdownMenuLabel>
-            <Link to="/creatives/editor">
-              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
-                <Code className="w-4 h-4 mr-2 text-[#8B5CF6]" />
-                JS Tag / Code Editor
-              </DropdownMenuItem>
-            </Link>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Link to="/creatives/editor">
+          <Button 
+            className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white btn-press shadow-[0_0_10px_rgba(139,92,246,0.3)]"
+            data-testid="create-creative-btn"
+          >
+            <Code className="w-4 h-4 mr-2" />
+            Create Creative
+          </Button>
+        </Link>
       </div>
 
       {/* Format Tabs */}
