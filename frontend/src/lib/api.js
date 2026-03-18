@@ -79,6 +79,14 @@ export const uploadVideoChunk = (chunk, chunkIndex, totalChunks, uploadId, filen
   });
 };
 
+export const uploadAudio = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/upload/audio', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
 // VAST Validation
 export const validateVast = (vastUrl, vastXml) => 
   api.post('/vast/validate', null, { params: { vast_url: vastUrl, vast_xml: vastXml } });

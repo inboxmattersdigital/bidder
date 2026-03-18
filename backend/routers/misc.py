@@ -558,6 +558,50 @@ async def upload_video_chunk(
     }
 
 
+@router.post("/upload/audio")
+async def upload_audio(file: UploadFile = File(...)):
+    """Upload an audio file for creative assets"""
+    allowed_types = ["audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav", "audio/aac", "audio/x-wav", "audio/x-m4a", "audio/mp4"]
+    # Also check file extension for browsers that don't send correct MIME type
+    allowed_extensions = [".mp3", ".ogg", ".wav", ".aac", ".m4a", ".mpeg"]
+    
+    file_ext = f".{file.filename.split('.')[-1].lower()}" if '.' in file.filename else ''
+    
+    if file.content_type not in allowed_types and file_ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed: MP3, OGG, WAV, AAC, M4A")
+    
+    ext = file.filename.split('.')[-1] if '.' in file.filename else 'mp3'
+    filename = f"audio_{uuid.uuid4().hex}.{ext}"
+    filepath = UPLOAD_DIR / filename
+    
+    try:
+        # Save audio file
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        file_size = filepath.stat().st_size
+        
+        # Check file size (max 50MB for audio)
+        if file_size > 50 * 1024 * 1024:
+            filepath.unlink()
+            raise HTTPException(status_code=400, detail="Audio file too large. Max 50MB allowed.")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+    
+    base_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+    file_url = f"{base_url}/api/uploads/{filename}"
+    
+    return {
+        "filename": filename,
+        "url": file_url,
+        "content_type": file.content_type,
+        "size": file_size
+    }
+
+
 # ==================== VAST VALIDATION ====================
 
 @router.post("/vast/validate")

@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { toast } from "sonner";
-import { createCreative, uploadImage } from "../lib/api";
+import { createCreative, uploadImage, uploadVideo, uploadAudio } from "../lib/api";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -158,30 +158,44 @@ export default function CreativeEditor() {
       return;
     }
     
+    // Check file size (max 100MB)
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("Video file too large. Max 100MB allowed.");
+      return;
+    }
+    
     setUploading(true);
+    toast.info("Uploading video to server...");
+    
     try {
-      const videoUrl = URL.createObjectURL(file);
+      // Create blob URL for immediate preview and duration detection
+      const tempBlobUrl = URL.createObjectURL(file);
       
       // Auto-detect video duration
       const video = document.createElement('video');
       video.preload = 'metadata';
       video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
         const duration = Math.round(video.duration);
         updateField("videoDuration", duration);
-        toast.success(`Video loaded (${duration}s)`);
+        URL.revokeObjectURL(tempBlobUrl);
       };
-      video.src = videoUrl;
+      video.src = tempBlobUrl;
+      
+      // Upload to server
+      const response = await uploadVideo(file);
+      const serverUrl = response.data.url;
       
       setUploadedVideo({
         name: file.name,
         size: file.size,
         type: file.type,
-        url: videoUrl
+        url: serverUrl
       });
-      updateField("videoUrl", videoUrl);
+      updateField("videoUrl", serverUrl);
+      toast.success(`Video uploaded successfully`);
     } catch (error) {
-      toast.error("Failed to load video");
+      console.error("Video upload error:", error);
+      toast.error("Failed to upload video: " + (error.response?.data?.detail || error.message));
     } finally {
       setUploading(false);
     }
@@ -198,31 +212,44 @@ export default function CreativeEditor() {
       return;
     }
     
+    // Check file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Audio file too large. Max 50MB allowed.");
+      return;
+    }
+    
     setUploading(true);
+    toast.info("Uploading audio to server...");
+    
     try {
-      const audioUrl = URL.createObjectURL(file);
+      // Create blob URL for immediate duration detection
+      const tempBlobUrl = URL.createObjectURL(file);
       
       // Auto-detect audio duration
       const audio = document.createElement('audio');
       audio.preload = 'metadata';
       audio.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(audio.src);
         const duration = Math.round(audio.duration);
         updateField("audioDuration", duration);
-        toast.success(`Audio loaded (${duration}s)`);
+        URL.revokeObjectURL(tempBlobUrl);
       };
-      audio.src = audioUrl;
+      audio.src = tempBlobUrl;
+      
+      // Upload to server
+      const response = await uploadAudio(file);
+      const serverUrl = response.data.url;
       
       setUploadedAudio({
         name: file.name,
         size: file.size,
         type: file.type,
-        url: audioUrl
+        url: serverUrl
       });
-      updateField("audioUrl", audioUrl);
-      toast.success("Audio loaded for preview");
+      updateField("audioUrl", serverUrl);
+      toast.success(`Audio uploaded successfully`);
     } catch (error) {
-      toast.error("Failed to load audio");
+      console.error("Audio upload error:", error);
+      toast.error("Failed to upload audio: " + (error.response?.data?.detail || error.message));
     } finally {
       setUploading(false);
     }
@@ -239,24 +266,30 @@ export default function CreativeEditor() {
     }
     
     setUploading(true);
+    toast.info("Uploading companion banner...");
+    
     try {
-      const imageUrl = URL.createObjectURL(file);
+      // Create blob URL for immediate dimension detection
+      const tempBlobUrl = URL.createObjectURL(file);
       
       // Auto-detect image dimensions
       const img = document.createElement('img');
       img.onload = () => {
         updateField("companionWidth", img.naturalWidth);
         updateField("companionHeight", img.naturalHeight);
-        toast.success(`Banner loaded (${img.naturalWidth}x${img.naturalHeight})`);
+        URL.revokeObjectURL(tempBlobUrl);
       };
-      img.onerror = () => {
-        toast.error("Failed to load image dimensions");
-      };
-      img.src = imageUrl;
+      img.src = tempBlobUrl;
       
-      updateField("companionBannerUrl", imageUrl);
+      // Upload to server
+      const response = await uploadImage(file);
+      const serverUrl = response.data.url;
+      
+      updateField("companionBannerUrl", serverUrl);
+      toast.success(`Companion banner uploaded (${img.naturalWidth || 'auto'}x${img.naturalHeight || 'auto'})`);
     } catch (error) {
-      toast.error("Failed to load companion banner");
+      console.error("Companion banner upload error:", error);
+      toast.error("Failed to upload companion banner: " + (error.response?.data?.detail || error.message));
     } finally {
       setUploading(false);
     }
