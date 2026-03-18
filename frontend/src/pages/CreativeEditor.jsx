@@ -89,8 +89,6 @@ export default function CreativeEditor() {
     cat: "",
     // Banner
     imageUrl: "",
-    ctaText: "Learn More",
-    ctaColor: "#3B82F6",
     backgroundColor: "#FFFFFF",
     // Native
     nativeTitle: "",
@@ -99,6 +97,7 @@ export default function CreativeEditor() {
     nativeImageUrl: "",
     nativeCtaText: "Learn More",
     nativeClickUrl: "",
+    nativeCtaColor: "#3B82F6",
     // Video
     vastUrl: "",
     vastVersion: "4.2",
@@ -280,12 +279,11 @@ export default function CreativeEditor() {
   };
 
   const generateBannerMarkup = () => {
-    const { imageUrl, clickUrl, ctaText, ctaColor, backgroundColor } = form;
+    const { imageUrl, clickUrl, backgroundColor } = form;
     if (!imageUrl) return "";
     
-    return `<a href="${clickUrl || '#'}" target="_blank" style="display:block;width:${selectedSize.w}px;height:${selectedSize.h}px;background:${backgroundColor};text-decoration:none;position:relative;">
+    return `<a href="${clickUrl || '#'}" target="_blank" style="display:block;width:${selectedSize.w}px;height:${selectedSize.h}px;background:${backgroundColor};text-decoration:none;">
   <img src="${imageUrl}" style="width:100%;height:100%;object-fit:cover;" />
-  ${ctaText ? `<div style="position:absolute;bottom:10px;right:10px;background:${ctaColor};color:white;padding:8px 16px;border-radius:4px;font-family:sans-serif;font-size:14px;">${ctaText}</div>` : ''}
 </a>`;
   };
 
@@ -365,35 +363,16 @@ export default function CreativeEditor() {
             width: selectedSize.w, 
             height: selectedSize.h,
             background: form.backgroundColor,
-            position: "relative",
             overflow: "hidden"
           }}
           className="border border-[#2D3B55] rounded"
         >
           {form.imageUrl ? (
-            <>
-              <img 
-                src={form.imageUrl} 
-                alt="Preview" 
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-              {form.ctaText && (
-                <div 
-                  style={{
-                    position: "absolute",
-                    bottom: 10,
-                    right: 10,
-                    background: form.ctaColor,
-                    color: "white",
-                    padding: "8px 16px",
-                    borderRadius: 4,
-                    fontSize: 14
-                  }}
-                >
-                  {form.ctaText}
-                </div>
-              )}
-            </>
+            <img 
+              src={form.imageUrl} 
+              alt="Preview" 
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-[#64748B]">
               <Image className="w-8 h-8" />
@@ -424,7 +403,7 @@ export default function CreativeEditor() {
             target="_blank"
             rel="noopener noreferrer"
             className="block mt-3 w-full py-2 rounded text-white text-sm text-center cursor-pointer hover:opacity-90 transition-opacity"
-            style={{ background: form.ctaColor }}
+            style={{ background: form.nativeCtaColor }}
             onClick={(e) => !form.nativeClickUrl && e.preventDefault()}
           >
             {form.nativeCtaText || "Learn More"}
@@ -731,47 +710,20 @@ export default function CreativeEditor() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-[#94A3B8]">CTA Text</Label>
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">Background Color</Label>
+                  <div className="flex gap-2">
                     <Input
-                      value={form.ctaText}
-                      onChange={(e) => updateField("ctaText", e.target.value)}
-                      placeholder="Learn More"
+                      type="color"
+                      value={form.backgroundColor}
+                      onChange={(e) => updateField("backgroundColor", e.target.value)}
+                      className="w-12 h-10 p-1 surface-secondary border-[#2D3B55]"
+                    />
+                    <Input
+                      value={form.backgroundColor}
+                      onChange={(e) => updateField("backgroundColor", e.target.value)}
                       className="surface-secondary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[#94A3B8]">CTA Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="color"
-                        value={form.ctaColor}
-                        onChange={(e) => updateField("ctaColor", e.target.value)}
-                        className="w-12 h-10 p-1 surface-secondary border-[#2D3B55]"
-                      />
-                      <Input
-                        value={form.ctaColor}
-                        onChange={(e) => updateField("ctaColor", e.target.value)}
-                        className="surface-secondary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[#94A3B8]">Background</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="color"
-                        value={form.backgroundColor}
-                        onChange={(e) => updateField("backgroundColor", e.target.value)}
-                        className="w-12 h-10 p-1 surface-secondary border-[#2D3B55]"
-                      />
-                      <Input
-                        value={form.backgroundColor}
-                        onChange={(e) => updateField("backgroundColor", e.target.value)}
-                        className="surface-secondary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
-                      />
-                    </div>
                   </div>
                 </div>
               </CardContent>

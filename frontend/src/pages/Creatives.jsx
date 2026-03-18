@@ -121,13 +121,28 @@ function CreativeFormatBadge({ format }) {
 function CreativePreview({ creative, onClose }) {
   const [iframeKey, setIframeKey] = useState(0);
   
+  // Helper to check if URL is valid (not null, undefined, 'None', empty string, or expired blob URLs)
+  const isValidUrl = (url) => {
+    if (!url || url === 'None' || url === 'null' || url.trim() === '') return false;
+    // Blob URLs are temporary and expire - treat them as invalid for persistent display
+    if (url.startsWith('blob:')) return false;
+    return true;
+  };
+  
   const renderPreview = () => {
     switch (creative.type) {
       case "banner":
         const width = creative.banner_data?.width || 300;
         const height = creative.banner_data?.height || 250;
         
-        if (creative.banner_data?.image_url) {
+        // Check for valid image URL (from banner_data or iurl)
+        const imageUrl = isValidUrl(creative.banner_data?.image_url) 
+          ? creative.banner_data.image_url 
+          : isValidUrl(creative.iurl) 
+            ? (creative.iurl.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${creative.iurl}` : creative.iurl)
+            : null;
+        
+        if (imageUrl) {
           return (
             <div className="flex flex-col items-center gap-4">
               {/* Live Preview */}
@@ -138,7 +153,7 @@ function CreativePreview({ creative, onClose }) {
                   style={{ width: Math.min(width, 600), height: Math.min(height, 400) }}
                 >
                   <img 
-                    src={creative.banner_data.image_url} 
+                    src={imageUrl} 
                     alt={creative.name}
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   />
@@ -486,7 +501,13 @@ export default function Creatives() {
     try {
       setLoading(true);
       const response = await getCreatives();
-      setCreatives(response.data);
+      // Sort creatives by created_at descending (newest first)
+      const sortedCreatives = (response.data || []).sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA; // Newest first
+      });
+      setCreatives(sortedCreatives);
     } catch (error) {
       toast.error("Failed to load creatives");
     } finally {
@@ -554,7 +575,16 @@ export default function Creatives() {
   };
 
   // Render creative card with proper preview
-  const renderCreativeCard = (creative) => (
+  const renderCreativeCard = (creative) => {
+    // Helper to check if URL is valid (not null, undefined, 'None', empty string, or expired blob URLs)
+    const isValidUrl = (url) => {
+      if (!url || url === 'None' || url === 'null' || url.trim() === '') return false;
+      // Blob URLs are temporary and expire - treat them as invalid for persistent display
+      if (url.startsWith('blob:')) return false;
+      return true;
+    };
+    
+    return (
     <Card 
       key={creative.id} 
       className="surface-primary border-panel card-hover group"
@@ -566,18 +596,33 @@ export default function Creatives() {
           className="relative aspect-video surface-secondary rounded-t-lg overflow-hidden cursor-pointer"
           onClick={() => setPreviewCreative(creative)}
         >
-          {creative.type === "banner" && creative.banner_data?.image_url && (
+          {creative.type === "banner" && isValidUrl(creative.banner_data?.image_url) && (
             <img 
               src={creative.banner_data.image_url} 
               alt={creative.name}
               className="w-full h-full object-contain bg-gray-900"
             />
           )}
-          {creative.type === "banner" && creative.banner_data?.ad_markup && !creative.banner_data?.image_url && (
+          {creative.type === "banner" && !isValidUrl(creative.banner_data?.image_url) && isValidUrl(creative.iurl) && (
+            <img 
+              src={creative.iurl.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${creative.iurl}` : creative.iurl} 
+              alt={creative.name}
+              className="w-full h-full object-contain bg-gray-900"
+            />
+          )}
+          {creative.type === "banner" && creative.banner_data?.ad_markup && !isValidUrl(creative.banner_data?.image_url) && !isValidUrl(creative.iurl) && (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
                 <Code className="w-8 h-8 text-[#3B82F6] mx-auto mb-2" />
                 <p className="text-xs text-[#64748B]">HTML Banner</p>
+              </div>
+            </div>
+          )}
+          {creative.type === "banner" && !creative.banner_data?.ad_markup && !isValidUrl(creative.banner_data?.image_url) && !isValidUrl(creative.iurl) && (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <Image className="w-8 h-8 text-[#64748B] mx-auto mb-2" />
+                <p className="text-xs text-[#64748B]">No Preview</p>
               </div>
             </div>
           )}
@@ -600,6 +645,24 @@ export default function Creatives() {
                 <p className="text-sm font-medium text-gray-900 truncate">{creative.native_data.title}</p>
                 <p className="text-xs text-gray-500 truncate">{creative.native_data.description}</p>
               </div>
+            </div>
+          )}
+          {creative.type === "audio" && (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#EC4899]/10 to-[#8B5CF6]/10">
+              {isValidUrl(creative.audio_data?.companion_banner_url) ? (
+                <img 
+                  src={creative.audio_data.companion_banner_url}
+                  alt="Companion Banner"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="text-center">
+                  <div className="w-14 h-14 rounded-full bg-[#EC4899]/20 flex items-center justify-center mx-auto mb-2">
+                    <Music className="w-6 h-6 text-[#EC4899]" />
+                  </div>
+                  <p className="text-xs text-[#EC4899] font-medium">{creative.audio_data?.duration || 30}s</p>
+                </div>
+              )}
             </div>
           )}
           {creative.format === "js_tag" && (
@@ -664,6 +727,7 @@ export default function Creatives() {
       </CardContent>
     </Card>
   );
+  };
 
   return (
     <div className="p-6" data-testid="creatives-page">
