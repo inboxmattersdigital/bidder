@@ -438,6 +438,14 @@ Fraud | Audiences | Attribution | Migration
   - Audio cards show music icon with duration (with fallback for expired blob URLs)
   - Removed "Learn More" CTA Text and CTA Color fields from Banner creative form
   - Added sorting by created_at descending (newest first) in fetchCreatives
+- [x] **Persistent File Upload Storage (March 2026)** - Fixed video/audio preview expiration issue:
+  - Added /api/upload/audio backend endpoint for audio file uploads (max 50MB)
+  - Updated frontend video upload to use /api/upload/video endpoint (returns server URL)
+  - Updated frontend audio upload to use /api/upload/audio endpoint (returns server URL)
+  - Updated companion banner upload to use /api/upload/image endpoint (returns server URL)
+  - Files stored persistently in /app/backend/uploads/ directory
+  - Server URLs (e.g., https://.../api/uploads/audio_xxx.mp3) replace temporary blob URLs
+  - Creatives now persist across page refreshes and sessions
 
 ### Refactoring (March 2026)
 - [x] **CampaignWizard.jsx Refactored** - Broke down 3,933 line monolithic file into 12 modular components:
