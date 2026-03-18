@@ -371,6 +371,9 @@ class AudioCreative(BaseModel):
     vast_xml: Optional[str] = None
     audio_url: Optional[str] = Field(default=None, description="Direct audio URL")
     bitrate: Optional[int] = Field(default=None, description="Audio bitrate in Kbps")
+    companion_banner_url: Optional[str] = Field(default=None, description="Companion banner image URL")
+    companion_width: Optional[int] = Field(default=None, description="Companion banner width")
+    companion_height: Optional[int] = Field(default=None, description="Companion banner height")
 
 
 class NativeCreative(BaseModel):
@@ -381,6 +384,8 @@ class NativeCreative(BaseModel):
     cta_text: str = "Learn More"
     click_url: str = Field(default="")
     sponsored_by: Optional[str] = None
+    rating: Optional[float] = Field(default=None, description="App/product rating 1-5")
+    price: Optional[str] = Field(default=None, description="Price string e.g. '$9.99'")
 
 
 class Creative(BaseModel):

@@ -399,6 +399,21 @@ Fraud | Audiences | Attribution | Migration
 - [x] **Ad Performance Report Spend Calculation Fixed** - Fixed spend formula in `analytics.py` to use `win_price/1000` (correct) instead of raw `win_price` (was inflating spend by 1000x)
 - [x] **Ad Performance Report Win Rate Display Fixed** - Fixed `formatPercent` function that was multiplying already-calculated percentages by 100 again (turning 25% into 2500%)
 - [x] **Ad Performance Report Impressions Filter** - Now only shows rows where impressions > 0, filtering out bid-only entries without wins
+- [x] **Campaign KPI Target Field Fix** - Fixed NumberInput component to properly handle editing and display values. Added focus/blur tracking, selection on focus, and proper value sync between internal state and external prop
+- [x] **Audio Creative Type Support** - Added full Audio creative support including:
+  - Audio VAST URL with validation
+  - Audio VAST XML with validation  
+  - Direct audio file upload (MP3, OGG, WAV, AAC)
+  - Companion banner configuration (optional)
+  - Duration selection (15/30/60 seconds)
+  - MIME types configuration
+- [x] **Native Creative Enhancements** - Enhanced native creative form with:
+  - Icon upload (80x80) with both URL input and file upload button
+  - Main image upload (1200x627) with both URL input and file upload button
+  - Sponsored By field
+  - Rating field (1-5)
+  - Price field
+- [x] **Creatives List Audio Tab** - Added Audio tab to creatives listing page with pink/magenta color scheme
 
 ### Refactoring (March 2026)
 - [x] **CampaignWizard.jsx Refactored** - Broke down 3,933 line monolithic file into 12 modular components:

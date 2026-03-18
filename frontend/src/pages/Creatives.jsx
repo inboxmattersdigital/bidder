@@ -16,7 +16,8 @@ import {
   Monitor,
   Smartphone,
   Film,
-  Layers
+  Layers,
+  Volume2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -435,6 +436,7 @@ export default function Creatives() {
     if (type === "display") return creatives.filter(c => c.type === "banner");
     if (type === "video") return creatives.filter(c => c.type === "video");
     if (type === "native") return creatives.filter(c => c.type === "native");
+    if (type === "audio") return creatives.filter(c => c.type === "audio");
     if (type === "jstag") return creatives.filter(c => c.format === "js_tag");
     return creatives;
   };
@@ -457,6 +459,7 @@ export default function Creatives() {
     display: creatives.filter(c => c.type === "banner").length,
     video: creatives.filter(c => c.type === "video").length,
     native: creatives.filter(c => c.type === "native").length,
+    audio: creatives.filter(c => c.type === "audio").length,
     jstag: creatives.filter(c => c.format === "js_tag").length,
   };
 
@@ -635,6 +638,13 @@ export default function Creatives() {
             Native ({counts.native})
           </TabsTrigger>
           <TabsTrigger 
+            value="audio" 
+            className="data-[state=active]:bg-[#EC4899] data-[state=active]:text-white px-4 py-2"
+          >
+            <Volume2 className="w-4 h-4 mr-2" />
+            Audio ({counts.audio})
+          </TabsTrigger>
+          <TabsTrigger 
             value="jstag" 
             className="data-[state=active]:bg-[#8B5CF6] data-[state=active]:text-white px-4 py-2"
           >
@@ -763,6 +773,23 @@ export default function Creatives() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filterCreatives("native").map(renderCreativeCard)}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Audio Creatives */}
+        <TabsContent value="audio" className="mt-0">
+          {filterCreatives("audio").length === 0 ? (
+            <Card className="surface-primary border-panel">
+              <CardContent className="empty-state py-16">
+                <Volume2 className="empty-state-icon text-[#EC4899]" />
+                <h3 className="text-lg font-medium text-[#F8FAFC] mb-2">No audio creatives</h3>
+                <p className="text-sm text-[#94A3B8] mb-4">Create audio ads for streaming and podcast platforms</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filterCreatives("audio").map(renderCreativeCard)}
             </div>
           )}
         </TabsContent>

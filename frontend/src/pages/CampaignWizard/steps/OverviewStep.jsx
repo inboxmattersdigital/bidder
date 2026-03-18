@@ -118,9 +118,13 @@ export function OverviewStep({ form, updateField, onGetRecommendations }) {
               <Label className="text-[#94A3B8]">Target {form.kpi_type.toUpperCase()}</Label>
               <NumberInput
                 value={form.kpi_target}
-                onChange={(e) => updateField("kpi_target", parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateField("kpi_target", val === "" ? 0 : (typeof val === 'number' ? val : parseFloat(val) || 0));
+                }}
                 className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
                 min={0}
+                data-testid="kpi-target-input"
               />
             </div>
           </div>

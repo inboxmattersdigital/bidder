@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Save, Upload, CheckCircle, XCircle, AlertCircle, 
-  Play, FileVideo, Link, Code, Loader2, RefreshCw
+  Play, FileVideo, Link, Code, Loader2, RefreshCw, Music
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -18,21 +18,42 @@ import { createCreative, uploadVideo, uploadVideoChunk, validateVast } from "../
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 
+// Audio formats for reference
+const AUDIO_FORMATS = {
+  audio_15: { label: "15s Audio", duration: 15 },
+  audio_30: { label: "30s Audio", duration: 30 },
+  audio_60: { label: "60s Audio", duration: 60 },
+};
+
 export default function CreativeForm() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const audioFileInputRef = useRef(null);
+  const nativeImageInputRef = useRef(null);
+  const nativeIconInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [type, setType] = useState("banner");
   const [videoSource, setVideoSource] = useState("vast_url");
+  const [audioSource, setAudioSource] = useState("audio_vast_url");
   
   // Video upload state
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState("");
   
+  // Audio upload state
+  const [audioUploading, setAudioUploading] = useState(false);
+  const [audioUploadProgress, setAudioUploadProgress] = useState(0);
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState("");
+  
+  // Native image upload state
+  const [nativeImageUploading, setNativeImageUploading] = useState(false);
+  const [nativeIconUploading, setNativeIconUploading] = useState(false);
+  
   // VAST validation state
   const [validating, setValidating] = useState(false);
   const [vastValidation, setVastValidation] = useState(null);
+  const [audioVastValidation, setAudioVastValidation] = useState(null);
   
   const [form, setForm] = useState({
     name: "",
@@ -59,7 +80,19 @@ export default function CreativeForm() {
     native_icon_url: "",
     native_image_url: "",
     native_cta_text: "Learn More",
-    native_click_url: ""
+    native_click_url: "",
+    native_sponsored_by: "",
+    native_rating: "",
+    native_price: "",
+    // Audio fields
+    audio_duration: 30,
+    audio_mimes: "audio/mpeg, audio/mp3, audio/ogg",
+    audio_url: "",
+    audio_vast_url: "",
+    audio_vast_xml: "",
+    audio_companion_banner_url: "",
+    audio_companion_width: 300,
+    audio_companion_height: 250
   });
 
   const updateField = (field, value) => {
@@ -123,6 +156,91 @@ export default function CreativeForm() {
       console.error(error);
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Audio upload handler
+  const handleAudioUpload = async (file) => {
+    if (!file) return;
+    
+    const allowedTypes = ["audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav", "audio/aac"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid audio format. Allowed: MP3, OGG, WAV, AAC");
+      return;
+    }
+    
+    setAudioUploading(true);
+    setAudioUploadProgress(0);
+    
+    try {
+      // Use same upload endpoint, backend handles audio files too
+      const response = await uploadVideo(file);
+      setUploadedAudioUrl(response.data.url);
+      updateField("audio_url", response.data.url);
+      toast.success("Audio uploaded successfully");
+    } catch (error) {
+      toast.error("Failed to upload audio");
+      console.error(error);
+    } finally {
+      setAudioUploading(false);
+    }
+  };
+
+  // Native image upload handler
+  const handleNativeImageUpload = async (file, fieldName) => {
+    if (!file) return;
+    
+    const isIcon = fieldName === "native_icon_url";
+    isIcon ? setNativeIconUploading(true) : setNativeImageUploading(true);
+    
+    try {
+      const response = await uploadVideo(file); // Reuse upload endpoint
+      updateField(fieldName, response.data.url);
+      toast.success(`${isIcon ? 'Icon' : 'Image'} uploaded successfully`);
+    } catch (error) {
+      toast.error(`Failed to upload ${isIcon ? 'icon' : 'image'}`);
+      console.error(error);
+    } finally {
+      isIcon ? setNativeIconUploading(false) : setNativeImageUploading(false);
+    }
+  };
+
+  // Audio VAST validation handler
+  const handleValidateAudioVast = async () => {
+    const vastUrl = form.audio_vast_url;
+    const vastXml = form.audio_vast_xml;
+    
+    if (!vastUrl && !vastXml) {
+      toast.error("Enter an Audio VAST URL or XML to validate");
+      return;
+    }
+    
+    setValidating(true);
+    setAudioVastValidation(null);
+    
+    try {
+      const response = await validateVast(vastUrl || null, vastXml || null);
+      setAudioVastValidation(response.data);
+      
+      if (response.data.valid) {
+        toast.success("Audio VAST tag is valid");
+        if (response.data.duration) {
+          const durationMatch = response.data.duration.match(/(\d+):(\d+):(\d+)/);
+          if (durationMatch) {
+            const seconds = parseInt(durationMatch[1]) * 3600 + 
+                          parseInt(durationMatch[2]) * 60 + 
+                          parseInt(durationMatch[3]);
+            updateField("audio_duration", seconds);
+          }
+        }
+      } else {
+        toast.error("Audio VAST validation failed");
+      }
+    } catch (error) {
+      toast.error("Failed to validate Audio VAST");
+      setAudioVastValidation({ valid: false, errors: ["Validation request failed"] });
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -219,7 +337,25 @@ export default function CreativeForm() {
         icon_url: form.native_icon_url || null,
         image_url: form.native_image_url || null,
         cta_text: form.native_cta_text,
-        click_url: form.native_click_url
+        click_url: form.native_click_url,
+        sponsored_by: form.native_sponsored_by || null,
+        rating: form.native_rating ? parseFloat(form.native_rating) : null,
+        price: form.native_price || null
+      };
+    } else if (type === "audio") {
+      if (!form.audio_vast_xml && !form.audio_vast_url && !form.audio_url) {
+        toast.error("Audio VAST XML, VAST URL, or uploaded audio file is required");
+        return;
+      }
+      payload.audio_data = {
+        duration: parseInt(form.audio_duration),
+        mimes: parseList(form.audio_mimes),
+        audio_url: form.audio_url || null,
+        vast_url: form.audio_vast_url || null,
+        vast_xml: form.audio_vast_xml || null,
+        companion_banner_url: form.audio_companion_banner_url || null,
+        companion_width: form.audio_companion_banner_url ? parseInt(form.audio_companion_width) : null,
+        companion_height: form.audio_companion_banner_url ? parseInt(form.audio_companion_height) : null
       };
     }
     
@@ -235,40 +371,40 @@ export default function CreativeForm() {
     }
   };
 
-  const renderVastValidationResult = () => {
-    if (!vastValidation) return null;
+  const renderVastValidationResult = (validation = vastValidation) => {
+    if (!validation) return null;
     
     return (
       <div className={`mt-4 p-4 rounded-lg border ${
-        vastValidation.valid 
+        validation.valid 
           ? 'bg-[#10B981]/10 border-[#10B981]/30' 
           : 'bg-[#EF4444]/10 border-[#EF4444]/30'
       }`}>
         <div className="flex items-center gap-2 mb-3">
-          {vastValidation.valid ? (
+          {validation.valid ? (
             <CheckCircle className="w-5 h-5 text-[#10B981]" />
           ) : (
             <XCircle className="w-5 h-5 text-[#EF4444]" />
           )}
-          <span className={`font-medium ${vastValidation.valid ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-            {vastValidation.valid ? 'VAST Valid' : 'VAST Invalid'}
+          <span className={`font-medium ${validation.valid ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+            {validation.valid ? 'VAST Valid' : 'VAST Invalid'}
           </span>
-          {vastValidation.vast_version && (
+          {validation.vast_version && (
             <Badge className="bg-[#3B82F6]/20 text-[#3B82F6]">
-              VAST {vastValidation.vast_version}
+              VAST {validation.vast_version}
             </Badge>
           )}
-          {vastValidation.is_wrapper && (
+          {validation.is_wrapper && (
             <Badge className="bg-[#F59E0B]/20 text-[#F59E0B]">Wrapper</Badge>
           )}
         </div>
         
         {/* Errors */}
-        {vastValidation.errors?.length > 0 && (
+        {validation.errors?.length > 0 && (
           <div className="mb-3">
             <p className="text-xs font-medium text-[#EF4444] mb-1">Errors:</p>
             <ul className="text-xs text-[#EF4444] list-disc list-inside space-y-0.5">
-              {vastValidation.errors.map((err, i) => (
+              {validation.errors.map((err, i) => (
                 <li key={i}>{err}</li>
               ))}
             </ul>
@@ -276,11 +412,11 @@ export default function CreativeForm() {
         )}
         
         {/* Warnings */}
-        {vastValidation.warnings?.length > 0 && (
+        {validation.warnings?.length > 0 && (
           <div className="mb-3">
             <p className="text-xs font-medium text-[#F59E0B] mb-1">Warnings:</p>
             <ul className="text-xs text-[#F59E0B] list-disc list-inside space-y-0.5">
-              {vastValidation.warnings.map((warn, i) => (
+              {validation.warnings.map((warn, i) => (
                 <li key={i}>{warn}</li>
               ))}
             </ul>
@@ -288,41 +424,41 @@ export default function CreativeForm() {
         )}
         
         {/* Details */}
-        {vastValidation.valid && (
+        {validation.valid && (
           <div className="grid grid-cols-3 gap-4 text-xs">
-            {vastValidation.ad_title && (
+            {validation.ad_title && (
               <div>
                 <span className="text-[#64748B]">Ad Title:</span>
-                <p className="text-[#F8FAFC]">{vastValidation.ad_title}</p>
+                <p className="text-[#F8FAFC]">{validation.ad_title}</p>
               </div>
             )}
-            {vastValidation.duration && (
+            {validation.duration && (
               <div>
                 <span className="text-[#64748B]">Duration:</span>
-                <p className="text-[#F8FAFC]">{vastValidation.duration}</p>
+                <p className="text-[#F8FAFC]">{validation.duration}</p>
               </div>
             )}
-            {vastValidation.media_files?.length > 0 && (
+            {validation.media_files?.length > 0 && (
               <div>
                 <span className="text-[#64748B]">Media Files:</span>
-                <p className="text-[#F8FAFC]">{vastValidation.media_files.length} file(s)</p>
+                <p className="text-[#F8FAFC]">{validation.media_files.length} file(s)</p>
               </div>
             )}
-            {vastValidation.click_through && (
+            {validation.click_through && (
               <div className="col-span-3">
                 <span className="text-[#64748B]">Click URL:</span>
-                <p className="text-[#3B82F6] truncate">{vastValidation.click_through}</p>
+                <p className="text-[#3B82F6] truncate">{validation.click_through}</p>
               </div>
             )}
           </div>
         )}
         
         {/* Media Files Details */}
-        {vastValidation.media_files?.length > 0 && (
+        {validation.media_files?.length > 0 && (
           <div className="mt-3 pt-3 border-t border-[#2D3B55]">
             <p className="text-xs font-medium text-[#94A3B8] mb-2">Media Files:</p>
             <div className="space-y-2">
-              {vastValidation.media_files.slice(0, 3).map((mf, i) => (
+              {validation.media_files.slice(0, 3).map((mf, i) => (
                 <div key={i} className="text-xs p-2 bg-[#0A0F1C] rounded">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge className="bg-[#2D3B55] text-[#94A3B8]">{mf.type}</Badge>
@@ -391,6 +527,7 @@ export default function CreativeForm() {
                     <SelectItem value="banner">Banner</SelectItem>
                     <SelectItem value="video">Video</SelectItem>
                     <SelectItem value="native">Native</SelectItem>
+                    <SelectItem value="audio">Audio</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -729,26 +866,137 @@ export default function CreativeForm() {
                   className="surface-secondary border-[#2D3B55] text-[#F8FAFC] h-20"
                 />
               </div>
+              
+              {/* Native Image Assets */}
               <div className="grid grid-cols-2 gap-4">
+                {/* Icon Upload */}
                 <div className="space-y-2">
-                  <Label className="text-[#94A3B8]">Icon URL</Label>
+                  <Label className="text-[#94A3B8]">Icon (80x80 recommended)</Label>
+                  <input
+                    ref={nativeIconInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleNativeImageUpload(e.target.files?.[0], 'native_icon_url')}
+                  />
+                  {form.native_icon_url ? (
+                    <div className="flex items-center gap-3 p-3 surface-secondary rounded-lg">
+                      <img src={form.native_icon_url} alt="Icon" className="w-12 h-12 rounded object-cover" />
+                      <div className="flex-1">
+                        <p className="text-xs text-[#10B981]">Icon uploaded</p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => updateField('native_icon_url', '')}
+                        className="text-[#64748B]"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        value={form.native_icon_url}
+                        onChange={(e) => updateField('native_icon_url', e.target.value)}
+                        placeholder="https://example.com/icon.png"
+                        className="surface-secondary border-[#2D3B55] text-[#F8FAFC] flex-1"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => nativeIconInputRef.current?.click()}
+                        disabled={nativeIconUploading}
+                        className="bg-[#3B82F6]"
+                      >
+                        {nativeIconUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Main Image Upload */}
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">Main Image (1200x627 recommended)</Label>
+                  <input
+                    ref={nativeImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleNativeImageUpload(e.target.files?.[0], 'native_image_url')}
+                  />
+                  {form.native_image_url ? (
+                    <div className="flex items-center gap-3 p-3 surface-secondary rounded-lg">
+                      <img src={form.native_image_url} alt="Main" className="w-16 h-10 rounded object-cover" />
+                      <div className="flex-1">
+                        <p className="text-xs text-[#10B981]">Image uploaded</p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => updateField('native_image_url', '')}
+                        className="text-[#64748B]"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        value={form.native_image_url}
+                        onChange={(e) => updateField('native_image_url', e.target.value)}
+                        placeholder="https://example.com/image.jpg"
+                        className="surface-secondary border-[#2D3B55] text-[#F8FAFC] flex-1"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => nativeImageInputRef.current?.click()}
+                        disabled={nativeImageUploading}
+                        className="bg-[#3B82F6]"
+                      >
+                        {nativeImageUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Additional Native Fields */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">Sponsored By</Label>
                   <Input
-                    value={form.native_icon_url}
-                    onChange={(e) => updateField('native_icon_url', e.target.value)}
-                    placeholder="https://example.com/icon.png"
+                    value={form.native_sponsored_by}
+                    onChange={(e) => updateField('native_sponsored_by', e.target.value)}
+                    placeholder="Brand Name"
                     className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[#94A3B8]">Main Image URL</Label>
+                  <Label className="text-[#94A3B8]">Rating (1-5)</Label>
                   <Input
-                    value={form.native_image_url}
-                    onChange={(e) => updateField('native_image_url', e.target.value)}
-                    placeholder="https://example.com/image.jpg"
+                    type="number"
+                    value={form.native_rating}
+                    onChange={(e) => updateField('native_rating', e.target.value)}
+                    placeholder="4.5"
+                    min="1"
+                    max="5"
+                    step="0.1"
+                    className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">Price</Label>
+                  <Input
+                    value={form.native_price}
+                    onChange={(e) => updateField('native_price', e.target.value)}
+                    placeholder="$9.99"
                     className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
                   />
                 </div>
               </div>
+              
               <div className="space-y-2">
                 <Label className="text-[#94A3B8]">Click URL *</Label>
                 <Input
@@ -758,6 +1006,232 @@ export default function CreativeForm() {
                   className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
                   data-testid="native-click-url-input"
                 />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Audio Fields */}
+        {type === "audio" && (
+          <Card className="surface-primary border-panel">
+            <CardHeader>
+              <CardTitle className="text-lg text-[#F8FAFC]">Audio Ad Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">Duration (sec)</Label>
+                  <Select 
+                    value={form.audio_duration.toString()} 
+                    onValueChange={(v) => updateField('audio_duration', parseInt(v))}
+                  >
+                    <SelectTrigger className="surface-secondary border-[#2D3B55] text-[#F8FAFC]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="surface-primary border-panel">
+                      <SelectItem value="15">15 seconds</SelectItem>
+                      <SelectItem value="30">30 seconds</SelectItem>
+                      <SelectItem value="60">60 seconds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[#94A3B8]">MIME Types</Label>
+                  <Input
+                    value={form.audio_mimes}
+                    onChange={(e) => updateField('audio_mimes', e.target.value)}
+                    className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Audio Source Tabs */}
+              <div className="pt-4">
+                <Label className="text-[#94A3B8] mb-3 block">Audio Source *</Label>
+                <Tabs value={audioSource} onValueChange={setAudioSource}>
+                  <TabsList className="surface-secondary border-[#2D3B55] mb-4">
+                    <TabsTrigger value="audio_vast_url" className="data-[state=active]:bg-[#8B5CF6]">
+                      <Link className="w-4 h-4 mr-2" />
+                      Audio VAST URL
+                    </TabsTrigger>
+                    <TabsTrigger value="audio_vast_xml" className="data-[state=active]:bg-[#8B5CF6]">
+                      <Code className="w-4 h-4 mr-2" />
+                      Audio VAST XML
+                    </TabsTrigger>
+                    <TabsTrigger value="audio_upload" className="data-[state=active]:bg-[#8B5CF6]">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Audio
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Audio VAST URL Tab */}
+                  <TabsContent value="audio_vast_url">
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <Input
+                          value={form.audio_vast_url}
+                          onChange={(e) => updateField('audio_vast_url', e.target.value)}
+                          placeholder="https://example.com/audio-vast.xml"
+                          className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono flex-1"
+                          data-testid="audio-vast-url-input"
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleValidateAudioVast}
+                          disabled={validating || !form.audio_vast_url}
+                          className="bg-[#8B5CF6] hover:bg-[#7C3AED]"
+                        >
+                          {validating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Validate
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      {renderVastValidationResult(audioVastValidation)}
+                    </div>
+                  </TabsContent>
+
+                  {/* Audio VAST XML Tab */}
+                  <TabsContent value="audio_vast_xml">
+                    <div className="space-y-3">
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleValidateAudioVast}
+                          disabled={validating || !form.audio_vast_xml}
+                          className="bg-[#8B5CF6] hover:bg-[#7C3AED]"
+                        >
+                          {validating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Validate VAST
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <Textarea
+                        value={form.audio_vast_xml}
+                        onChange={(e) => updateField('audio_vast_xml', e.target.value)}
+                        placeholder='<?xml version="1.0"?><VAST version="3.0">...</VAST>'
+                        className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono h-48"
+                        data-testid="audio-vast-xml-input"
+                      />
+                      {renderVastValidationResult(audioVastValidation)}
+                    </div>
+                  </TabsContent>
+
+                  {/* Audio Upload Tab */}
+                  <TabsContent value="audio_upload">
+                    <div className="space-y-4">
+                      <input
+                        ref={audioFileInputRef}
+                        type="file"
+                        accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/aac"
+                        className="hidden"
+                        onChange={(e) => handleAudioUpload(e.target.files?.[0])}
+                      />
+                      
+                      {!uploadedAudioUrl ? (
+                        <div 
+                          onClick={() => !audioUploading && audioFileInputRef.current?.click()}
+                          className={`border-2 border-dashed border-[#2D3B55] rounded-lg p-8 text-center 
+                            ${audioUploading ? 'opacity-50' : 'hover:border-[#8B5CF6] cursor-pointer'} transition-colors`}
+                        >
+                          {audioUploading ? (
+                            <div className="space-y-3">
+                              <Loader2 className="w-10 h-10 mx-auto text-[#8B5CF6] animate-spin" />
+                              <p className="text-sm text-[#F8FAFC]">Uploading audio...</p>
+                              <Progress value={audioUploadProgress} className="max-w-xs mx-auto" />
+                            </div>
+                          ) : (
+                            <>
+                              <Music className="w-12 h-12 mx-auto text-[#64748B] mb-3" />
+                              <p className="text-sm text-[#F8FAFC] mb-1">
+                                Click to upload or drag and drop
+                              </p>
+                              <p className="text-xs text-[#64748B]">
+                                MP3, OGG, WAV, or AAC up to 50MB
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3 p-4 surface-secondary rounded-lg">
+                            <CheckCircle className="w-8 h-8 text-[#10B981]" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-[#F8FAFC]">Audio uploaded</p>
+                              <p className="text-xs text-[#8B5CF6] truncate">{uploadedAudioUrl}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setUploadedAudioUrl("");
+                                updateField("audio_url", "");
+                              }}
+                              className="text-[#64748B] hover:text-[#F8FAFC]"
+                            >
+                              <RefreshCw className="w-4 h-4 mr-1" />
+                              Replace
+                            </Button>
+                          </div>
+                          
+                          {/* Audio Preview */}
+                          <div className="p-4 surface-secondary rounded-lg">
+                            <audio 
+                              src={uploadedAudioUrl} 
+                              controls 
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              {/* Companion Banner (Optional) */}
+              <div className="pt-4 border-t border-[#2D3B55]">
+                <Label className="text-[#94A3B8] mb-3 block">Companion Banner (Optional)</Label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2 col-span-1">
+                    <Label className="text-[#64748B] text-xs">Width (px)</Label>
+                    <Input
+                      type="number"
+                      value={form.audio_companion_width}
+                      onChange={(e) => updateField('audio_companion_width', e.target.value)}
+                      className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-1">
+                    <Label className="text-[#64748B] text-xs">Height (px)</Label>
+                    <Input
+                      type="number"
+                      value={form.audio_companion_height}
+                      onChange={(e) => updateField('audio_companion_height', e.target.value)}
+                      className="surface-secondary border-[#2D3B55] text-[#F8FAFC] font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-1">
+                    <Label className="text-[#64748B] text-xs">Banner URL</Label>
+                    <Input
+                      value={form.audio_companion_banner_url}
+                      onChange={(e) => updateField('audio_companion_banner_url', e.target.value)}
+                      placeholder="https://..."
+                      className="surface-secondary border-[#2D3B55] text-[#F8FAFC]"
+                    />
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

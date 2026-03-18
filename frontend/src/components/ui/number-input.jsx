@@ -3,18 +3,27 @@ import { cn } from "../../lib/utils"
 
 const NumberInput = React.forwardRef(({ className, value, onChange, min, max, step, placeholder, ...props }, ref) => {
   // Store the display value as string to allow proper editing
-  const [displayValue, setDisplayValue] = React.useState(value?.toString() || "");
+  const [displayValue, setDisplayValue] = React.useState(() => {
+    if (value === undefined || value === null || value === "") return "";
+    return value.toString();
+  });
   
-  // Update display value when external value changes
+  // Track if user is currently editing
+  const [isEditing, setIsEditing] = React.useState(false);
+  
+  // Update display value when external value changes (only when not editing)
   React.useEffect(() => {
-    if (value !== undefined && value !== null) {
-      // Only update if value is different to avoid cursor position issues
-      const numericDisplay = displayValue === "" ? "" : parseFloat(displayValue);
-      if (numericDisplay !== value) {
-        setDisplayValue(value === 0 ? "" : value.toString());
-      }
+    if (!isEditing && value !== undefined && value !== null) {
+      setDisplayValue(value.toString());
     }
-  }, [value]);
+  }, [value, isEditing]);
+
+  const handleFocus = (e) => {
+    setIsEditing(true);
+    // Select all text on focus for easy replacement
+    e.target.select();
+    props.onFocus && props.onFocus(e);
+  };
 
   const handleChange = (e) => {
     const inputValue = e.target.value;
@@ -26,7 +35,7 @@ const NumberInput = React.forwardRef(({ className, value, onChange, min, max, st
       return;
     }
     
-    // Allow valid number patterns including decimals
+    // Allow valid number patterns including decimals and negative
     if (/^-?\d*\.?\d*$/.test(inputValue)) {
       setDisplayValue(inputValue);
       
@@ -39,9 +48,11 @@ const NumberInput = React.forwardRef(({ className, value, onChange, min, max, st
   };
 
   const handleBlur = (e) => {
+    setIsEditing(false);
+    
     // On blur, clean up the display value
     if (displayValue === "" || displayValue === "-" || displayValue === ".") {
-      setDisplayValue("");
+      setDisplayValue("0");
       onChange && onChange({ target: { value: 0 } });
     } else {
       const numValue = parseFloat(displayValue);
@@ -66,6 +77,7 @@ const NumberInput = React.forwardRef(({ className, value, onChange, min, max, st
       ref={ref}
       value={displayValue}
       onChange={handleChange}
+      onFocus={handleFocus}
       onBlur={handleBlur}
       placeholder={placeholder || "0"}
       className={cn(
