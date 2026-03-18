@@ -17,7 +17,8 @@ import {
   Smartphone,
   Film,
   Layers,
-  Volume2
+  Volume2,
+  ChevronDown
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -28,6 +29,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "../components/ui/dropdown-menu";
 import {
   AlertDialog,
@@ -292,13 +295,22 @@ function CreativePreview({ creative, onClose }) {
                         />
                       )}
                       <div className="flex-1">
-                        <h4 className="text-sm font-semibold text-gray-900">{nd.title}</h4>
+                        <h4 className="text-sm font-semibold text-gray-900">{nd.title || 'No Title'}</h4>
                         {nd.description && (
                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{nd.description}</p>
                         )}
                         {nd.sponsored_by && (
                           <p className="text-[10px] text-gray-400 mt-1">Sponsored by {nd.sponsored_by}</p>
                         )}
+                        {/* Rating and Price */}
+                        <div className="flex items-center gap-2 mt-1">
+                          {nd.rating && (
+                            <span className="text-xs text-yellow-500">★ {nd.rating}</span>
+                          )}
+                          {nd.price && (
+                            <span className="text-xs text-green-600 font-medium">{nd.price}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <button className="mt-3 w-full py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors">
@@ -323,8 +335,58 @@ function CreativePreview({ creative, onClose }) {
                   controls 
                   className="w-full"
                 />
+                {creative.audio_data?.companion_banner_url && (
+                  <div className="mt-3">
+                    <p className="text-xs text-[#64748B] mb-2">Companion Banner:</p>
+                    <img 
+                      src={creative.audio_data.companion_banner_url}
+                      alt="Companion"
+                      className="max-w-full rounded border border-[#2D3B55]"
+                      style={{ 
+                        maxWidth: creative.audio_data.companion_width || 300,
+                        maxHeight: creative.audio_data.companion_height || 250
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-              <Badge className="bg-[#8B5CF6]/20 text-[#8B5CF6]">Audio Ad</Badge>
+              <Badge className="bg-[#EC4899]/20 text-[#EC4899]">Audio Ad</Badge>
+            </div>
+          );
+        } else if (creative.audio_data?.vast_url) {
+          return (
+            <div className="flex flex-col items-center gap-4">
+              <div className="p-4 surface-secondary rounded-lg w-full">
+                <p className="text-xs text-[#64748B] mb-3">Audio VAST URL ({creative.audio_data?.duration || 30}s)</p>
+                <div className="p-3 bg-[#020408] rounded border border-[#2D3B55]">
+                  <code className="text-xs text-[#EC4899] font-mono break-all">
+                    {creative.audio_data.vast_url}
+                  </code>
+                </div>
+                <div className="mt-3">
+                  <a 
+                    href={creative.audio_data.vast_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#EC4899] hover:underline"
+                  >
+                    Open VAST in new tab →
+                  </a>
+                </div>
+              </div>
+              <Badge className="bg-[#EC4899]/20 text-[#EC4899]">Audio VAST</Badge>
+            </div>
+          );
+        } else if (creative.audio_data?.vast_xml) {
+          return (
+            <div className="flex flex-col items-center gap-4">
+              <div className="p-4 surface-secondary rounded-lg w-full">
+                <p className="text-xs text-[#64748B] mb-3">Audio VAST XML ({creative.audio_data?.duration || 30}s)</p>
+                <pre className="text-xs text-[#94A3B8] font-mono overflow-auto max-h-[200px] p-3 bg-[#020408] rounded border border-[#2D3B55]">
+                  {creative.audio_data.vast_xml}
+                </pre>
+              </div>
+              <Badge className="bg-[#EC4899]/20 text-[#EC4899]">Audio VAST XML</Badge>
             </div>
           );
         }
@@ -583,27 +645,53 @@ export default function Creatives() {
           <h1 className="text-3xl font-bold text-[#F8FAFC]">Creatives</h1>
           <p className="text-sm text-[#94A3B8] mt-1">Manage ad creatives for your campaigns</p>
         </div>
-        <div className="flex gap-2">
-          <Link to="/creatives/editor">
-            <Button 
-              variant="outline"
-              className="border-[#8B5CF6] text-[#8B5CF6] hover:bg-[#8B5CF6]/10"
-              data-testid="advanced-editor-btn"
-            >
-              <Code className="w-4 h-4 mr-2" />
-              Advanced Editor
-            </Button>
-          </Link>
-          <Link to="/creatives/new">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button 
               className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white btn-press shadow-[0_0_10px_rgba(59,130,246,0.3)]"
               data-testid="create-creative-btn"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Creative
+              <ChevronDown className="w-4 h-4 ml-2" />
             </Button>
-          </Link>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="surface-primary border-panel w-56">
+            <DropdownMenuLabel className="text-[#94A3B8]">Standard Creatives</DropdownMenuLabel>
+            <Link to="/creatives/new?type=banner">
+              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
+                <Image className="w-4 h-4 mr-2 text-[#3B82F6]" />
+                Banner / Display
+              </DropdownMenuItem>
+            </Link>
+            <Link to="/creatives/new?type=video">
+              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
+                <Video className="w-4 h-4 mr-2 text-[#EF4444]" />
+                Video
+              </DropdownMenuItem>
+            </Link>
+            <Link to="/creatives/new?type=native">
+              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
+                <Smartphone className="w-4 h-4 mr-2 text-[#F59E0B]" />
+                Native
+              </DropdownMenuItem>
+            </Link>
+            <Link to="/creatives/new?type=audio">
+              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
+                <Volume2 className="w-4 h-4 mr-2 text-[#EC4899]" />
+                Audio
+              </DropdownMenuItem>
+            </Link>
+            <DropdownMenuSeparator className="bg-[#2D3B55]" />
+            <DropdownMenuLabel className="text-[#94A3B8]">Advanced</DropdownMenuLabel>
+            <Link to="/creatives/editor">
+              <DropdownMenuItem className="text-[#F8FAFC] cursor-pointer hover:bg-[#2D3B55]">
+                <Code className="w-4 h-4 mr-2 text-[#8B5CF6]" />
+                JS Tag / Code Editor
+              </DropdownMenuItem>
+            </Link>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Format Tabs */}

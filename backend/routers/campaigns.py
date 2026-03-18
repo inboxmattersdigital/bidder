@@ -63,7 +63,17 @@ async def create_campaign(input: CampaignCreate):
         spo=input.spo,
         ml_prediction=input.ml_prediction,
         targeting=input.targeting,
-        status=CampaignStatus.DRAFT
+        status=CampaignStatus.DRAFT,
+        # KPI fields
+        kpi_type=input.kpi_type,
+        kpi_target=input.kpi_target,
+        # Additional fields
+        iab_categories=input.iab_categories,
+        description=input.description,
+        primary_goal=input.primary_goal,
+        bidding_strategy=input.bidding_strategy,
+        inventory_sources=input.inventory_sources,
+        environments=input.environments
     )
     
     if input.start_date:

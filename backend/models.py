@@ -544,6 +544,18 @@ class Campaign(BaseModel):
     
     # ML model data
     ml_model_data: Dict[str, Any] = Field(default_factory=dict)
+    
+    # KPI fields
+    kpi_type: str = Field(default="cpm", description="Primary KPI type (cpm, cpc, cpa, etc.)")
+    kpi_target: float = Field(default=0.0, description="Target KPI value")
+    
+    # Additional campaign settings
+    iab_categories: List[str] = Field(default_factory=list, description="IAB content categories")
+    description: Optional[str] = Field(default=None, description="Campaign description")
+    primary_goal: str = Field(default="brand_awareness", description="Primary campaign goal")
+    bidding_strategy: str = Field(default="manual", description="Bidding strategy")
+    inventory_sources: List[str] = Field(default_factory=lambda: ["open_exchange"], description="Inventory sources")
+    environments: List[str] = Field(default_factory=lambda: ["web", "app"], description="Target environments")
 
 
 # ==================== CAMPAIGN OVERVIEW (Enhanced) ====================
@@ -1014,6 +1026,16 @@ class CampaignCreate(BaseModel):
     targeting: CampaignTargeting = Field(default_factory=CampaignTargeting)
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    # KPI fields
+    kpi_type: str = "cpm"
+    kpi_target: float = 0.0
+    # Additional fields
+    iab_categories: List[str] = Field(default_factory=list)
+    description: Optional[str] = None
+    primary_goal: str = "brand_awareness"
+    bidding_strategy: str = "manual"
+    inventory_sources: List[str] = Field(default_factory=lambda: ["open_exchange"])
+    environments: List[str] = Field(default_factory=lambda: ["web", "app"])
 
 
 class CampaignUpdate(BaseModel):
@@ -1033,6 +1055,16 @@ class CampaignUpdate(BaseModel):
     targeting: Optional[CampaignTargeting] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    # KPI fields
+    kpi_type: Optional[str] = None
+    kpi_target: Optional[float] = None
+    # Additional fields
+    iab_categories: Optional[List[str]] = None
+    description: Optional[str] = None
+    primary_goal: Optional[str] = None
+    bidding_strategy: Optional[str] = None
+    inventory_sources: Optional[List[str]] = None
+    environments: Optional[List[str]] = None
 
 
 class CreativeCreate(BaseModel):

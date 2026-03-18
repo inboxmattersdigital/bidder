@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { 
   ArrowLeft, Save, Upload, CheckCircle, XCircle, AlertCircle, 
   Play, FileVideo, Link, Code, Loader2, RefreshCw, Music
@@ -27,12 +27,16 @@ const AUDIO_FORMATS = {
 
 export default function CreativeForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
   const audioFileInputRef = useRef(null);
   const nativeImageInputRef = useRef(null);
   const nativeIconInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
-  const [type, setType] = useState("banner");
+  
+  // Initialize type from URL param or default to "banner"
+  const initialType = searchParams.get("type") || "banner";
+  const [type, setType] = useState(initialType);
   const [videoSource, setVideoSource] = useState("vast_url");
   const [audioSource, setAudioSource] = useState("audio_vast_url");
   
