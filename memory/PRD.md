@@ -614,6 +614,15 @@ Fraud | Audiences | Attribution | Migration
   - Added auth interceptor to `api.js` for automatic token inclusion
   - Testing: 100% pass rate (11/11 backend tests, frontend verified)
 
+### Campaign Ownership Enhancement (March 2026)
+- [x] **Automatic Campaign Ownership Assignment** - Campaigns are now automatically linked to the user who creates them
+  - New campaigns get `owner_id` and `owner_email` from the authenticated user
+  - Existing campaigns/creatives can be migrated using `/api/migrate/assign-ownership`
+  - Updated seed data to assign ownership to demo advertiser account
+  - Data isolation enforced: Advertisers only see their own campaigns/creatives
+  - Admins see their own + their team's data
+  - Super Admins see all platform data
+
 ### Refactoring (March 2026)
 - [x] **CampaignWizard.jsx Refactored** - Broke down 3,933 line monolithic file into 12 modular components:
   - `/pages/CampaignWizard/constants.js` - All constants and initial state

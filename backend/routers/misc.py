@@ -937,7 +937,11 @@ async def seed_sample_data():
     # Reload SSPs with IDs
     ssps = await db.ssp_endpoints.find({}, {"_id": 0}).to_list(100)
     
-    # Create Creatives
+    # Get the demo advertiser user ID for ownership
+    demo_advertiser = await db.users.find_one({"email": "advertiser@demo.com"}, {"_id": 0, "id": 1})
+    advertiser_owner_id = demo_advertiser["id"] if demo_advertiser else None
+    
+    # Create Creatives with ownership
     creatives = [
         {"id": str(uuid.uuid4()), "name": "Hero Banner 300x250", "type": "banner", "size": "300x250", "status": "active"},
         {"id": str(uuid.uuid4()), "name": "Video Pre-roll 15s", "type": "video", "duration": 15, "status": "active"},
@@ -948,14 +952,27 @@ async def seed_sample_data():
     
     for creative in creatives:
         creative["created_at"] = datetime.now(timezone.utc).isoformat()
+        creative["owner_id"] = advertiser_owner_id
+        creative["owner_email"] = "advertiser@demo.com" if advertiser_owner_id else None
         existing = await db.creatives.find_one({"name": creative["name"]})
         if not existing:
             await db.creatives.insert_one(creative)
+        else:
+            # Update existing creative with ownership if not set
+            if not existing.get("owner_id") and advertiser_owner_id:
+                await db.creatives.update_one(
+                    {"name": creative["name"]},
+                    {"$set": {"owner_id": advertiser_owner_id, "owner_email": "advertiser@demo.com"}}
+                )
     
     # Reload creatives with IDs
     creatives = await db.creatives.find({}, {"_id": 0}).to_list(100)
     
-    # Create Campaigns
+    # Create Campaigns with ownership assigned to advertiser demo account
+    # Get the demo advertiser user ID
+    demo_advertiser = await db.users.find_one({"email": "advertiser@demo.com"}, {"_id": 0, "id": 1})
+    advertiser_owner_id = demo_advertiser["id"] if demo_advertiser else None
+    
     campaigns = [
         {"id": str(uuid.uuid4()), "name": "Brand Awareness Q1", "status": "active", "goal": "awareness"},
         {"id": str(uuid.uuid4()), "name": "Retargeting Spring", "status": "active", "goal": "conversions"},
@@ -981,9 +998,19 @@ async def seed_sample_data():
         campaign["wins"] = 0
         campaign["created_at"] = datetime.now(timezone.utc).isoformat()
         campaign["updated_at"] = datetime.now(timezone.utc).isoformat()
+        # Assign ownership to demo advertiser
+        campaign["owner_id"] = advertiser_owner_id
+        campaign["owner_email"] = "advertiser@demo.com" if advertiser_owner_id else None
         existing = await db.campaigns.find_one({"name": campaign["name"]})
         if not existing:
             await db.campaigns.insert_one(campaign)
+        else:
+            # Update existing campaign with ownership if not set
+            if not existing.get("owner_id") and advertiser_owner_id:
+                await db.campaigns.update_one(
+                    {"name": campaign["name"]},
+                    {"$set": {"owner_id": advertiser_owner_id, "owner_email": "advertiser@demo.com"}}
+                )
     
     # Reload campaigns with IDs
     campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(100)
@@ -1150,3 +1177,46 @@ async def update_bid_logs_with_ip_device():
         "updated_count": updated_count,
         "message": f"Updated {updated_count} bid_logs with IP and device_ifa"
     }
+
+
+@router.post("/migrate/assign-ownership")
+async def migrate_assign_ownership():
+    """
+    Migrate existing campaigns and creatives to assign ownership to demo advertiser.
+    This fixes data isolation for existing data that was created before ownership tracking.
+    """
+    # Get the demo advertiser user ID
+    demo_advertiser = await db.users.find_one({"email": "advertiser@demo.com"}, {"_id": 0, "id": 1, "email": 1})
+    
+    if not demo_advertiser:
+        return {
+            "status": "error",
+            "message": "Demo advertiser account (advertiser@demo.com) not found. Please create demo accounts first."
+        }
+    
+    advertiser_id = demo_advertiser["id"]
+    advertiser_email = "advertiser@demo.com"
+    
+    # Update campaigns without owner_id
+    campaigns_result = await db.campaigns.update_many(
+        {"$or": [{"owner_id": None}, {"owner_id": {"$exists": False}}]},
+        {"$set": {"owner_id": advertiser_id, "owner_email": advertiser_email}}
+    )
+    
+    # Update creatives without owner_id
+    creatives_result = await db.creatives.update_many(
+        {"$or": [{"owner_id": None}, {"owner_id": {"$exists": False}}]},
+        {"$set": {"owner_id": advertiser_id, "owner_email": advertiser_email}}
+    )
+    
+    return {
+        "status": "success",
+        "campaigns_updated": campaigns_result.modified_count,
+        "creatives_updated": creatives_result.modified_count,
+        "assigned_to": {
+            "user_id": advertiser_id,
+            "email": advertiser_email
+        },
+        "message": f"Assigned ownership of {campaigns_result.modified_count} campaigns and {creatives_result.modified_count} creatives to {advertiser_email}"
+    }
+
