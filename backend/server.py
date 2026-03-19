@@ -20,6 +20,7 @@ from routers.optimization import router as optimization_router
 from routers.attribution import router as attribution_router
 from routers.misc import router as misc_router
 from routers.media_planning import router as media_planning_router
+from routers.auth import router as auth_router
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ app = FastAPI(
 
 
 # Include all routers with /api prefix
+app.include_router(auth_router, prefix="/api")
 app.include_router(reference_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(creatives_router, prefix="/api")

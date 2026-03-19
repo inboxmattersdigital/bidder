@@ -1,5 +1,6 @@
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 import { 
   LayoutDashboard, 
   Megaphone, 
@@ -23,35 +24,50 @@ import {
   GitBranch,
   PieChart,
   Target,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Settings,
+  LogOut,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Switch } from "./ui/switch";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
-const navItems = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/campaigns", icon: Megaphone, label: "Campaigns", end: true },
-  { to: "/campaigns/compare", icon: Scale, label: "Compare" },
-  { to: "/media-planner", icon: Target, label: "Media Planner" },
-  { to: "/creatives", icon: Image, label: "Creatives" },
-  { to: "/ssp-endpoints", icon: Server, label: "SSP Endpoints" },
-  { to: "/ssp-analytics", icon: PieChart, label: "SSP Analytics" },
-  { to: "/bid-logs", icon: ScrollText, label: "Bid Logs" },
-  { to: "/bid-stream", icon: Activity, label: "Bid Stream" },
-  { to: "/reports", icon: BarChart3, label: "Reports", end: true },
-  { to: "/reports/ad-performance", icon: FileSpreadsheet, label: "Ad Performance" },
-  { to: "/pacing", icon: Gauge, label: "Budget Pacing" },
-  { to: "/insights", icon: Lightbulb, label: "Insights" },
-  { to: "/ml-models", icon: Brain, label: "ML Models" },
-  { to: "/bid-optimization", icon: TrendingUp, label: "Bid Optimizer" },
-  { to: "/ab-testing", icon: FlaskConical, label: "A/B Testing" },
-  { to: "/fraud-detection", icon: ShieldAlert, label: "Fraud" },
-  { to: "/audiences", icon: Users, label: "Audiences" },
-  { to: "/attribution", icon: GitBranch, label: "Attribution" },
-  { to: "/migration-matrix", icon: ArrowRightLeft, label: "Migration" },
+// Map sidebar item IDs to nav items
+const navItemsConfig = [
+  { id: "dashboard", to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { id: "campaigns", to: "/campaigns", icon: Megaphone, label: "Campaigns", end: true },
+  { id: "compare", to: "/campaigns/compare", icon: Scale, label: "Compare" },
+  { id: "media_planner", to: "/media-planner", icon: Target, label: "Media Planner" },
+  { id: "creatives", to: "/creatives", icon: Image, label: "Creatives" },
+  { id: "ssp_endpoints", to: "/ssp-endpoints", icon: Server, label: "SSP Endpoints" },
+  { id: "ssp_analytics", to: "/ssp-analytics", icon: PieChart, label: "SSP Analytics" },
+  { id: "bid_logs", to: "/bid-logs", icon: ScrollText, label: "Bid Logs" },
+  { id: "bid_stream", to: "/bid-stream", icon: Activity, label: "Bid Stream" },
+  { id: "reports", to: "/reports", icon: BarChart3, label: "Reports", end: true },
+  { id: "ad_performance", to: "/reports/ad-performance", icon: FileSpreadsheet, label: "Ad Performance" },
+  { id: "budget_pacing", to: "/pacing", icon: Gauge, label: "Budget Pacing" },
+  { id: "insights", to: "/insights", icon: Lightbulb, label: "Insights" },
+  { id: "ml_models", to: "/ml-models", icon: Brain, label: "ML Models" },
+  { id: "bid_optimizer", to: "/bid-optimization", icon: TrendingUp, label: "Bid Optimizer" },
+  { id: "ab_testing", to: "/ab-testing", icon: FlaskConical, label: "A/B Testing" },
+  { id: "fraud", to: "/fraud-detection", icon: ShieldAlert, label: "Fraud" },
+  { id: "audiences", to: "/audiences", icon: Users, label: "Audiences" },
+  { id: "attribution", to: "/attribution", icon: GitBranch, label: "Attribution" },
+  { id: "migration", to: "/migration-matrix", icon: ArrowRightLeft, label: "Migration" },
+  { id: "admin_panel", to: "/admin", icon: Settings, label: "Admin Panel" },
 ];
 
 export default function Layout() {
+  const { user, isAuthenticated, loading, logout, hasSidebarAccess } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : true; // Default to dark
@@ -61,6 +77,32 @@ export default function Layout() {
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
     document.documentElement.classList.toggle('light-theme', !isDarkMode);
   }, [isDarkMode]);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#020408] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3B82F6]"></div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Filter nav items based on user's sidebar access
+  const visibleNavItems = navItemsConfig.filter(item => hasSidebarAccess(item.id));
+
+  const getRoleBadgeColor = (role) => {
+    switch (role) {
+      case "super_admin": return "bg-[#F59E0B]/20 text-[#F59E0B]";
+      case "admin": return "bg-[#10B981]/20 text-[#10B981]";
+      case "advertiser": return "bg-[#3B82F6]/20 text-[#3B82F6]";
+      default: return "bg-[#64748B]/20 text-[#64748B]";
+    }
+  };
 
   return (
     <div className={cn("min-h-screen flex", isDarkMode ? "bg-[#020408]" : "bg-slate-100")} data-testid="app-layout">
@@ -83,8 +125,8 @@ export default function Layout() {
         </div>
         
         {/* Navigation */}
-        <nav className="flex-1 py-4" data-testid="nav-menu">
-          {navItems.map((item) => (
+        <nav className="flex-1 py-4 overflow-y-auto" data-testid="nav-menu">
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -109,8 +151,48 @@ export default function Layout() {
           ))}
         </nav>
         
-        {/* Theme Toggle & Footer */}
+        {/* User Profile & Theme Toggle */}
         <div className={cn("p-4 border-t", isDarkMode ? "border-[#2D3B55]" : "border-slate-200")}>
+          {/* User Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                className={cn(
+                  "w-full justify-start gap-2 mb-3 px-2",
+                  isDarkMode ? "hover:bg-[#151F32]" : "hover:bg-slate-100"
+                )}
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center text-white text-xs font-medium">
+                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                </div>
+                <div className="flex-1 text-left">
+                  <p className={cn("text-sm font-medium truncate", isDarkMode ? "text-[#F8FAFC]" : "text-slate-900")}>
+                    {user?.name || "User"}
+                  </p>
+                  <Badge className={cn("text-[10px] px-1.5 py-0", getRoleBadgeColor(user?.role))}>
+                    {user?.role?.replace("_", " ")}
+                  </Badge>
+                </div>
+                <ChevronDown className="w-4 h-4 text-[#64748B]" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 surface-primary border-[#2D3B55]">
+              <DropdownMenuItem className="text-[#94A3B8]" disabled>
+                {user?.email}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-[#2D3B55]" />
+              <DropdownMenuItem 
+                onClick={logout}
+                className="text-[#EF4444] focus:text-[#EF4444] cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Theme Toggle */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               {isDarkMode ? <Moon className="w-4 h-4 text-[#94A3B8]" /> : <Sun className="w-4 h-4 text-amber-500" />}

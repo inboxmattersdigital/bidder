@@ -1,6 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
+import { AuthProvider } from "./context/AuthContext";
 import Layout from "./components/Layout";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import AdminPanel from "./pages/AdminPanel";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
 import CampaignWizard from "./pages/CampaignWizard";
@@ -29,45 +33,53 @@ import "./App.css";
 function App() {
   return (
     <BrowserRouter>
-      <Toaster 
-        position="bottom-right" 
-        toastOptions={{
-          style: {
-            background: '#0B1221',
-            border: '1px solid #2D3B55',
-            color: '#F8FAFC',
-          },
-        }}
-      />
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="campaigns" element={<Campaigns />} />
-          <Route path="campaigns/new" element={<CampaignWizard />} />
-          <Route path="campaigns/:id/edit" element={<CampaignWizard />} />
-          <Route path="campaigns/compare" element={<CampaignComparison />} />
-          <Route path="creatives" element={<Creatives />} />
-          <Route path="creatives/new" element={<CreativeForm />} />
-          <Route path="creatives/editor" element={<CreativeEditor />} />
-          <Route path="ssp-endpoints" element={<SSPEndpoints />} />
-          <Route path="ssp-analytics" element={<SSPAnalytics />} />
-          <Route path="bid-logs" element={<BidLogs />} />
-          <Route path="bid-stream" element={<BidStream />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="reports/ad-performance" element={<AdPerformanceReport />} />
-          <Route path="pacing" element={<Pacing />} />
-          <Route path="insights" element={<Insights />} />
-          <Route path="ml-models" element={<MLModels />} />
-          <Route path="bid-optimization" element={<BidOptimization />} />
-          <Route path="ab-testing" element={<ABTesting />} />
-          <Route path="fraud-detection" element={<FraudDetection />} />
-          <Route path="audiences" element={<Audiences />} />
-          <Route path="attribution" element={<Attribution />} />
-          <Route path="media-planner" element={<MediaPlanner />} />
-          <Route path="migration-matrix" element={<MigrationMatrix />} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <Toaster 
+          position="bottom-right" 
+          toastOptions={{
+            style: {
+              background: '#0B1221',
+              border: '1px solid #2D3B55',
+              color: '#F8FAFC',
+            },
+          }}
+        />
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          {/* Protected routes */}
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="campaigns" element={<Campaigns />} />
+            <Route path="campaigns/new" element={<CampaignWizard />} />
+            <Route path="campaigns/:id/edit" element={<CampaignWizard />} />
+            <Route path="campaigns/compare" element={<CampaignComparison />} />
+            <Route path="creatives" element={<Creatives />} />
+            <Route path="creatives/new" element={<CreativeForm />} />
+            <Route path="creative-editor" element={<CreativeEditor />} />
+            <Route path="ssp-endpoints" element={<SSPEndpoints />} />
+            <Route path="ssp-analytics" element={<SSPAnalytics />} />
+            <Route path="bid-logs" element={<BidLogs />} />
+            <Route path="bid-stream" element={<BidStream />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="reports/ad-performance" element={<AdPerformanceReport />} />
+            <Route path="pacing" element={<Pacing />} />
+            <Route path="insights" element={<Insights />} />
+            <Route path="ml-models" element={<MLModels />} />
+            <Route path="bid-optimization" element={<BidOptimization />} />
+            <Route path="ab-testing" element={<ABTesting />} />
+            <Route path="fraud-detection" element={<FraudDetection />} />
+            <Route path="audiences" element={<Audiences />} />
+            <Route path="attribution" element={<Attribution />} />
+            <Route path="media-planner" element={<MediaPlanner />} />
+            <Route path="migration-matrix" element={<MigrationMatrix />} />
+            <Route path="admin" element={<AdminPanel />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
