@@ -1,7 +1,7 @@
 """
 Analytics endpoints - SSP analytics, dashboard stats, reports, pacing, insights
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -13,6 +13,7 @@ import logging
 
 from models import DashboardStats
 from routers.shared import db
+from routers.auth import get_current_user, UserRole
 
 router = APIRouter(tags=["Analytics"])
 
@@ -83,6 +84,307 @@ async def get_chart_data():
         "bids": [d["bids"] for d in daily_data],
         "wins": [d["wins"] for d in daily_data],
         "spend": [d["spend"] / 1000 for d in daily_data]
+    }
+
+
+# ==================== ROLE-BASED DASHBOARD ====================
+
+@router.get("/dashboard/role-data")
+async def get_role_dashboard_data(current_user: dict = Depends(get_current_user)):
+    """
+    Get dashboard data based on user role.
+    - Advertiser: Own campaigns, performance metrics, creatives
+    - Admin: Team overview, all advertisers stats, top performers
+    - Super Admin: Platform health, all admins/advertisers, system metrics
+    """
+    user_role = current_user.get("role")
+    user_id = current_user.get("id")
+    
+    if user_role == UserRole.ADVERTISER.value:
+        return await _get_advertiser_dashboard(user_id)
+    elif user_role == UserRole.ADMIN.value:
+        return await _get_admin_dashboard(user_id)
+    elif user_role == UserRole.SUPER_ADMIN.value:
+        return await _get_super_admin_dashboard()
+    else:
+        # Default fallback
+        return await _get_advertiser_dashboard(user_id)
+
+
+async def _get_advertiser_dashboard(user_id: str):
+    """Dashboard for Advertiser role - Focus on own campaign performance"""
+    # Get user's campaigns
+    campaigns = await db.campaigns.find(
+        {"owner_id": user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Get user's creatives
+    creatives = await db.creatives.find(
+        {"owner_id": user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Calculate performance metrics
+    total_campaigns = len(campaigns)
+    active_campaigns = len([c for c in campaigns if c.get("status") == "active"])
+    total_bids = sum(c.get("bids", 0) for c in campaigns)
+    total_wins = sum(c.get("wins", 0) for c in campaigns)
+    total_spend = sum(c.get("budget", {}).get("total_spent", 0) for c in campaigns)
+    total_impressions = sum(c.get("impressions", 0) for c in campaigns)
+    total_clicks = sum(c.get("clicks", 0) for c in campaigns)
+    
+    win_rate = (total_wins / total_bids * 100) if total_bids > 0 else 0
+    ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
+    
+    # Top performing campaigns (by wins)
+    top_campaigns = sorted(campaigns, key=lambda c: c.get("wins", 0), reverse=True)[:5]
+    
+    # Recent activity from audit logs
+    recent_activity = await db.audit_logs.find(
+        {"actor.user_id": user_id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(10).to_list(10)
+    
+    return {
+        "role": "advertiser",
+        "welcome_message": "Your Campaign Performance",
+        "stats": {
+            "total_campaigns": total_campaigns,
+            "active_campaigns": active_campaigns,
+            "total_creatives": len(creatives),
+            "total_bids": total_bids,
+            "total_wins": total_wins,
+            "win_rate": round(win_rate, 2),
+            "total_spend": round(total_spend, 2),
+            "total_impressions": total_impressions,
+            "total_clicks": total_clicks,
+            "ctr": round(ctr, 2)
+        },
+        "top_campaigns": [
+            {
+                "id": c.get("id"),
+                "name": c.get("name"),
+                "status": c.get("status"),
+                "bids": c.get("bids", 0),
+                "wins": c.get("wins", 0),
+                "spend": c.get("budget", {}).get("total_spent", 0)
+            }
+            for c in top_campaigns
+        ],
+        "recent_creatives": [
+            {
+                "id": cr.get("id"),
+                "name": cr.get("name"),
+                "type": cr.get("type"),
+                "status": cr.get("status", "active")
+            }
+            for cr in creatives[:5]
+        ],
+        "recent_activity": [
+            {
+                "action": a.get("action"),
+                "timestamp": a.get("timestamp"),
+                "details": a.get("details")
+            }
+            for a in recent_activity
+        ]
+    }
+
+
+async def _get_admin_dashboard(user_id: str):
+    """Dashboard for Admin role - Focus on team overview"""
+    # Get admin's advertisers
+    advertisers = await db.users.find(
+        {"parent_id": user_id, "role": UserRole.ADVERTISER.value},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(100)
+    
+    advertiser_ids = [a["id"] for a in advertisers]
+    owner_ids = [user_id] + advertiser_ids
+    
+    # Get all campaigns across the team
+    campaigns = await db.campaigns.find(
+        {"owner_id": {"$in": owner_ids}},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Get all creatives across the team
+    creatives_count = await db.creatives.count_documents({"owner_id": {"$in": owner_ids}})
+    
+    # Calculate aggregate metrics
+    total_campaigns = len(campaigns)
+    active_campaigns = len([c for c in campaigns if c.get("status") == "active"])
+    total_bids = sum(c.get("bids", 0) for c in campaigns)
+    total_wins = sum(c.get("wins", 0) for c in campaigns)
+    total_spend = sum(c.get("budget", {}).get("total_spent", 0) for c in campaigns)
+    total_impressions = sum(c.get("impressions", 0) for c in campaigns)
+    
+    win_rate = (total_wins / total_bids * 100) if total_bids > 0 else 0
+    
+    # Top advertisers by spend
+    advertiser_spend = {}
+    for c in campaigns:
+        owner = c.get("owner_id")
+        if owner in advertiser_ids:
+            advertiser_spend[owner] = advertiser_spend.get(owner, 0) + c.get("budget", {}).get("total_spent", 0)
+    
+    top_advertisers = []
+    for adv in advertisers:
+        adv_id = adv["id"]
+        adv_campaigns = [c for c in campaigns if c.get("owner_id") == adv_id]
+        top_advertisers.append({
+            "id": adv_id,
+            "name": adv.get("name"),
+            "email": adv.get("email"),
+            "campaigns": len(adv_campaigns),
+            "spend": advertiser_spend.get(adv_id, 0),
+            "is_active": adv.get("is_active", True)
+        })
+    
+    top_advertisers.sort(key=lambda x: x["spend"], reverse=True)
+    
+    # Recent team activity
+    recent_activity = await db.audit_logs.find(
+        {"actor.user_id": {"$in": owner_ids}},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(10).to_list(10)
+    
+    return {
+        "role": "admin",
+        "welcome_message": "Team Overview",
+        "stats": {
+            "total_advertisers": len(advertisers),
+            "active_advertisers": len([a for a in advertisers if a.get("is_active", True)]),
+            "total_campaigns": total_campaigns,
+            "active_campaigns": active_campaigns,
+            "total_creatives": creatives_count,
+            "total_bids": total_bids,
+            "total_wins": total_wins,
+            "win_rate": round(win_rate, 2),
+            "total_spend": round(total_spend, 2),
+            "total_impressions": total_impressions
+        },
+        "top_advertisers": top_advertisers[:5],
+        "campaigns_by_status": {
+            "active": len([c for c in campaigns if c.get("status") == "active"]),
+            "paused": len([c for c in campaigns if c.get("status") == "paused"]),
+            "draft": len([c for c in campaigns if c.get("status") == "draft"]),
+            "completed": len([c for c in campaigns if c.get("status") == "completed"])
+        },
+        "recent_activity": [
+            {
+                "action": a.get("action"),
+                "actor_name": a.get("actor", {}).get("email"),
+                "timestamp": a.get("timestamp"),
+                "details": a.get("details")
+            }
+            for a in recent_activity
+        ]
+    }
+
+
+async def _get_super_admin_dashboard():
+    """Dashboard for Super Admin role - Platform health and overview"""
+    # Get all users
+    all_users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    admins = [u for u in all_users if u.get("role") == UserRole.ADMIN.value]
+    advertisers = [u for u in all_users if u.get("role") == UserRole.ADVERTISER.value]
+    
+    # Get all campaigns
+    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(1000)
+    
+    # Get all creatives count
+    creatives_count = await db.creatives.count_documents({})
+    
+    # Get all SSP endpoints
+    endpoints_count = await db.ssp_endpoints.count_documents({})
+    
+    # Calculate platform metrics
+    total_campaigns = len(campaigns)
+    active_campaigns = len([c for c in campaigns if c.get("status") == "active"])
+    total_bids = sum(c.get("bids", 0) for c in campaigns)
+    total_wins = sum(c.get("wins", 0) for c in campaigns)
+    total_spend = sum(c.get("budget", {}).get("total_spent", 0) for c in campaigns)
+    total_impressions = sum(c.get("impressions", 0) for c in campaigns)
+    
+    win_rate = (total_wins / total_bids * 100) if total_bids > 0 else 0
+    
+    # Top admins by team size
+    top_admins = []
+    for admin in admins:
+        admin_advertisers = [a for a in advertisers if a.get("parent_id") == admin["id"]]
+        admin_campaigns = [c for c in campaigns if c.get("owner_id") == admin["id"] or c.get("owner_id") in [a["id"] for a in admin_advertisers]]
+        admin_spend = sum(c.get("budget", {}).get("total_spent", 0) for c in admin_campaigns)
+        
+        top_admins.append({
+            "id": admin["id"],
+            "name": admin.get("name"),
+            "email": admin.get("email"),
+            "advertisers_count": len(admin_advertisers),
+            "campaigns_count": len(admin_campaigns),
+            "total_spend": admin_spend,
+            "is_active": admin.get("is_active", True)
+        })
+    
+    top_admins.sort(key=lambda x: x["total_spend"], reverse=True)
+    
+    # Recent platform activity
+    recent_activity = await db.audit_logs.find(
+        {},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(15).to_list(15)
+    
+    # System health metrics
+    recent_logins = await db.audit_logs.count_documents({
+        "action": "user.login",
+        "timestamp": {"$gte": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()}
+    })
+    
+    failed_logins = await db.audit_logs.count_documents({
+        "action": "user.login_failed",
+        "timestamp": {"$gte": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()}
+    })
+    
+    return {
+        "role": "super_admin",
+        "welcome_message": "Platform Overview",
+        "stats": {
+            "total_admins": len(admins),
+            "active_admins": len([a for a in admins if a.get("is_active", True)]),
+            "total_advertisers": len(advertisers),
+            "active_advertisers": len([a for a in advertisers if a.get("is_active", True)]),
+            "total_campaigns": total_campaigns,
+            "active_campaigns": active_campaigns,
+            "total_creatives": creatives_count,
+            "total_endpoints": endpoints_count,
+            "total_bids": total_bids,
+            "total_wins": total_wins,
+            "win_rate": round(win_rate, 2),
+            "total_spend": round(total_spend, 2),
+            "total_impressions": total_impressions
+        },
+        "top_admins": top_admins[:5],
+        "platform_health": {
+            "logins_24h": recent_logins,
+            "failed_logins_24h": failed_logins,
+            "campaigns_by_status": {
+                "active": len([c for c in campaigns if c.get("status") == "active"]),
+                "paused": len([c for c in campaigns if c.get("status") == "paused"]),
+                "draft": len([c for c in campaigns if c.get("status") == "draft"]),
+                "completed": len([c for c in campaigns if c.get("status") == "completed"])
+            }
+        },
+        "recent_activity": [
+            {
+                "action": a.get("action"),
+                "actor_name": a.get("actor", {}).get("email"),
+                "actor_role": a.get("actor", {}).get("role"),
+                "timestamp": a.get("timestamp"),
+                "success": a.get("success", True)
+            }
+            for a in recent_activity
+        ]
     }
 
 
