@@ -557,6 +557,23 @@ Fraud | Audiences | Attribution | Migration
     - Auto-reconnect on connection loss
     - GET /api/notifications/status (connected users count)
     - POST /api/notifications/broadcast (Super Admin)
+- [x] **Email Notifications with Resend (March 2026)** - Transactional email system:
+  - **Resend API Integration**:
+    - Configured with API key in backend/.env
+    - Professional HTML email templates with dark theme styling
+    - GET /api/email/status - check if email service is configured
+    - POST /api/email/test - send test emails (Super Admin only)
+  - **Notification Events**:
+    - **New User Created**: Admin receives email when they create a new advertiser
+    - **Password Reset**: User receives email with reset link (1 hour expiry)
+    - **Budget Alert**: Campaign owner receives email when budget hits 75% (warning) or 90% (critical)
+    - **Suspicious Login**: User receives email when login detected from new IP address
+  - **Email Templates**:
+    - new_user_email_template - Welcome notification for admins
+    - password_reset_email_template - Reset password with link
+    - budget_alert_email_template - Budget warning with progress bar
+    - suspicious_login_email_template - Security alert with login details
+  - **Note**: In Resend test mode, emails can only be sent to verified addresses. Production requires domain verification at resend.com/domains
 
 ### Refactoring (March 2026)
 - [x] **CampaignWizard.jsx Refactored** - Broke down 3,933 line monolithic file into 12 modular components:
