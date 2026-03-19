@@ -604,6 +604,16 @@ Fraud | Audiences | Attribution | Migration
     - Unsaved changes indicator
     - Reset and Save buttons
 
+### P0 Bug Fix - Data Leak Resolution (March 2026)
+- [x] **Fixed Advertiser Dashboard Data Leak** - The "Bidding Activity Chart" was showing global data from all users instead of user-specific data
+  - Created new `/api/dashboard/user-chart-data` endpoint with role-based filtering
+  - Advertiser: Only sees their own campaign data
+  - Admin: Sees their team's campaign data (own + advertisers under them)
+  - Super Admin: Sees all platform data
+  - Updated `Dashboard.jsx` to use `getUserChartData()` instead of global `getChartData()`
+  - Added auth interceptor to `api.js` for automatic token inclusion
+  - Testing: 100% pass rate (11/11 backend tests, frontend verified)
+
 ### Refactoring (March 2026)
 - [x] **CampaignWizard.jsx Refactored** - Broke down 3,933 line monolithic file into 12 modular components:
   - `/pages/CampaignWizard/constants.js` - All constants and initial state
