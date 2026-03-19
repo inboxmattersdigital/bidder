@@ -1,8 +1,9 @@
 """
 Authentication and Role-Based Access Control (RBAC) endpoints
 Roles: User, Advertiser, Admin, Super Admin
+Features: Password Reset, 2FA (TOTP), Audit Logging, Data Ownership
 """
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -10,8 +11,12 @@ from enum import Enum
 import hashlib
 import secrets
 import uuid
+import pyotp
+import base64
+import io
 
 from routers.shared import db
+from routers.audit import log_audit, AuditAction, get_audit_logs
 
 router = APIRouter(tags=["Authentication"])
 
@@ -48,11 +53,13 @@ class UserResponse(BaseModel):
     is_active: bool
     created_by: Optional[str] = None
     parent_id: Optional[str] = None
+    two_fa_enabled: bool = False
 
 
 class TokenResponse(BaseModel):
     token: str
     user: UserResponse
+    requires_2fa: bool = False
 
 
 class SidebarConfig(BaseModel):
@@ -70,6 +77,37 @@ class BulkAccessUpdate(BaseModel):
     role: str
     sidebar_access: Optional[List[str]] = None
     permissions: Optional[List[str]] = None
+
+
+# Password Reset Models
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str = Field(min_length=6)
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
+
+
+# 2FA Models
+class TwoFASetupResponse(BaseModel):
+    secret: str
+    qr_code_url: str
+    backup_codes: List[str]
+
+
+class TwoFAVerify(BaseModel):
+    code: str
+
+
+class TwoFALoginVerify(BaseModel):
+    temp_token: str
+    code: str
 
 
 # ============== DEFAULT PERMISSIONS ==============
@@ -311,22 +349,61 @@ async def register(user_data: UserCreate):
     return TokenResponse(token=token, user=user_response)
 
 
-@router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
-    """Login with email and password"""
+@router.post("/auth/login")
+async def login(credentials: UserLogin, request: Request):
+    """Login with email and password. Returns requires_2fa if 2FA is enabled."""
     # Find user
     user = await db.users.find_one({"email": credentials.email.lower()}, {"_id": 0})
     if not user:
+        # Log failed login attempt
+        await log_audit(
+            action=AuditAction.AUTH_LOGIN_FAILED,
+            user_id="unknown",
+            user_email=credentials.email.lower(),
+            user_role="unknown",
+            details={"reason": "User not found"},
+            ip_address=request.client.host if request.client else None,
+            success=False,
+            error_message="Invalid email or password"
+        )
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Verify password
     if user["password_hash"] != hash_password(credentials.password):
+        await log_audit(
+            action=AuditAction.AUTH_LOGIN_FAILED,
+            user_id=user["id"],
+            user_email=user["email"],
+            user_role=user["role"],
+            details={"reason": "Invalid password"},
+            ip_address=request.client.host if request.client else None,
+            success=False,
+            error_message="Invalid email or password"
+        )
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     if not user.get("is_active", True):
         raise HTTPException(status_code=401, detail="User account is deactivated")
     
-    # Create session
+    # Check if 2FA is enabled
+    if user.get("two_fa_enabled") and user.get("two_fa_secret"):
+        # Create temporary token for 2FA verification
+        temp_token = generate_token()
+        await db.temp_sessions.insert_one({
+            "temp_token": temp_token,
+            "user_id": user["id"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+            "type": "2fa_pending"
+        })
+        
+        return {
+            "requires_2fa": True,
+            "temp_token": temp_token,
+            "message": "Please enter your 2FA code"
+        }
+    
+    # Create session (no 2FA required)
     token = generate_token()
     session = {
         "token": token,
@@ -334,6 +411,16 @@ async def login(credentials: UserLogin):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.sessions.insert_one(session)
+    
+    # Log successful login
+    await log_audit(
+        action=AuditAction.AUTH_LOGIN,
+        user_id=user["id"],
+        user_email=user["email"],
+        user_role=user["role"],
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
     
     # Return response
     user_response = UserResponse(
@@ -345,9 +432,96 @@ async def login(credentials: UserLogin):
         sidebar_access=user.get("sidebar_access", DEFAULT_SIDEBAR_ACCESS.get(UserRole(user["role"]), [])),
         created_at=user["created_at"],
         is_active=user.get("is_active", True),
+        two_fa_enabled=user.get("two_fa_enabled", False),
     )
     
-    return TokenResponse(token=token, user=user_response)
+    return TokenResponse(token=token, user=user_response, requires_2fa=False)
+
+
+@router.post("/auth/verify-2fa")
+async def verify_2fa_login(data: TwoFALoginVerify, request: Request):
+    """Verify 2FA code during login"""
+    # Find temp session
+    temp_session = await db.temp_sessions.find_one({
+        "temp_token": data.temp_token,
+        "type": "2fa_pending"
+    })
+    
+    if not temp_session:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    
+    # Check expiration
+    expires_at = datetime.fromisoformat(temp_session["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        await db.temp_sessions.delete_one({"temp_token": data.temp_token})
+        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
+    
+    # Get user
+    user = await db.users.find_one({"id": temp_session["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    # Verify TOTP code
+    totp = pyotp.TOTP(user["two_fa_secret"])
+    if not totp.verify(data.code, valid_window=1):
+        # Check backup codes
+        backup_codes = user.get("two_fa_backup_codes", [])
+        code_hash = hash_password(data.code)
+        if code_hash not in backup_codes:
+            await log_audit(
+                action=AuditAction.TWO_FA_FAILED,
+                user_id=user["id"],
+                user_email=user["email"],
+                user_role=user["role"],
+                details={"reason": "Invalid 2FA code"},
+                ip_address=request.client.host if request.client else None,
+                success=False
+            )
+            raise HTTPException(status_code=401, detail="Invalid 2FA code")
+        
+        # Remove used backup code
+        backup_codes.remove(code_hash)
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {"two_fa_backup_codes": backup_codes}}
+        )
+    
+    # Delete temp session
+    await db.temp_sessions.delete_one({"temp_token": data.temp_token})
+    
+    # Create actual session
+    token = generate_token()
+    session = {
+        "token": token,
+        "user_id": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.sessions.insert_one(session)
+    
+    # Log successful 2FA login
+    await log_audit(
+        action=AuditAction.AUTH_LOGIN,
+        user_id=user["id"],
+        user_email=user["email"],
+        user_role=user["role"],
+        details={"2fa_verified": True},
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
+    
+    user_response = UserResponse(
+        id=user["id"],
+        email=user["email"],
+        name=user["name"],
+        role=user["role"],
+        permissions=user.get("permissions", []),
+        sidebar_access=user.get("sidebar_access", []),
+        created_at=user["created_at"],
+        is_active=user.get("is_active", True),
+        two_fa_enabled=True,
+    )
+    
+    return TokenResponse(token=token, user=user_response, requires_2fa=False)
 
 
 @router.post("/auth/logout")
@@ -916,4 +1090,299 @@ async def get_my_data_scope(current_user: dict = Depends(get_current_user)):
     else:
         # Advertiser/User can only see their own data
         return {"scope": "self", "user_ids": [user_id]}
+
+
+
+# ============== PASSWORD RESET ==============
+@router.post("/auth/password-reset/request")
+async def request_password_reset(data: PasswordResetRequest, request: Request):
+    """
+    Request a password reset. 
+    In production, this would send an email. For demo, we return the token directly.
+    """
+    user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"status": "success", "message": "If the email exists, a reset link will be sent"}
+    
+    # Generate reset token
+    reset_token = secrets.token_urlsafe(32)
+    reset_token_hash = hash_password(reset_token)
+    
+    # Store reset token with expiration (1 hour)
+    await db.password_resets.delete_many({"user_id": user["id"]})  # Remove old tokens
+    await db.password_resets.insert_one({
+        "user_id": user["id"],
+        "token_hash": reset_token_hash,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+    })
+    
+    # Log the request
+    await log_audit(
+        action=AuditAction.AUTH_PASSWORD_RESET_REQUEST,
+        user_id=user["id"],
+        user_email=user["email"],
+        user_role=user["role"],
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
+    
+    # In production, send email here. For demo, return token directly.
+    return {
+        "status": "success",
+        "message": "Password reset link generated",
+        "reset_token": reset_token,  # Remove this in production!
+        "reset_url": f"/reset-password?token={reset_token}"  # For demo
+    }
+
+
+@router.post("/auth/password-reset/confirm")
+async def confirm_password_reset(data: PasswordResetConfirm, request: Request):
+    """Confirm password reset with token"""
+    token_hash = hash_password(data.token)
+    
+    # Find valid reset token
+    reset_record = await db.password_resets.find_one({"token_hash": token_hash})
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Check expiration
+    expires_at = datetime.fromisoformat(reset_record["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        await db.password_resets.delete_one({"token_hash": token_hash})
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    # Get user
+    user = await db.users.find_one({"id": reset_record["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+    
+    # Update password
+    new_password_hash = hash_password(data.new_password)
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "password_hash": new_password_hash,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Delete reset token
+    await db.password_resets.delete_one({"token_hash": token_hash})
+    
+    # Invalidate all existing sessions (force re-login)
+    await db.sessions.delete_many({"user_id": user["id"]})
+    
+    # Log the reset
+    await log_audit(
+        action=AuditAction.AUTH_PASSWORD_RESET,
+        user_id=user["id"],
+        user_email=user["email"],
+        user_role=user["role"],
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
+    
+    return {"status": "success", "message": "Password has been reset. Please login with your new password."}
+
+
+@router.post("/auth/change-password")
+async def change_password(
+    data: PasswordChange, 
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Change password for logged-in user"""
+    # Verify current password
+    if current_user["password_hash"] != hash_password(data.current_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Update password
+    new_password_hash = hash_password(data.new_password)
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {
+            "password_hash": new_password_hash,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Log the change
+    await log_audit(
+        action=AuditAction.AUTH_PASSWORD_CHANGE,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user["role"],
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
+    
+    return {"status": "success", "message": "Password changed successfully"}
+
+
+# ============== TWO-FACTOR AUTHENTICATION (2FA) ==============
+@router.post("/auth/2fa/setup", response_model=TwoFASetupResponse)
+async def setup_2fa(
+    request: Request,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """
+    Setup 2FA for admin accounts.
+    Returns secret and QR code URL for authenticator app.
+    """
+    # Check if already enabled
+    if current_user.get("two_fa_enabled"):
+        raise HTTPException(status_code=400, detail="2FA is already enabled")
+    
+    # Generate TOTP secret
+    secret = pyotp.random_base32()
+    
+    # Generate provisioning URI for QR code
+    totp = pyotp.TOTP(secret)
+    provisioning_uri = totp.provisioning_uri(
+        name=current_user["email"],
+        issuer_name="OpenRTB Bidder"
+    )
+    
+    # Generate backup codes
+    backup_codes = [secrets.token_hex(4).upper() for _ in range(8)]
+    backup_codes_hashed = [hash_password(code) for code in backup_codes]
+    
+    # Store secret temporarily (not enabled yet)
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {
+            "two_fa_secret": secret,
+            "two_fa_backup_codes": backup_codes_hashed,
+            "two_fa_enabled": False,  # Will be enabled after verification
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Log setup initiation
+    await log_audit(
+        action=AuditAction.TWO_FA_SETUP,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user["role"],
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
+    
+    return TwoFASetupResponse(
+        secret=secret,
+        qr_code_url=provisioning_uri,
+        backup_codes=backup_codes
+    )
+
+
+@router.post("/auth/2fa/enable")
+async def enable_2fa(
+    data: TwoFAVerify,
+    request: Request,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """
+    Enable 2FA after verifying the code from authenticator app.
+    """
+    secret = current_user.get("two_fa_secret")
+    if not secret:
+        raise HTTPException(status_code=400, detail="Please run 2FA setup first")
+    
+    # Verify the code
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(data.code, valid_window=1):
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    
+    # Enable 2FA
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {
+            "two_fa_enabled": True,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Log enablement
+    await log_audit(
+        action=AuditAction.TWO_FA_ENABLE,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user["role"],
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
+    
+    return {"status": "success", "message": "2FA has been enabled"}
+
+
+@router.post("/auth/2fa/disable")
+async def disable_2fa(
+    data: TwoFAVerify,
+    request: Request,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """
+    Disable 2FA. Requires current 2FA code to confirm.
+    """
+    if not current_user.get("two_fa_enabled"):
+        raise HTTPException(status_code=400, detail="2FA is not enabled")
+    
+    secret = current_user.get("two_fa_secret")
+    totp = pyotp.TOTP(secret)
+    
+    if not totp.verify(data.code, valid_window=1):
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    
+    # Disable 2FA
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {
+            "two_fa_enabled": False,
+            "two_fa_secret": None,
+            "two_fa_backup_codes": [],
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Log disablement
+    await log_audit(
+        action=AuditAction.TWO_FA_DISABLE,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user["role"],
+        ip_address=request.client.host if request.client else None,
+        success=True
+    )
+    
+    return {"status": "success", "message": "2FA has been disabled"}
+
+
+@router.get("/auth/2fa/status")
+async def get_2fa_status(current_user: dict = Depends(get_current_user)):
+    """Get 2FA status for current user"""
+    return {
+        "enabled": current_user.get("two_fa_enabled", False),
+        "can_enable": current_user["role"] in [UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value]
+    }
+
+
+# ============== AUDIT LOGS ==============
+@router.get("/admin/audit-logs")
+async def get_audit_logs_endpoint(
+    limit: int = 50,
+    offset: int = 0,
+    action: Optional[str] = None,
+    user_id: Optional[str] = None,
+    current_user: dict = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Get audit logs (Super Admin only)"""
+    return await get_audit_logs(
+        limit=limit,
+        offset=offset,
+        action_filter=action,
+        user_id_filter=user_id
+    )
 

@@ -32,7 +32,8 @@ import { toast } from "sonner";
 import { 
   Users, Shield, Plus, Trash2, Eye, EyeOff, 
   LayoutDashboard, ChevronDown, ChevronRight, 
-  UserPlus, LogIn, Save, RefreshCw
+  UserPlus, LogIn, Save, RefreshCw, FileText,
+  Key, Lock, Smartphone, Copy, CheckCircle2
 } from "lucide-react";
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -48,6 +49,17 @@ export default function AdminPanel() {
   const [saving, setSaving] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "advertiser" });
+  
+  // Audit logs
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  
+  // 2FA
+  const [twoFAStatus, setTwoFAStatus] = useState({ enabled: false, can_enable: false });
+  const [twoFASetup, setTwoFASetup] = useState(null);
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [copiedSecret, setCopiedSecret] = useState(false);
   const [selectedRole, setSelectedRole] = useState("user");
   const [expandedAdmins, setExpandedAdmins] = useState({});
   
@@ -91,6 +103,10 @@ export default function AdminPanel() {
       const usersRes = await fetch(`${API_URL}/api/admin/users`, { headers });
       if (usersRes.ok) setUsers(await usersRes.json());
       
+      // Fetch 2FA status
+      const twoFARes = await fetch(`${API_URL}/api/auth/2fa/status`, { headers });
+      if (twoFARes.ok) setTwoFAStatus(await twoFARes.json());
+      
       // Fetch hierarchy (super admin only)
       if (isSuperAdmin) {
         const hierarchyRes = await fetch(`${API_URL}/api/admin/users/hierarchy`, { headers });
@@ -116,6 +132,96 @@ export default function AdminPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAuditLogs = async () => {
+    setAuditLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/admin/audit-logs?limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAuditLogs(data.logs || []);
+      }
+    } catch (error) {
+      toast.error("Failed to load audit logs");
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const setup2FA = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/2fa/setup`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail);
+      }
+      const data = await response.json();
+      setTwoFASetup(data);
+      setShow2FASetup(true);
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const enable2FA = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/2fa/enable`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code: verificationCode }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail);
+      }
+      toast.success("2FA enabled successfully!");
+      setShow2FASetup(false);
+      setTwoFASetup(null);
+      setVerificationCode("");
+      fetchData();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const disable2FA = async () => {
+    const code = prompt("Enter your 2FA code to disable:");
+    if (!code) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/auth/2fa/disable`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail);
+      }
+      toast.success("2FA disabled successfully");
+      fetchData();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedSecret(true);
+    setTimeout(() => setCopiedSecret(false), 2000);
+    toast.success("Copied to clipboard");
   };
 
   const createUser = async () => {
@@ -335,7 +441,15 @@ export default function AdminPanel() {
               <TabsTrigger value="access" className="data-[state=active]:bg-[#3B82F6]">
                 <LayoutDashboard className="w-4 h-4 mr-2" /> Access Control
               </TabsTrigger>
+              <TabsTrigger value="audit" className="data-[state=active]:bg-[#3B82F6]" onClick={fetchAuditLogs}>
+                <FileText className="w-4 h-4 mr-2" /> Audit Logs
+              </TabsTrigger>
             </>
+          )}
+          {(isAdmin || isSuperAdmin) && (
+            <TabsTrigger value="security" className="data-[state=active]:bg-[#3B82F6]">
+              <Lock className="w-4 h-4 mr-2" /> Security
+            </TabsTrigger>
           )}
         </TabsList>
 
@@ -661,7 +775,206 @@ export default function AdminPanel() {
             </Card>
           </TabsContent>
         )}
+
+        {/* Audit Logs Tab (Super Admin only) */}
+        {isSuperAdmin && (
+          <TabsContent value="audit">
+            <Card className="surface-primary border-panel">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-[#F8FAFC]">Audit Logs</CardTitle>
+                  <CardDescription className="text-[#64748B]">
+                    Track all administrative actions
+                  </CardDescription>
+                </div>
+                <Button onClick={fetchAuditLogs} variant="outline" className="border-[#2D3B55]">
+                  <RefreshCw className={`w-4 h-4 mr-2 ${auditLoading ? 'animate-spin' : ''}`} /> Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {auditLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3B82F6]"></div>
+                  </div>
+                ) : auditLogs.length === 0 ? (
+                  <p className="text-[#64748B] text-center py-8">No audit logs yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {auditLogs.map((log, idx) => (
+                      <div key={idx} className="p-3 rounded-lg bg-[#0B1221] border border-[#2D3B55]">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge className={
+                              log.action.includes('login') ? 'bg-[#3B82F6]/20 text-[#3B82F6]' :
+                              log.action.includes('2fa') ? 'bg-[#F59E0B]/20 text-[#F59E0B]' :
+                              log.action.includes('user') ? 'bg-[#10B981]/20 text-[#10B981]' :
+                              'bg-[#64748B]/20 text-[#64748B]'
+                            }>
+                              {log.action}
+                            </Badge>
+                            <span className="text-sm text-[#F8FAFC]">{log.actor?.email}</span>
+                          </div>
+                          <span className="text-xs text-[#64748B]">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        {log.target && log.target.name && (
+                          <p className="text-xs text-[#94A3B8] mt-1">
+                            Target: {log.target.type} - {log.target.name}
+                          </p>
+                        )}
+                        {!log.success && (
+                          <p className="text-xs text-[#EF4444] mt-1">{log.error_message}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {/* Security Tab (Admin/Super Admin) */}
+        {(isAdmin || isSuperAdmin) && (
+          <TabsContent value="security">
+            <Card className="surface-primary border-panel">
+              <CardHeader>
+                <CardTitle className="text-[#F8FAFC]">Security Settings</CardTitle>
+                <CardDescription className="text-[#64748B]">
+                  Manage two-factor authentication and password settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* 2FA Section */}
+                <div className="p-4 rounded-lg border border-[#2D3B55] bg-[#0B1221]">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        twoFAStatus.enabled ? 'bg-[#10B981]/20' : 'bg-[#64748B]/20'
+                      }`}>
+                        <Smartphone className={`w-5 h-5 ${twoFAStatus.enabled ? 'text-[#10B981]' : 'text-[#64748B]'}`} />
+                      </div>
+                      <div>
+                        <h3 className="text-[#F8FAFC] font-medium">Two-Factor Authentication (2FA)</h3>
+                        <p className="text-sm text-[#64748B]">
+                          {twoFAStatus.enabled 
+                            ? "2FA is enabled for your account" 
+                            : "Add an extra layer of security to your account"}
+                        </p>
+                      </div>
+                    </div>
+                    {twoFAStatus.enabled ? (
+                      <Button onClick={disable2FA} variant="outline" className="border-[#EF4444] text-[#EF4444]">
+                        Disable 2FA
+                      </Button>
+                    ) : (
+                      <Button onClick={setup2FA} className="bg-[#10B981]">
+                        Enable 2FA
+                      </Button>
+                    )}
+                  </div>
+                  {twoFAStatus.enabled && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                      <span className="text-sm text-[#10B981]">Your account is protected with 2FA</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Password Section */}
+                <div className="p-4 rounded-lg border border-[#2D3B55] bg-[#0B1221]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-[#3B82F6]/20 flex items-center justify-center">
+                      <Key className="w-5 h-5 text-[#3B82F6]" />
+                    </div>
+                    <div>
+                      <h3 className="text-[#F8FAFC] font-medium">Password</h3>
+                      <p className="text-sm text-[#64748B]">Change your account password</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
+
+      {/* 2FA Setup Dialog */}
+      <Dialog open={show2FASetup} onOpenChange={setShow2FASetup}>
+        <DialogContent className="surface-primary border-panel max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#F8FAFC]">Set Up Two-Factor Authentication</DialogTitle>
+          </DialogHeader>
+          {twoFASetup && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-[#0B1221] border border-[#2D3B55]">
+                <p className="text-sm text-[#94A3B8] mb-3">
+                  1. Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                </p>
+                <div className="flex justify-center p-4 bg-white rounded-lg">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(twoFASetup.qr_code_url)}`}
+                    alt="2FA QR Code"
+                    className="w-48 h-48"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-[#0B1221] border border-[#2D3B55]">
+                <p className="text-sm text-[#94A3B8] mb-2">Or enter this secret manually:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 p-2 bg-[#020408] rounded text-[#F8FAFC] text-sm font-mono">
+                    {twoFASetup.secret}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(twoFASetup.secret)}
+                    className="text-[#3B82F6]"
+                  >
+                    {copiedSecret ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/30">
+                <p className="text-sm text-[#F59E0B] font-medium mb-2">Save these backup codes:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {twoFASetup.backup_codes.map((code, idx) => (
+                    <code key={idx} className="p-1 bg-[#020408] rounded text-center text-sm text-[#F8FAFC] font-mono">
+                      {code}
+                    </code>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[#94A3B8]">2. Enter the 6-digit code from your app</Label>
+                <Input
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="000000"
+                  maxLength={6}
+                  className="surface-secondary border-[#2D3B55] text-[#F8FAFC] text-center text-lg tracking-widest"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShow2FASetup(false)} className="border-[#2D3B55]">
+              Cancel
+            </Button>
+            <Button 
+              onClick={enable2FA} 
+              disabled={verificationCode.length !== 6}
+              className="bg-[#10B981]"
+            >
+              Verify & Enable
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create User Dialog */}
       <Dialog open={showCreateUser} onOpenChange={setShowCreateUser}>

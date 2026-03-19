@@ -1,22 +1,52 @@
 """
 Campaign management endpoints - CRUD operations, status changes
+With data ownership filtering based on user hierarchy
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import List, Optional
 from datetime import datetime, timezone
 
 from models import Campaign, CampaignCreate, CampaignUpdate, CampaignStatus
 from routers.shared import db
+from routers.auth import get_current_user, UserRole
+from routers.audit import log_audit, AuditAction
 
 router = APIRouter(tags=["Campaigns"])
 
 
+async def get_user_data_scope(user: dict):
+    """Get the IDs of users whose data the current user can access"""
+    role = user["role"]
+    user_id = user["id"]
+    
+    if role == UserRole.SUPER_ADMIN.value:
+        return None  # None means all data
+    elif role == UserRole.ADMIN.value:
+        children = await db.users.find({"parent_id": user_id}, {"id": 1, "_id": 0}).to_list(1000)
+        return [user_id] + [c["id"] for c in children]
+    else:
+        return [user_id]
+
+
 @router.get("/campaigns")
-async def get_campaigns(status: Optional[str] = None):
-    """Get all campaigns"""
+async def get_campaigns(
+    status: Optional[str] = None,
+    authorization: Optional[str] = Header(None)
+):
+    """Get campaigns based on user's data scope"""
     query = {}
     if status:
         query["status"] = status
+    
+    # Apply data ownership filter if user is authenticated
+    if authorization:
+        try:
+            user = await get_current_user(authorization)
+            scope = await get_user_data_scope(user)
+            if scope is not None:  # Not super admin
+                query["owner_id"] = {"$in": scope}
+        except:
+            pass  # If auth fails, show all (for backward compatibility)
     
     campaigns = await db.campaigns.find(query, {"_id": 0}).to_list(1000)
     
@@ -42,12 +72,26 @@ async def get_campaign(campaign_id: str):
 
 
 @router.post("/campaigns", response_model=Campaign)
-async def create_campaign(input: CampaignCreate):
-    """Create a new campaign"""
+async def create_campaign(
+    input: CampaignCreate,
+    authorization: Optional[str] = Header(None)
+):
+    """Create a new campaign with ownership tracking"""
     # Verify creative exists
     creative = await db.creatives.find_one({"id": input.creative_id}, {"_id": 0})
     if not creative:
         raise HTTPException(status_code=400, detail="Creative not found")
+    
+    # Get current user for ownership
+    owner_id = None
+    owner_email = None
+    if authorization:
+        try:
+            user = await get_current_user(authorization)
+            owner_id = user["id"]
+            owner_email = user["email"]
+        except:
+            pass
     
     campaign = Campaign(
         name=input.name,
@@ -82,12 +126,30 @@ async def create_campaign(input: CampaignCreate):
         campaign.end_date = datetime.fromisoformat(input.end_date)
     
     doc = campaign.model_dump()
+    # Add ownership
+    doc["owner_id"] = owner_id
+    doc["owner_email"] = owner_email
+    
     # Serialize datetimes
     for field in ["created_at", "updated_at", "start_date", "end_date"]:
         if doc.get(field):
             doc[field] = doc[field].isoformat()
     
     await db.campaigns.insert_one(doc)
+    
+    # Log campaign creation
+    if owner_id:
+        await log_audit(
+            action=AuditAction.CAMPAIGN_CREATE,
+            user_id=owner_id,
+            user_email=owner_email or "unknown",
+            user_role="unknown",
+            target_type="campaign",
+            target_id=campaign.id,
+            target_name=campaign.name,
+            success=True
+        )
+    
     return campaign
 
 

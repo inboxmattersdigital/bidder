@@ -1,21 +1,50 @@
 """
 Creative management endpoints - CRUD operations, validation
+With data ownership filtering based on user hierarchy
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from typing import List, Optional
 
 from models import Creative, CreativeCreate, CreativeType
 from routers.shared import db
+from routers.auth import get_current_user, UserRole
 
 router = APIRouter(tags=["Creatives"])
 
 
+async def get_user_data_scope(user: dict):
+    """Get the IDs of users whose data the current user can access"""
+    role = user["role"]
+    user_id = user["id"]
+    
+    if role == UserRole.SUPER_ADMIN.value:
+        return None  # None means all data
+    elif role == UserRole.ADMIN.value:
+        children = await db.users.find({"parent_id": user_id}, {"id": 1, "_id": 0}).to_list(1000)
+        return [user_id] + [c["id"] for c in children]
+    else:
+        return [user_id]
+
+
 @router.get("/creatives")
-async def get_creatives(type: Optional[str] = None):
-    """Get all creatives"""
+async def get_creatives(
+    type: Optional[str] = None,
+    authorization: Optional[str] = Header(None)
+):
+    """Get creatives based on user's data scope"""
     query = {}
     if type:
         query["type"] = type
+    
+    # Apply data ownership filter if user is authenticated
+    if authorization:
+        try:
+            user = await get_current_user(authorization)
+            scope = await get_user_data_scope(user)
+            if scope is not None:  # Not super admin
+                query["owner_id"] = {"$in": scope}
+        except:
+            pass  # If auth fails, show all (for backward compatibility)
     
     creatives = await db.creatives.find(query, {"_id": 0}).to_list(1000)
     return creatives
@@ -31,8 +60,22 @@ async def get_creative(creative_id: str):
 
 
 @router.post("/creatives", response_model=Creative)
-async def create_creative(input: CreativeCreate):
-    """Create a new creative"""
+async def create_creative(
+    input: CreativeCreate,
+    authorization: Optional[str] = Header(None)
+):
+    """Create a new creative with ownership tracking"""
+    # Get current user for ownership
+    owner_id = None
+    owner_email = None
+    if authorization:
+        try:
+            user = await get_current_user(authorization)
+            owner_id = user["id"]
+            owner_email = user["email"]
+        except:
+            pass
+    
     creative = Creative(
         name=input.name,
         type=input.type,
@@ -61,6 +104,10 @@ async def create_creative(input: CreativeCreate):
                 creative.preview_url = creative.video_data.video_url
     
     doc = creative.model_dump()
+    # Add ownership
+    doc["owner_id"] = owner_id
+    doc["owner_email"] = owner_email
+    
     for field in ["created_at", "updated_at"]:
         if doc.get(field):
             doc[field] = doc[field].isoformat()
