@@ -268,6 +268,33 @@ def require_role(allowed_roles: List[UserRole]):
     return role_checker
 
 
+async def get_current_user_ws(token: str) -> dict:
+    """Get current user from token for WebSocket connections (no header)"""
+    if not token:
+        return None
+    
+    # Find session with token
+    session = await db.sessions.find_one({"token": token})
+    if not session:
+        return None
+    
+    # Check if session is expired (24 hours)
+    created_at = datetime.fromisoformat(session["created_at"])
+    if datetime.now(timezone.utc) - created_at > timedelta(hours=24):
+        await db.sessions.delete_one({"token": token})
+        return None
+    
+    # Get user
+    user = await db.users.find_one({"id": session["user_id"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        return None
+    
+    if not user.get("is_active", True):
+        return None
+    
+    return user
+
+
 def require_permission(permission: str):
     """Dependency to check if user has required permission"""
     async def permission_checker(user: dict = Depends(get_current_user)):
@@ -753,6 +780,61 @@ async def delete_user(
     await db.sessions.delete_many({"user_id": user_id})
     
     return {"status": "deleted"}
+
+
+class BulkDeleteRequest(BaseModel):
+    user_ids: List[str]
+
+
+@router.post("/admin/users/bulk-delete")
+async def bulk_delete_users(
+    request: BulkDeleteRequest,
+    current_user: dict = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Bulk delete users (Super Admin only)"""
+    if not request.user_ids:
+        raise HTTPException(status_code=400, detail="No user IDs provided")
+    
+    # Filter out current user's ID if present
+    user_ids = [uid for uid in request.user_ids if uid != current_user["id"]]
+    
+    if not user_ids:
+        raise HTTPException(status_code=400, detail="No valid users to delete (cannot delete yourself)")
+    
+    # Get users to delete for audit
+    users_to_delete = await db.users.find(
+        {"id": {"$in": user_ids}},
+        {"_id": 0, "id": 1, "email": 1, "name": 1, "role": 1}
+    ).to_list(1000)
+    
+    if not users_to_delete:
+        raise HTTPException(status_code=404, detail="No matching users found")
+    
+    # Delete users
+    result = await db.users.delete_many({"id": {"$in": user_ids}})
+    
+    # Delete their sessions
+    await db.sessions.delete_many({"user_id": {"$in": user_ids}})
+    
+    # Log the bulk delete action
+    from routers.audit import log_audit, AuditAction
+    await log_audit(
+        action=AuditAction.USER_DELETE,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user["role"],
+        target_type="users",
+        target_name=f"Bulk delete: {len(users_to_delete)} users",
+        details={
+            "deleted_users": [{"id": u["id"], "email": u["email"], "role": u["role"]} for u in users_to_delete]
+        }
+    )
+    
+    return {
+        "status": "deleted",
+        "deleted_count": result.deleted_count,
+        "deleted_users": [{"id": u["id"], "email": u["email"]} for u in users_to_delete]
+    }
 
 
 # ============== ROLE CONFIGURATION (Super Admin) ==============

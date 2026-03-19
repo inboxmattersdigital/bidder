@@ -21,6 +21,7 @@ from routers.attribution import router as attribution_router
 from routers.misc import router as misc_router
 from routers.media_planning import router as media_planning_router
 from routers.auth import router as auth_router
+from routers.notifications import router as notifications_router
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ app.include_router(optimization_router, prefix="/api")
 app.include_router(attribution_router, prefix="/api")
 app.include_router(misc_router, prefix="/api")
 app.include_router(media_planning_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
 
 # Bid router has its own /api/bid prefix
 app.include_router(bid_router, prefix="/api/bid")

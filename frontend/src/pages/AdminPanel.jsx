@@ -68,6 +68,10 @@ export default function AdminPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   
+  // Bulk selection state
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  
   // Audit logs
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -397,6 +401,52 @@ export default function AdminPanel() {
       }
 
       toast.success("User deleted");
+      fetchData();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  // Bulk selection handlers
+  const toggleUserSelection = (userId) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const selectableUsers = users.filter(u => u.id !== user?.id);
+    if (selectedUsers.length === selectableUsers.length) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(selectableUsers.map(u => u.id));
+    }
+  };
+
+  const bulkDeleteUsers = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/bulk-delete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_ids: selectedUsers }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail);
+      }
+
+      const result = await response.json();
+      toast.success(`Successfully deleted ${result.deleted_count} user(s)`);
+      setSelectedUsers([]);
+      setShowBulkDeleteConfirm(false);
       fetchData();
     } catch (error) {
       toast.error(error.message);
@@ -942,6 +992,18 @@ export default function AdminPanel() {
                       <Button variant="outline" size="sm" onClick={exportUsersCSV} className="border-[#2D3B55]" data-testid="export-csv-btn">
                         <Download className="w-4 h-4" />
                       </Button>
+                      {/* Bulk Delete (Super Admin only) */}
+                      {isSuperAdmin && selectedUsers.length > 0 && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setShowBulkDeleteConfirm(true)} 
+                          className="border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444]/10"
+                          data-testid="bulk-delete-btn"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" /> Delete ({selectedUsers.length})
+                        </Button>
+                      )}
                       {/* Create */}
                       <Button onClick={() => setShowCreateUser(true)} className="bg-[#3B82F6]" data-testid="create-user-btn">
                         <Plus className="w-4 h-4 mr-2" /> Add {isSuperAdmin ? "Admin" : "Advertiser"}
@@ -953,6 +1015,16 @@ export default function AdminPanel() {
                   <Table>
                     <TableHeader>
                       <TableRow className="border-[#2D3B55]">
+                        {isSuperAdmin && (
+                          <TableHead className="w-10">
+                            <Checkbox 
+                              checked={selectedUsers.length > 0 && selectedUsers.length === users.filter(u => u.id !== user?.id).length}
+                              onCheckedChange={toggleSelectAll}
+                              className="data-[state=checked]:bg-[#3B82F6]"
+                              data-testid="select-all-checkbox"
+                            />
+                          </TableHead>
+                        )}
                         <TableHead className="text-[#94A3B8]">User</TableHead>
                         <TableHead className="text-[#94A3B8]">Role</TableHead>
                         <TableHead className="text-[#94A3B8]">Status</TableHead>
@@ -962,7 +1034,19 @@ export default function AdminPanel() {
                     </TableHeader>
                     <TableBody>
                       {users.map((u) => (
-                        <TableRow key={u.id} className="border-[#2D3B55]">
+                        <TableRow key={u.id} className={`border-[#2D3B55] ${selectedUsers.includes(u.id) ? 'bg-[#3B82F6]/5' : ''}`}>
+                          {isSuperAdmin && (
+                            <TableCell>
+                              {u.id !== user?.id && (
+                                <Checkbox 
+                                  checked={selectedUsers.includes(u.id)}
+                                  onCheckedChange={() => toggleUserSelection(u.id)}
+                                  className="data-[state=checked]:bg-[#3B82F6]"
+                                  data-testid={`select-user-${u.id}`}
+                                />
+                              )}
+                            </TableCell>
+                          )}
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getRoleBadgeColor(u.role)}`}>
@@ -1434,6 +1518,50 @@ export default function AdminPanel() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateUser(false)} className="border-[#2D3B55]">Cancel</Button>
             <Button onClick={createUser} className="bg-[#3B82F6]">Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <DialogContent className="surface-primary border-panel">
+          <DialogHeader>
+            <DialogTitle className="text-[#F8FAFC]">Confirm Bulk Delete</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30">
+              <p className="text-sm text-[#EF4444]">
+                You are about to delete <strong>{selectedUsers.length} user(s)</strong>. This action cannot be undone.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-[#94A3B8]">Selected users:</p>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {users.filter(u => selectedUsers.includes(u.id)).map(u => (
+                  <div key={u.id} className="flex items-center gap-2 p-2 rounded bg-[#0B1221]">
+                    <span className="text-sm text-[#F8FAFC]">{u.name}</span>
+                    <Badge className={getRoleBadgeColor(u.role)} size="sm">{u.role}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowBulkDeleteConfirm(false)} 
+              className="border-[#2D3B55]"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={bulkDeleteUsers} 
+              className="bg-[#EF4444] hover:bg-[#EF4444]/90"
+              data-testid="confirm-bulk-delete-btn"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete {selectedUsers.length} User(s)
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

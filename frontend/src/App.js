@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import Layout from "./components/Layout";
+import { ProtectedRoute } from "./components/AccessDenied";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import AdminPanel from "./pages/AdminPanel";
@@ -34,51 +36,53 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Toaster 
-          position="bottom-right" 
-          toastOptions={{
-            style: {
-              background: '#0B1221',
-              border: '1px solid #2D3B55',
-              color: '#F8FAFC',
-            },
-          }}
-        />
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          
-          {/* Protected routes */}
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="campaigns" element={<Campaigns />} />
-            <Route path="campaigns/new" element={<CampaignWizard />} />
-            <Route path="campaigns/:id/edit" element={<CampaignWizard />} />
-            <Route path="campaigns/compare" element={<CampaignComparison />} />
-            <Route path="creatives" element={<Creatives />} />
-            <Route path="creatives/new" element={<CreativeForm />} />
-            <Route path="creative-editor" element={<CreativeEditor />} />
-            <Route path="ssp-endpoints" element={<SSPEndpoints />} />
-            <Route path="ssp-analytics" element={<SSPAnalytics />} />
-            <Route path="bid-logs" element={<BidLogs />} />
-            <Route path="bid-stream" element={<BidStream />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="reports/ad-performance" element={<AdPerformanceReport />} />
-            <Route path="pacing" element={<Pacing />} />
-            <Route path="insights" element={<Insights />} />
-            <Route path="ml-models" element={<MLModels />} />
-            <Route path="bid-optimization" element={<BidOptimization />} />
-            <Route path="ab-testing" element={<ABTesting />} />
-            <Route path="fraud-detection" element={<FraudDetection />} />
-            <Route path="audiences" element={<Audiences />} />
-            <Route path="attribution" element={<Attribution />} />
-            <Route path="media-planner" element={<MediaPlanner />} />
-            <Route path="migration-matrix" element={<MigrationMatrix />} />
-            <Route path="admin" element={<AdminPanel />} />
-          </Route>
-        </Routes>
+        <NotificationProvider>
+          <Toaster 
+            position="bottom-right" 
+            toastOptions={{
+              style: {
+                background: '#0B1221',
+                border: '1px solid #2D3B55',
+                color: '#F8FAFC',
+              },
+            }}
+          />
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            
+            {/* Protected routes */}
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<ProtectedRoute requiredSidebarAccess="dashboard"><Dashboard /></ProtectedRoute>} />
+              <Route path="campaigns" element={<ProtectedRoute requiredSidebarAccess="campaigns"><Campaigns /></ProtectedRoute>} />
+              <Route path="campaigns/new" element={<ProtectedRoute requiredSidebarAccess="campaigns"><CampaignWizard /></ProtectedRoute>} />
+              <Route path="campaigns/:id/edit" element={<ProtectedRoute requiredSidebarAccess="campaigns"><CampaignWizard /></ProtectedRoute>} />
+              <Route path="campaigns/compare" element={<ProtectedRoute requiredSidebarAccess="compare"><CampaignComparison /></ProtectedRoute>} />
+              <Route path="creatives" element={<ProtectedRoute requiredSidebarAccess="creatives"><Creatives /></ProtectedRoute>} />
+              <Route path="creatives/new" element={<ProtectedRoute requiredSidebarAccess="creatives"><CreativeForm /></ProtectedRoute>} />
+              <Route path="creative-editor" element={<ProtectedRoute requiredSidebarAccess="creatives"><CreativeEditor /></ProtectedRoute>} />
+              <Route path="ssp-endpoints" element={<ProtectedRoute requiredSidebarAccess="ssp_endpoints"><SSPEndpoints /></ProtectedRoute>} />
+              <Route path="ssp-analytics" element={<ProtectedRoute requiredSidebarAccess="ssp_analytics"><SSPAnalytics /></ProtectedRoute>} />
+              <Route path="bid-logs" element={<ProtectedRoute requiredSidebarAccess="bid_logs"><BidLogs /></ProtectedRoute>} />
+              <Route path="bid-stream" element={<ProtectedRoute requiredSidebarAccess="bid_stream"><BidStream /></ProtectedRoute>} />
+              <Route path="reports" element={<ProtectedRoute requiredSidebarAccess="reports"><Reports /></ProtectedRoute>} />
+              <Route path="reports/ad-performance" element={<ProtectedRoute requiredSidebarAccess="ad_performance"><AdPerformanceReport /></ProtectedRoute>} />
+              <Route path="pacing" element={<ProtectedRoute requiredSidebarAccess="budget_pacing"><Pacing /></ProtectedRoute>} />
+              <Route path="insights" element={<ProtectedRoute requiredSidebarAccess="insights"><Insights /></ProtectedRoute>} />
+              <Route path="ml-models" element={<ProtectedRoute requiredSidebarAccess="ml_models"><MLModels /></ProtectedRoute>} />
+              <Route path="bid-optimization" element={<ProtectedRoute requiredSidebarAccess="bid_optimizer"><BidOptimization /></ProtectedRoute>} />
+              <Route path="ab-testing" element={<ProtectedRoute requiredSidebarAccess="ab_testing"><ABTesting /></ProtectedRoute>} />
+              <Route path="fraud-detection" element={<ProtectedRoute requiredSidebarAccess="fraud"><FraudDetection /></ProtectedRoute>} />
+              <Route path="audiences" element={<ProtectedRoute requiredSidebarAccess="audiences"><Audiences /></ProtectedRoute>} />
+              <Route path="attribution" element={<ProtectedRoute requiredSidebarAccess="attribution"><Attribution /></ProtectedRoute>} />
+              <Route path="media-planner" element={<ProtectedRoute requiredSidebarAccess="media_planner"><MediaPlanner /></ProtectedRoute>} />
+              <Route path="migration-matrix" element={<ProtectedRoute requiredSidebarAccess="migration"><MigrationMatrix /></ProtectedRoute>} />
+              <Route path="admin" element={<ProtectedRoute requiredSidebarAccess="admin_panel"><AdminPanel /></ProtectedRoute>} />
+            </Route>
+          </Routes>
+        </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
   );

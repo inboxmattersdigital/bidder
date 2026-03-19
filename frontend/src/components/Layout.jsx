@@ -1,6 +1,7 @@
 import { Outlet, NavLink, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
 import { 
   LayoutDashboard, 
   Megaphone, 
@@ -153,6 +154,12 @@ export default function Layout() {
         
         {/* User Profile & Theme Toggle */}
         <div className={cn("p-4 border-t", isDarkMode ? "border-[#2D3B55]" : "border-slate-200")}>
+          {/* Notification Bell */}
+          <div className="flex items-center justify-between mb-3">
+            <span className={cn("text-xs", isDarkMode ? "text-[#64748B]" : "text-slate-500")}>Notifications</span>
+            <NotificationBell />
+          </div>
+          
           {/* User Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
