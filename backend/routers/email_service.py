@@ -248,6 +248,73 @@ def suspicious_login_email_template(user_name: str, login_time: str, ip_address:
     return get_base_template(content, "New Login Detected")
 
 
+def creative_approval_email_template(user_name: str, creative_name: str, creative_id: str, creative_type: str, status: str, feedback: Optional[str] = None) -> str:
+    """Template for creative approval/rejection notification"""
+    is_approved = status == "approved"
+    status_color = "#10B981" if is_approved else "#F59E0B"
+    status_text = "Approved" if is_approved else "Changes Requested"
+    status_icon = "✓" if is_approved else "⚠"
+    
+    feedback_section = ""
+    if feedback:
+        feedback_section = f"""
+        <tr>
+            <td style="padding: 15px 20px; border-top: 1px solid #2D3B55;">
+                <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; text-transform: uppercase;">Feedback</p>
+                <p style="margin: 0; color: #F8FAFC; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">{feedback}</p>
+            </td>
+        </tr>
+        """
+    
+    content = f"""
+    <h1 style="margin: 0 0 20px 0; color: #F8FAFC; font-size: 24px;">Creative {status_text}</h1>
+    <p style="margin: 0 0 20px 0; color: #94A3B8; font-size: 16px; line-height: 1.6;">
+        Hello {user_name},
+    </p>
+    <p style="margin: 0 0 30px 0; color: #94A3B8; font-size: 16px; line-height: 1.6;">
+        An advertiser has reviewed your creative and provided their response:
+    </p>
+    
+    <!-- Status Badge -->
+    <table role="presentation" style="width: 100%; margin-bottom: 20px;">
+        <tr>
+            <td align="center">
+                <span style="display: inline-block; padding: 10px 24px; background-color: {status_color}22; color: {status_color}; border-radius: 20px; font-size: 18px; font-weight: 600;">
+                    {status_icon} {status_text}
+                </span>
+            </td>
+        </tr>
+    </table>
+    
+    <table role="presentation" style="width: 100%; background-color: #0B1221; border-radius: 8px; margin-bottom: 30px;">
+        <tr>
+            <td style="padding: 15px 20px;">
+                <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; text-transform: uppercase;">Creative Name</p>
+                <p style="margin: 0; color: #F8FAFC; font-size: 18px; font-weight: 600;">{creative_name}</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 15px 20px; border-top: 1px solid #2D3B55;">
+                <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; text-transform: uppercase;">Creative Type</p>
+                <p style="margin: 0; color: #3B82F6; font-size: 16px;">{creative_type.replace('_', ' ').title()}</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 15px 20px; border-top: 1px solid #2D3B55;">
+                <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; text-transform: uppercase;">Creative ID</p>
+                <p style="margin: 0; color: #94A3B8; font-size: 12px; font-family: monospace;">{creative_id}</p>
+            </td>
+        </tr>
+        {feedback_section}
+    </table>
+    
+    {'<p style="margin: 0 0 30px 0; color: #10B981; font-size: 16px;">Your creative is ready to go live!</p>' if is_approved else '<p style="margin: 0 0 30px 0; color: #F59E0B; font-size: 16px;">Please review the feedback and make the necessary changes.</p>'}
+    
+    <a href="{APP_URL}/creative-editor/{creative_id}" style="display: inline-block; padding: 14px 28px; background-color: #3B82F6; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600;">{'View Creative' if is_approved else 'Edit Creative'}</a>
+    """
+    return get_base_template(content, f"Creative {status_text}: {creative_name}")
+
+
 # ============== EMAIL SENDING FUNCTIONS ==============
 
 async def send_email(to_email: str, subject: str, html_content: str) -> Dict[str, Any]:
@@ -348,5 +415,23 @@ async def send_suspicious_login_alert(user_email: str, user_name: str, ip_addres
     login_time = datetime.now(timezone.utc).strftime("%B %d, %Y at %I:%M %p UTC")
     subject = f"New Sign-in to Your {APP_NAME} Account"
     html_content = suspicious_login_email_template(user_name, login_time, ip_address, user_agent, location)
+    return await send_email(user_email, subject, html_content)
+
+
+async def send_creative_approval_notification(
+    user_email: str, 
+    user_name: str, 
+    creative_name: str, 
+    creative_id: str, 
+    creative_type: str,
+    status: str,  # 'approved' or 'rejected'
+    feedback: Optional[str] = None
+):
+    """Send notification when creative is approved or changes are requested"""
+    status_text = "Approved" if status == "approved" else "Changes Requested"
+    subject = f"Creative {status_text}: {creative_name}"
+    html_content = creative_approval_email_template(
+        user_name, creative_name, creative_id, creative_type, status, feedback
+    )
     return await send_email(user_email, subject, html_content)
 

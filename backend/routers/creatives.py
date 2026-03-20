@@ -312,5 +312,45 @@ async def submit_creative_approval(creative_id: str, request: ApprovalRequest):
         "_id": None  # Will be auto-generated
     })
     
+    # Send email notification to the creative owner
+    try:
+        from routers.email_service import send_creative_approval_notification
+        
+        # Find the owner of the creative
+        owner_id = creative.get("owner_id") or creative.get("created_by")
+        if owner_id:
+            owner = await db.users.find_one({"id": owner_id})
+            if owner and owner.get("email"):
+                await send_creative_approval_notification(
+                    user_email=owner.get("email"),
+                    user_name=owner.get("name", "User"),
+                    creative_name=creative.get("name", "Untitled Creative"),
+                    creative_id=creative_id,
+                    creative_type=creative.get("type", "unknown"),
+                    status=request.status,
+                    feedback=request.feedback
+                )
+        else:
+            # If no specific owner, notify all admins and super_admins
+            admins = await db.users.find(
+                {"role": {"$in": ["super_admin", "admin"]}}
+            ).to_list(length=10)
+            
+            for admin in admins:
+                if admin.get("email"):
+                    await send_creative_approval_notification(
+                        user_email=admin.get("email"),
+                        user_name=admin.get("name", "Admin"),
+                        creative_name=creative.get("name", "Untitled Creative"),
+                        creative_id=creative_id,
+                        creative_type=creative.get("type", "unknown"),
+                        status=request.status,
+                        feedback=request.feedback
+                    )
+    except Exception as e:
+        # Log error but don't fail the request
+        import logging
+        logging.error(f"Failed to send approval notification email: {e}")
+    
     return {"success": True, "status": request.status}
 

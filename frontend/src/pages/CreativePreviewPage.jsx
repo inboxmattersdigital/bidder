@@ -28,6 +28,10 @@ export default function CreativePreviewPage() {
         }
         const data = await response.json();
         setCreative(data);
+        // Set initial approval status from fetched data
+        if (data.approval_status) {
+          setApprovalStatus(data.approval_status);
+        }
       } catch (err) {
         setError(err.message);
       } finally {

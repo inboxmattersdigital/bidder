@@ -23,7 +23,8 @@ import {
   Share2,
   Copy,
   Check,
-  ExternalLink
+  ExternalLink,
+  Clock
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -947,9 +948,22 @@ export default function Creatives() {
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-[#F8FAFC] truncate">{creative.name}</h3>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <CreativeTypeBadge type={creative.type} />
                 {creative.format && <CreativeFormatBadge format={creative.format} />}
+                {/* Approval Status Badge */}
+                {creative.approval_status === "approved" && (
+                  <Badge className="bg-[#10B981]/20 text-[#10B981] text-[10px]">
+                    <Check className="w-3 h-3 mr-1" />
+                    Approved
+                  </Badge>
+                )}
+                {creative.approval_status === "rejected" && (
+                  <Badge className="bg-[#F59E0B]/20 text-[#F59E0B] text-[10px]">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Changes Requested
+                  </Badge>
+                )}
               </div>
             </div>
             <DropdownMenu>
