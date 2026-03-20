@@ -735,14 +735,51 @@ export default function CreativeEditor() {
     }
     
     if (creativeType === "js_tag") {
+      // Generate HTML for live preview iframe
+      const livePreviewHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            html, body { 
+              width: 100%; 
+              height: 100%; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center;
+              background: #f5f5f5;
+              overflow: hidden;
+            }
+            .ad-container {
+              width: ${form.jsTagWidth || 300}px;
+              height: ${form.jsTagHeight || 250}px;
+              position: relative;
+              background: #fff;
+              border: 1px solid #ddd;
+              overflow: hidden;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ad-container">
+            ${form.jsTagContent || ''}
+          </div>
+        </body>
+        </html>
+      `;
+      
       return (
-        <div className="w-full max-w-[400px] space-y-4">
-          <div className="p-6 bg-gradient-to-br from-[#F59E0B]/10 to-[#EF4444]/10 rounded-lg border border-[#2D3B55]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-[#F59E0B]/20 flex items-center justify-center shrink-0">
-                <Code className="w-6 h-6 text-[#F59E0B]" />
+        <div className="w-full max-w-[450px] space-y-4">
+          {/* Header Info */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#F59E0B]/20 flex items-center justify-center shrink-0">
+                <Code className="w-5 h-5 text-[#F59E0B]" />
               </div>
-              <div className="flex-1">
+              <div>
                 <p className="text-sm text-[#F8FAFC] font-medium">Third Party JS Tag</p>
                 <div className="flex items-center gap-2 mt-1">
                   {form.jsTagVendor && (
@@ -761,34 +798,71 @@ export default function CreativeEditor() {
                 </div>
               </div>
             </div>
-            
-            {(form.jsTagWidth && form.jsTagHeight) && (
-              <p className="text-xs text-[#64748B] mb-3">
-                Container Size: {form.jsTagWidth}x{form.jsTagHeight}px
-              </p>
-            )}
-            
-            {form.jsTagContent ? (
-              <div className="p-3 bg-[#0F172A] rounded border border-[#2D3B55] overflow-hidden">
-                <pre className="text-xs text-[#94A3B8] whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
-                  {form.jsTagContent.length > 200 ? form.jsTagContent.substring(0, 200) + "..." : form.jsTagContent}
-                </pre>
-              </div>
-            ) : form.jsTagUrl ? (
-              <div className="space-y-2">
-                <p className="text-xs text-[#64748B] break-all">{form.jsTagUrl}</p>
-                <Button
-                  size="sm"
-                  className="w-full bg-[#F59E0B] hover:bg-[#F59E0B]/90"
-                  onClick={() => window.open(form.jsTagUrl, '_blank')}
-                >
-                  Open Tag URL
-                </Button>
-              </div>
-            ) : (
-              <p className="text-xs text-[#64748B] text-center">No tag content configured</p>
-            )}
+            <Badge className="bg-[#3B82F6]/20 text-[#3B82F6]">
+              {form.jsTagWidth || 300}x{form.jsTagHeight || 250}
+            </Badge>
           </div>
+
+          {/* Live Preview Area */}
+          {form.jsTagContent ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-[#64748B]">Live Ad Preview</p>
+                <Badge className="bg-[#10B981]/20 text-[#10B981] text-xs animate-pulse">LIVE</Badge>
+              </div>
+              <div 
+                className="rounded-lg border-2 border-dashed border-[#3B82F6]/30 bg-[#0A0F1C] p-4 flex items-center justify-center"
+                style={{ minHeight: Math.min((form.jsTagHeight || 250) + 40, 350) }}
+              >
+                <div className="bg-white rounded shadow-lg overflow-hidden">
+                  <iframe
+                    srcDoc={livePreviewHtml}
+                    title="JS Tag Live Preview"
+                    style={{ 
+                      width: Math.min(form.jsTagWidth || 300, 380), 
+                      height: Math.min(form.jsTagHeight || 250, 280),
+                      border: 'none',
+                      display: 'block'
+                    }}
+                    sandbox="allow-scripts allow-same-origin"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-[#475569] text-center">
+                Note: Some third-party tags may not render in preview due to security restrictions
+              </p>
+              
+              {/* Tag Code Preview (Collapsed) */}
+              <details className="mt-2">
+                <summary className="text-xs text-[#64748B] cursor-pointer hover:text-[#94A3B8]">
+                  View Tag Code
+                </summary>
+                <div className="mt-2 p-3 bg-[#0F172A] rounded border border-[#2D3B55] overflow-hidden">
+                  <pre className="text-xs text-[#94A3B8] whitespace-pre-wrap break-all max-h-32 overflow-y-auto font-mono">
+                    {form.jsTagContent.length > 300 ? form.jsTagContent.substring(0, 300) + "..." : form.jsTagContent}
+                  </pre>
+                </div>
+              </details>
+            </div>
+          ) : form.jsTagUrl ? (
+            <div className="p-6 bg-gradient-to-br from-[#F59E0B]/10 to-[#EF4444]/10 rounded-lg border border-[#2D3B55]">
+              <p className="text-xs text-[#64748B] mb-2">Tag URL:</p>
+              <p className="text-xs text-[#3B82F6] break-all mb-3">{form.jsTagUrl}</p>
+              <Button
+                size="sm"
+                className="w-full bg-[#F59E0B] hover:bg-[#F59E0B]/90"
+                onClick={() => window.open(form.jsTagUrl, '_blank')}
+              >
+                Open Tag URL
+              </Button>
+            </div>
+          ) : (
+            <div className="p-8 bg-gradient-to-br from-[#F59E0B]/5 to-[#EF4444]/5 rounded-lg border border-dashed border-[#2D3B55] text-center">
+              <Code className="w-12 h-12 text-[#64748B] mx-auto mb-3 opacity-50" />
+              <p className="text-sm text-[#64748B]">No tag content configured</p>
+              <p className="text-xs text-[#475569] mt-1">Add tag code to see live preview</p>
+            </div>
+          )}
         </div>
       );
     }
