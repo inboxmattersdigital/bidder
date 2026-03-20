@@ -107,12 +107,12 @@ export default function Layout() {
         {/* Logo */}
         <div className="p-4 border-b border-slate-200">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-sm bg-[#3B82F6] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-sm bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center">
               <Zap className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold text-slate-900">OpenRTB</h1>
-              <p className="text-[10px] uppercase tracking-wider text-slate-500">Bidder</p>
+              <h1 className="text-sm font-semibold text-slate-900">Innoviedge</h1>
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">DSP Platform</p>
             </div>
           </div>
         </div>
@@ -193,8 +193,8 @@ export default function Layout() {
           </DropdownMenu>
 
           <div className="text-xs text-slate-500">
-            <p>OpenRTB 2.5/2.6</p>
-            <p className="mt-1">DSP Bidder v1.0</p>
+            <p>Innoviedge DSP</p>
+            <p className="mt-1">Programmatic Platform v1.0</p>
           </div>
         </div>
       </aside>

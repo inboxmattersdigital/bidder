@@ -144,8 +144,8 @@ export default function CreativePreviewPage() {
               <Code className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-[#F8FAFC]">Creative Preview</h1>
-              <p className="text-xs text-[#64748B]">Review and approve this creative</p>
+              <h1 className="text-lg font-bold text-[#F8FAFC]">Innoviedge</h1>
+              <p className="text-xs text-[#64748B]">Creative Preview</p>
             </div>
           </div>
           {approvalStatus && (
