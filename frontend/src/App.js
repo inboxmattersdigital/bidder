@@ -6,6 +6,8 @@ import Layout from "./components/Layout";
 import { ProtectedRoute } from "./components/AccessDenied";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AdminPanel from "./pages/AdminPanel";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
@@ -53,6 +55,8 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/preview/:id" element={<CreativePreviewPage />} />
             
             {/* Protected routes */}

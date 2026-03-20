@@ -1988,3 +1988,42 @@ async def get_budget_thresholds(user_id: str) -> tuple:
         prefs.get("budget_warning_threshold", 75),
         prefs.get("budget_critical_threshold", 90)
     )
+
+
+# ============== PASSWORD RESET ALIAS ENDPOINTS ==============
+# These are aliases for the frontend paths
+
+@router.post("/auth/forgot-password")
+async def forgot_password(data: PasswordResetRequest, request: Request):
+    """Alias for password reset request - matches frontend path"""
+    return await request_password_reset(data, request)
+
+
+@router.get("/auth/validate-reset-token")
+async def validate_reset_token(token: str):
+    """Validate a password reset token without using it"""
+    token_hash = hash_password(token)
+    
+    reset_record = await db.password_resets.find_one({"token_hash": token_hash})
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid reset token")
+    
+    # Check expiration
+    expires_at = datetime.fromisoformat(reset_record["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    return {"valid": True}
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str = Field(min_length=6)
+
+
+@router.post("/auth/reset-password")
+async def reset_password(data: ResetPasswordRequest, request: Request):
+    """Alias for password reset confirm - matches frontend path"""
+    confirm_data = PasswordResetConfirm(token=data.token, new_password=data.password)
+    return await confirm_password_reset(confirm_data, request)
+

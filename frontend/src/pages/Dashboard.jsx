@@ -26,7 +26,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Progress } from "../components/ui/progress";
 import { toast } from "sonner";
-import { getDashboardStats, getChartData, getUserChartData, seedData } from "../lib/api";
+import { getDashboardStats, getChartData, getUserChartData } from "../lib/api";
 import {
   AreaChart,
   Area,
@@ -640,7 +640,6 @@ export default function Dashboard() {
   const [roleData, setRoleData] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -671,19 +670,6 @@ export default function Dashboard() {
       toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSeedData = async () => {
-    try {
-      setSeeding(true);
-      const response = await seedData();
-      toast.success(response.data.message);
-      fetchData();
-    } catch (error) {
-      toast.error("Failed to seed data");
-    } finally {
-      setSeeding(false);
     }
   };
 
@@ -734,17 +720,6 @@ export default function Dashboard() {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          {hasRole('super_admin') && (
-            <Button 
-              size="sm" 
-              onClick={handleSeedData}
-              disabled={seeding}
-              className="bg-[#3B82F6] hover:bg-[#60A5FA] text-white btn-press"
-              data-testid="seed-data-btn"
-            >
-              {seeding ? "Seeding..." : "Seed Demo Data"}
-            </Button>
-          )}
         </div>
       </div>
 

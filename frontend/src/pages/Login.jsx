@@ -250,11 +250,10 @@ export default function Login() {
                 </Button>
               </form>
 
-              <div className="mt-6 pt-6 border-t border-slate-100">
+              <div className="mt-6 pt-6 border-t border-slate-100 space-y-3">
                 <p className="text-sm text-slate-500 text-center">
-                  Don't have an account?{" "}
-                  <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium hover:underline">
-                    Request Access
+                  <Link to="/forgot-password" className="text-blue-600 hover:text-blue-700 font-medium hover:underline">
+                    Forgot your password?
                   </Link>
                 </p>
               </div>
