@@ -67,7 +67,8 @@ function CreativeTypeIcon({ type }) {
     banner: Image,
     video: Video,
     native: FileText,
-    audio: Music
+    audio: Music,
+    js_tag: Code
   };
   const Icon = icons[type] || FileText;
   return <Icon className="w-5 h-5" />;
@@ -78,12 +79,21 @@ function CreativeTypeBadge({ type }) {
     banner: "bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/30",
     video: "bg-[#10B981]/20 text-[#10B981] border-[#10B981]/30",
     native: "bg-[#F59E0B]/20 text-[#F59E0B] border-[#F59E0B]/30",
-    audio: "bg-[#8B5CF6]/20 text-[#8B5CF6] border-[#8B5CF6]/30"
+    audio: "bg-[#8B5CF6]/20 text-[#8B5CF6] border-[#8B5CF6]/30",
+    js_tag: "bg-[#F59E0B]/20 text-[#F59E0B] border-[#F59E0B]/30"
+  };
+  
+  const labels = {
+    banner: "Banner",
+    video: "Video",
+    native: "Native",
+    audio: "Audio",
+    js_tag: "JS Tag"
   };
   
   return (
-    <Badge variant="outline" className={`${colors[type]} font-medium uppercase text-[10px] tracking-wider`}>
-      {type}
+    <Badge variant="outline" className={`${colors[type] || colors.banner} font-medium uppercase text-[10px] tracking-wider`}>
+      {labels[type] || type}
     </Badge>
   );
 }
@@ -435,6 +445,87 @@ function CreativePreview({ creative, onClose }) {
           );
         }
         break;
+      case "js_tag":
+        const jsTagData = creative.js_tag_data || {};
+        const tagContent = jsTagData.tag_content || creative.js_tag || "";
+        const tagUrl = jsTagData.tag_url || "";
+        const jsWidth = jsTagData.width || 300;
+        const jsHeight = jsTagData.height || 250;
+        const vendor = jsTagData.vendor || "";
+        const tagType = jsTagData.tag_type || "script";
+        const isSecure = jsTagData.is_secure !== false;
+        
+        return (
+          <div className="flex flex-col items-center gap-4 w-full max-w-lg">
+            {/* JS Tag Info Card */}
+            <div className="w-full p-6 bg-gradient-to-br from-[#F59E0B]/10 to-[#EF4444]/10 rounded-lg border border-[#2D3B55]">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-[#F59E0B]/20 flex items-center justify-center shrink-0">
+                  <Code className="w-6 h-6 text-[#F59E0B]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-[#F8FAFC] font-medium">Third Party JS Tag</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {vendor && (
+                      <Badge className="bg-[#F59E0B]/20 text-[#F59E0B] text-xs">
+                        {vendor}
+                      </Badge>
+                    )}
+                    <Badge className="bg-[#64748B]/20 text-[#94A3B8] text-xs">
+                      {tagType}
+                    </Badge>
+                    {isSecure && (
+                      <Badge className="bg-[#10B981]/20 text-[#10B981] text-xs">
+                        HTTPS
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {(jsWidth && jsHeight) && (
+                <p className="text-xs text-[#64748B] mb-3">
+                  Container Size: {jsWidth}x{jsHeight}px
+                </p>
+              )}
+              
+              {tagContent ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#64748B]">Tag Content:</p>
+                  <div className="p-3 bg-[#0F172A] rounded border border-[#2D3B55] overflow-hidden">
+                    <pre className="text-xs text-[#94A3B8] whitespace-pre-wrap break-all max-h-48 overflow-y-auto font-mono">
+                      {tagContent}
+                    </pre>
+                  </div>
+                </div>
+              ) : tagUrl ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-[#64748B]">Tag URL:</p>
+                  <div className="p-3 bg-[#0F172A] rounded border border-[#2D3B55]">
+                    <code className="text-xs text-[#3B82F6] font-mono break-all">
+                      {tagUrl}
+                    </code>
+                  </div>
+                  <a 
+                    href={tagUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#3B82F6] hover:underline"
+                  >
+                    Open in new tab →
+                  </a>
+                </div>
+              ) : (
+                <p className="text-xs text-[#64748B] text-center">No tag content configured</p>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              <Badge className="bg-[#F59E0B]/20 text-[#F59E0B]">{jsWidth}x{jsHeight}</Badge>
+              <Badge className="bg-[#8B5CF6]/20 text-[#8B5CF6]">JS Tag</Badge>
+            </div>
+          </div>
+        );
       default:
         break;
     }
@@ -550,7 +641,7 @@ export default function Creatives() {
     if (type === "video") return creatives.filter(c => c.type === "video");
     if (type === "native") return creatives.filter(c => c.type === "native");
     if (type === "audio") return creatives.filter(c => c.type === "audio");
-    if (type === "jstag") return creatives.filter(c => c.format === "js_tag");
+    if (type === "jstag") return creatives.filter(c => c.type === "js_tag");
     return creatives;
   };
 
@@ -573,7 +664,7 @@ export default function Creatives() {
     video: creatives.filter(c => c.type === "video").length,
     native: creatives.filter(c => c.type === "native").length,
     audio: creatives.filter(c => c.type === "audio").length,
-    jstag: creatives.filter(c => c.format === "js_tag").length,
+    jstag: creatives.filter(c => c.type === "js_tag").length,
   };
 
   // Render creative card with proper preview
@@ -667,11 +758,20 @@ export default function Creatives() {
               )}
             </div>
           )}
-          {creative.format === "js_tag" && (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="text-center">
-                <Code className="w-8 h-8 text-[#8B5CF6] mx-auto mb-2" />
-                <p className="text-xs text-[#64748B]">JavaScript Tag</p>
+          {creative.type === "js_tag" && (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F59E0B]/10 to-[#EF4444]/10">
+              <div className="text-center p-4">
+                <div className="w-14 h-14 rounded-full bg-[#F59E0B]/20 flex items-center justify-center mx-auto mb-2">
+                  <Code className="w-6 h-6 text-[#F59E0B]" />
+                </div>
+                <p className="text-xs text-[#F59E0B] font-medium">
+                  {creative.js_tag_data?.vendor || "Third Party JS Tag"}
+                </p>
+                {creative.js_tag_data?.width && creative.js_tag_data?.height && (
+                  <p className="text-[10px] text-[#64748B] mt-1">
+                    {creative.js_tag_data.width}x{creative.js_tag_data.height}
+                  </p>
+                )}
               </div>
             </div>
           )}
