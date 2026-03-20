@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   Plus, 
   Trash2, 
@@ -18,7 +18,8 @@ import {
   Film,
   Layers,
   Volume2,
-  ChevronDown
+  ChevronDown,
+  Pencil
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -491,6 +492,7 @@ function CreativePreview({ creative, onClose }) {
 }
 
 export default function Creatives() {
+  const navigate = useNavigate();
   const [creatives, setCreatives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState(null);
@@ -704,6 +706,13 @@ export default function Creatives() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="surface-primary border-panel">
+                <DropdownMenuItem 
+                  onClick={() => navigate(`/creative-editor/${creative.id}`)}
+                  className="text-[#94A3B8] focus:text-[#F8FAFC]"
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => setPreviewCreative(creative)}
                   className="text-[#94A3B8] focus:text-[#F8FAFC]"

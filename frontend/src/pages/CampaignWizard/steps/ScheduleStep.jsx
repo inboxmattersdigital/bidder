@@ -141,20 +141,22 @@ export function ScheduleStep({ form, updateField }) {
                   <Label className="text-[#94A3B8]">Daily Cap (per user)</Label>
                   <Input
                     type="number"
-                    value={form.frequency_cap_daily}
+                    value={form.frequency_cap_daily || ""}
                     onChange={(e) => updateField("frequency_cap_daily", parseInt(e.target.value) || 0)}
                     className="surface-primary border-[#2D3B55] text-[#F8FAFC]"
-                    placeholder="0 = unlimited"
+                    placeholder="Unlimited"
+                    min={0}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[#94A3B8]">Lifetime Cap (per user)</Label>
                   <Input
                     type="number"
-                    value={form.frequency_cap_lifetime}
+                    value={form.frequency_cap_lifetime || ""}
                     onChange={(e) => updateField("frequency_cap_lifetime", parseInt(e.target.value) || 0)}
                     className="surface-primary border-[#2D3B55] text-[#F8FAFC]"
-                    placeholder="0 = unlimited"
+                    placeholder="Unlimited"
+                    min={0}
                   />
                 </div>
               </div>

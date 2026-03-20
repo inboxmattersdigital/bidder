@@ -64,6 +64,7 @@ function App() {
               <Route path="creatives" element={<ProtectedRoute requiredSidebarAccess="creatives"><Creatives /></ProtectedRoute>} />
               <Route path="creatives/new" element={<ProtectedRoute requiredSidebarAccess="creatives"><CreativeForm /></ProtectedRoute>} />
               <Route path="creative-editor" element={<ProtectedRoute requiredSidebarAccess="creatives"><CreativeEditor /></ProtectedRoute>} />
+              <Route path="creative-editor/:id" element={<ProtectedRoute requiredSidebarAccess="creatives"><CreativeEditor /></ProtectedRoute>} />
               <Route path="ssp-endpoints" element={<ProtectedRoute requiredSidebarAccess="ssp_endpoints"><SSPEndpoints /></ProtectedRoute>} />
               <Route path="ssp-analytics" element={<ProtectedRoute requiredSidebarAccess="ssp_analytics"><SSPAnalytics /></ProtectedRoute>} />
               <Route path="bid-logs" element={<ProtectedRoute requiredSidebarAccess="bid_logs"><BidLogs /></ProtectedRoute>} />

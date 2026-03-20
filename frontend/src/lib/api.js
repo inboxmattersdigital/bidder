@@ -50,6 +50,7 @@ export const getCreatives = (type) =>
   api.get('/creatives', { params: type ? { type } : {} });
 export const getCreative = (id) => api.get(`/creatives/${id}`);
 export const createCreative = (data) => api.post('/creatives', data);
+export const updateCreative = (id, data) => api.put(`/creatives/${id}`, data);
 export const deleteCreative = (id) => api.delete(`/creatives/${id}`);
 
 // SSP Endpoints

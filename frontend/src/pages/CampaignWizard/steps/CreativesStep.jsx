@@ -3,11 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui
 import { Badge } from "../../../components/ui/badge";
 
 export function CreativesStep({ form, updateField, creatives }) {
-  const selectCreative = (creativeId) => {
-    updateField("creative_id", creativeId);
-    // Also update creative_ids for multiple selection support
-    if (!form.creative_ids.includes(creativeId)) {
-      updateField("creative_ids", [...form.creative_ids, creativeId]);
+  const toggleCreative = (creativeId) => {
+    const isSelected = form.creative_ids.includes(creativeId);
+    
+    if (isSelected) {
+      // Unselect the creative
+      const newIds = form.creative_ids.filter(id => id !== creativeId);
+      updateField("creative_ids", newIds);
+      // Update primary creative_id if we just removed it
+      if (form.creative_id === creativeId) {
+        updateField("creative_id", newIds.length > 0 ? newIds[0] : "");
+      }
+    } else {
+      // Select the creative
+      const newIds = [...form.creative_ids, creativeId];
+      updateField("creative_ids", newIds);
+      // Set as primary if no primary selected
+      if (!form.creative_id) {
+        updateField("creative_id", creativeId);
+      }
     }
   };
 
@@ -55,7 +69,7 @@ export function CreativesStep({ form, updateField, creatives }) {
             return (
               <Card
                 key={creative.id}
-                onClick={() => selectCreative(creative.id)}
+                onClick={() => toggleCreative(creative.id)}
                 className={`cursor-pointer transition-all ${
                   isSelected
                     ? "border-[#10B981] bg-[#10B981]/10"

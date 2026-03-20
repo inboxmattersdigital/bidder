@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { 
   ArrowLeft, Save, Upload, Image, Video, 
   Eye, Palette, Maximize2, Check, RefreshCw, Play, Film, Music
@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { toast } from "sonner";
-import { createCreative, uploadImage, uploadVideo, uploadAudio } from "../lib/api";
+import { createCreative, updateCreative, getCreatives, uploadImage, uploadVideo, uploadAudio } from "../lib/api";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -61,6 +61,9 @@ const TEMPLATES = [
 
 export default function CreativeEditor() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = !!id;
+  
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -68,6 +71,7 @@ export default function CreativeEditor() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   const [creativeType, setCreativeType] = useState("banner");
   const [selectedSize, setSelectedSize] = useState(BANNER_SIZES[0]);
@@ -87,6 +91,7 @@ export default function CreativeEditor() {
     name: "",
     clickUrl: "",
     cat: "",
+    adomain: "", // Advertiser domains (comma-separated)
     // Banner
     imageUrl: "",
     backgroundColor: "#FFFFFF",
@@ -115,6 +120,76 @@ export default function CreativeEditor() {
     companionWidth: 300,
     companionHeight: 250,
   });
+
+  // Load creative data for edit mode
+  useEffect(() => {
+    if (isEdit && id) {
+      loadCreative();
+    }
+  }, [id, isEdit]);
+
+  const loadCreative = async () => {
+    setLoading(true);
+    try {
+      const response = await getCreatives();
+      const creative = response.data?.find(c => c.id === id);
+      
+      if (creative) {
+        setCreativeType(creative.type || "banner");
+        setForm(prev => ({
+          ...prev,
+          name: creative.name || "",
+          cat: (creative.cat || []).join(", "),
+          adomain: (creative.adomain || []).join(", "),
+          imageUrl: creative.banner_data?.image_url || creative.iurl || "",
+          backgroundColor: "#FFFFFF",
+          // Native
+          nativeTitle: creative.native_data?.title || "",
+          nativeDescription: creative.native_data?.desc || creative.native_data?.description || "",
+          nativeIconUrl: creative.native_data?.icon_url || "",
+          nativeImageUrl: creative.native_data?.main_image_url || creative.native_data?.image_url || "",
+          nativeCtaText: creative.native_data?.cta_text || "Learn More",
+          nativeClickUrl: creative.native_data?.click_url || "",
+          // Video
+          vastUrl: creative.video_data?.vast_url || "",
+          videoDuration: creative.video_data?.duration || 15,
+          videoUrl: creative.video_data?.video_url || "",
+          videoWidth: creative.video_data?.width || 1920,
+          videoHeight: creative.video_data?.height || 1080,
+          // Audio
+          audioVastUrl: creative.audio_data?.vast_url || "",
+          audioVastXml: creative.audio_data?.vast_xml || "",
+          audioUrl: creative.audio_data?.audio_url || "",
+          audioDuration: creative.audio_data?.duration || 30,
+          companionBannerUrl: creative.audio_data?.companion_banner_url || "",
+          companionWidth: creative.audio_data?.companion_width || 300,
+          companionHeight: creative.audio_data?.companion_height || 250,
+        }));
+        
+        // Set banner size
+        if (creative.banner_data?.width && creative.banner_data?.height) {
+          const w = creative.banner_data.width;
+          const h = creative.banner_data.height;
+          const standardSize = BANNER_SIZES.find(s => s.w === w && s.h === h);
+          if (standardSize) {
+            setSelectedSize(standardSize);
+          } else {
+            setUseCustomSize(true);
+            setCustomWidth(w);
+            setCustomHeight(h);
+          }
+        }
+        
+        // Set video/audio source type
+        if (creative.video_data?.video_url) setVideoSourceType("upload");
+        if (creative.audio_data?.audio_url) setAudioSourceType("upload");
+      }
+    } catch (error) {
+      toast.error("Failed to load creative");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const updateField = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -334,7 +409,8 @@ export default function CreativeEditor() {
         name: form.name,
         type: creativeType,
         iurl: form.imageUrl || form.nativeImageUrl || null,
-        cat: form.cat.split(',').map(s => s.trim()).filter(Boolean)
+        cat: form.cat.split(',').map(s => s.trim()).filter(Boolean),
+        adomain: form.adomain.split(',').map(s => s.trim()).filter(Boolean)
       };
       
       if (creativeType === "banner") {
@@ -378,11 +454,16 @@ export default function CreativeEditor() {
         };
       }
       
-      await createCreative(payload);
-      toast.success("Creative created successfully");
+      if (isEdit) {
+        await updateCreative(id, payload);
+        toast.success("Creative updated successfully");
+      } else {
+        await createCreative(payload);
+        toast.success("Creative created successfully");
+      }
       navigate("/creatives");
     } catch (error) {
-      toast.error("Failed to create creative");
+      toast.error(isEdit ? "Failed to update creative" : "Failed to create creative");
     } finally {
       setSaving(false);
     }
@@ -591,8 +672,12 @@ export default function CreativeEditor() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-[#F8FAFC]">Advanced Creative Editor</h1>
-            <p className="text-sm text-[#94A3B8]">Create rich ad creatives with templates and uploads</p>
+            <h1 className="text-2xl font-bold text-[#F8FAFC]">
+              {isEdit ? "Edit Creative" : "Advanced Creative Editor"}
+            </h1>
+            <p className="text-sm text-[#94A3B8]">
+              {isEdit ? "Update your creative settings" : "Create rich ad creatives with templates and uploads"}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -606,11 +691,11 @@ export default function CreativeEditor() {
           </Button>
           <Button 
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || loading}
             className="bg-[#10B981] hover:bg-[#10B981]/90"
           >
             <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving..." : "Save Creative"}
+            {saving ? "Saving..." : isEdit ? "Update Creative" : "Save Creative"}
           </Button>
         </div>
       </div>
@@ -657,6 +742,16 @@ export default function CreativeEditor() {
                   placeholder="https://..."
                   className="surface-secondary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[#94A3B8]">Advertiser Domains (ADM)</Label>
+                <Input
+                  value={form.adomain}
+                  onChange={(e) => updateField("adomain", e.target.value)}
+                  placeholder="example.com, brand.com"
+                  className="surface-secondary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155]"
+                />
+                <p className="text-xs text-[#64748B]">Comma-separated list of advertiser domains. Passed in bid response as 'adomain'.</p>
               </div>
             </CardContent>
           </Card>

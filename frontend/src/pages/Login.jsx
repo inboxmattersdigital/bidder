@@ -26,23 +26,6 @@ export default function Login() {
     }
   };
 
-  const loginAsDemo = async (role) => {
-    const credentials = {
-      advertiser: { email: "advertiser@demo.com", password: "demo123" },
-      admin: { email: "admin@demo.com", password: "demo123" },
-      super_admin: { email: "superadmin@demo.com", password: "demo123" },
-    };
-    
-    setLoading(true);
-    try {
-      await login(credentials[role].email, credentials[role].password);
-    } catch (error) {
-      // Error handled in context
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#020408] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -116,42 +99,6 @@ export default function Login() {
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
-
-            <div className="mt-6 pt-6 border-t border-[#2D3B55]">
-              <p className="text-sm text-[#64748B] text-center mb-4">Quick login with demo accounts</p>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loginAsDemo("advertiser")}
-                  disabled={loading}
-                  className="border-[#2D3B55] text-[#3B82F6] hover:bg-[#1E293B]"
-                  data-testid="demo-advertiser"
-                >
-                  Advertiser
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loginAsDemo("admin")}
-                  disabled={loading}
-                  className="border-[#2D3B55] text-[#10B981] hover:bg-[#1E293B]"
-                  data-testid="demo-admin"
-                >
-                  Admin
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loginAsDemo("super_admin")}
-                  disabled={loading}
-                  className="border-[#2D3B55] text-[#F59E0B] hover:bg-[#1E293B]"
-                  data-testid="demo-superadmin"
-                >
-                  Super Admin
-                </Button>
-              </div>
-            </div>
 
             <p className="text-sm text-[#64748B] text-center mt-6">
               Don't have an account?{" "}

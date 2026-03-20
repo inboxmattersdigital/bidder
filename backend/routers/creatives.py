@@ -130,6 +130,65 @@ async def delete_creative(creative_id: str):
     return {"status": "deleted"}
 
 
+@router.put("/creatives/{creative_id}", response_model=Creative)
+async def update_creative(
+    creative_id: str,
+    input: CreativeCreate,
+    authorization: Optional[str] = Header(None)
+):
+    """Update an existing creative"""
+    from datetime import datetime, timezone
+    
+    # Find existing creative
+    existing = await db.creatives.find_one({"id": creative_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Creative not found")
+    
+    # Build update data
+    update_data = {
+        "name": input.name,
+        "type": input.type.value if hasattr(input.type, 'value') else input.type,
+        "format": input.format.value if hasattr(input.format, 'value') else input.format,
+        "adomain": input.adomain,
+        "iurl": input.iurl,
+        "cat": input.cat,
+        "js_tag": input.js_tag,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Update type-specific data
+    if input.banner_data:
+        update_data["banner_data"] = input.banner_data.model_dump() if hasattr(input.banner_data, 'model_dump') else input.banner_data
+    if input.video_data:
+        update_data["video_data"] = input.video_data.model_dump() if hasattr(input.video_data, 'model_dump') else input.video_data
+    if input.native_data:
+        update_data["native_data"] = input.native_data.model_dump() if hasattr(input.native_data, 'model_dump') else input.native_data
+    if input.audio_data:
+        update_data["audio_data"] = input.audio_data.model_dump() if hasattr(input.audio_data, 'model_dump') else input.audio_data
+    
+    # Update preview URL based on creative type
+    if update_data.get("type") == "banner":
+        banner_data = update_data.get("banner_data", {})
+        if banner_data.get("image_url"):
+            update_data["preview_url"] = banner_data["image_url"]
+        elif input.iurl:
+            update_data["preview_url"] = input.iurl
+    elif update_data.get("type") == "video":
+        video_data = update_data.get("video_data", {})
+        if video_data.get("vast_url"):
+            update_data["preview_url"] = video_data["vast_url"]
+        elif video_data.get("video_url"):
+            update_data["preview_url"] = video_data["video_url"]
+    
+    await db.creatives.update_one(
+        {"id": creative_id},
+        {"$set": update_data}
+    )
+    
+    updated = await db.creatives.find_one({"id": creative_id}, {"_id": 0})
+    return updated
+
+
 @router.post("/creatives/validate")
 async def validate_creative(creative_data: dict):
     """Validate creative data"""
