@@ -40,49 +40,143 @@ export function useWizardForm({ id, isEdit, fromMediaPlan, planData }) {
         
         setForm(prev => ({
           ...prev,
+          // Campaign Overview
           name: c.name || "",
           business_product: c.business_product || "",
           description: c.description || "",
           primary_goal: c.primary_goal || "brand_awareness",
           kpi_type: c.kpi_type || "cpm",
           kpi_target: c.kpi_target || 0,
+          iab_categories: c.iab_categories || [],
+          
+          // Budget & Bidding
           bid_price: c.bid_price || 2.0,
           bid_floor: c.bid_floor || 0.5,
+          bid_pricing_type: c.bid_pricing_type || "cpm",
+          bidding_strategy: c.bidding_strategy || "manual_cpm",
           currency: c.currency || "USD",
           daily_budget: c.budget?.daily_budget || 100,
           total_budget: c.budget?.total_budget || 3000,
           pacing_type: c.budget?.pacing_type || "even",
+          
+          // Inventory
           inventory_sources: c.inventory_sources || ["open_exchange"],
           environments: c.environments || ["web", "app"],
+          
+          // Geographic Targeting - Include
           geo_countries: c.targeting?.geo?.countries || [],
           geo_states: c.targeting?.geo?.states || [],
           geo_cities: c.targeting?.geo?.cities || [],
+          geo_pincodes: c.targeting?.geo?.pincodes || [],
+          geo_regions: c.targeting?.geo?.regions || [],
+          // Geographic Targeting - Exclude
           geo_countries_exclude: c.targeting?.geo?.countries_exclude || [],
           geo_states_exclude: c.targeting?.geo?.states_exclude || [],
           geo_cities_exclude: c.targeting?.geo?.cities_exclude || [],
+          geo_pincodes_exclude: c.targeting?.geo?.pincodes_exclude || [],
+          geo_regions_exclude: c.targeting?.geo?.regions_exclude || [],
+          // Lat/Long Targeting
+          lat_long_targeting: c.targeting?.geo?.lat_long_targeting || false,
+          lat_long_points: c.targeting?.geo?.lat_long_points || [],
+          geo_latitude: c.targeting?.geo?.latitude || "",
+          geo_longitude: c.targeting?.geo?.longitude || "",
+          radius_km: c.targeting?.geo?.radius_km || 10,
+          
+          // Telecom
+          telecom_operators: c.targeting?.telecom?.operators || [],
+          
+          // Device Targeting
           device_types: c.targeting?.device?.device_types || [],
           os_list: c.targeting?.device?.os_list || [],
-          creative_id: c.creative_id || "",
-          start_date: c.start_date?.split('T')[0] || "",
-          end_date: c.end_date?.split('T')[0] || "",
-          frequency_cap_enabled: c.frequency_cap?.enabled || false,
-          frequency_cap_count: c.frequency_cap?.max_impressions || 5,
-          frequency_cap_period: c.frequency_cap?.period || "day",
-          priority: c.priority || 5,
-          bid_shading_enabled: c.bid_shading?.enabled || false,
-          ml_prediction_enabled: c.ml_prediction?.enabled || false,
+          os_versions: c.targeting?.device?.os_versions || [],
+          browsers_include: c.targeting?.technical?.browsers_include || [],
+          browsers_exclude: c.targeting?.technical?.browsers_exclude || [],
+          connection_types: c.targeting?.technical?.connection_speeds || [],
+          
           // Demographics
           age_ranges: c.targeting?.demographics?.age_ranges || [],
           genders: c.targeting?.demographics?.genders || [],
           income_segments: c.targeting?.demographics?.income_segments || [],
+          parental_status: c.targeting?.demographics?.parental_status || [],
           languages: c.targeting?.demographics?.languages || [],
+          languages_exclude: c.targeting?.demographics?.languages_exclude || [],
+          
+          // Contextual Targeting
+          contextual_keywords: c.targeting?.contextual?.keywords || [],
+          contextual_categories: c.targeting?.contextual?.contextual_categories || [],
+          keyword_match_type: c.targeting?.contextual?.keyword_match_type || "broad",
+          
+          // Audience Segments
+          affinity_segments: c.targeting?.audiences?.affinity_segments || [],
+          in_market_segments: c.targeting?.audiences?.in_market_segments || [],
+          first_party_audiences: c.targeting?.audiences?.first_party_audiences || [],
+          third_party_audiences: c.targeting?.audiences?.third_party_audiences || [],
+          lookalike_enabled: c.targeting?.audiences?.lookalike_enabled || false,
+          lookalike_expansion: c.targeting?.audiences?.lookalike_expansion || 3,
+          audience_exclusions: c.targeting?.audiences?.audience_exclusions || [],
+          
+          // Placement & Viewability
+          ad_placements_display_include: c.targeting?.placement?.display_include || [],
+          ad_placements_display_exclude: c.targeting?.placement?.display_exclude || [],
+          ad_placements_incontent_include: c.targeting?.placement?.incontent_include || [],
+          ad_placements_incontent_exclude: c.targeting?.placement?.incontent_exclude || [],
+          ad_placements_native_include: c.targeting?.placement?.native_include || [],
+          ad_placements_native_exclude: c.targeting?.placement?.native_exclude || [],
+          viewability_threshold: c.targeting?.placement?.viewability_threshold || 50,
+          exclude_non_viewable: c.targeting?.placement?.exclude_non_viewable || false,
+          
+          // Inventory Control
+          domain_allowlist: c.targeting?.inventory?.domain_allowlist || [],
+          domain_blocklist: c.targeting?.inventory?.domain_blocklist || [],
+          app_allowlist: c.targeting?.inventory?.app_allowlist || [],
+          app_blocklist: c.targeting?.inventory?.app_blocklist || [],
+          
+          // Supply Source Control
+          supply_sources_include: c.targeting?.supply?.sources_include || [],
+          supply_sources_exclude: c.targeting?.supply?.sources_exclude || [],
+          
+          // Time Targeting
+          time_targeting_enabled: c.targeting?.time?.enabled || false,
+          timezone: c.targeting?.time?.timezone || "UTC",
+          days_of_week: c.targeting?.time?.days_of_week || [0,1,2,3,4,5,6],
+          hours_of_day: c.targeting?.time?.hours_of_day || Array.from({length: 24}, (_,i) => i),
+          
           // Brand Safety
           brand_safety_level: c.targeting?.brand_safety?.level || "standard",
           blocked_categories: c.targeting?.brand_safety?.blocked_categories || [],
-          // Time targeting
-          time_targeting_enabled: c.targeting?.time?.enabled || false,
-          days_of_week: c.targeting?.time?.days_of_week || [0,1,2,3,4,5,6],
-          hours_of_day: c.targeting?.time?.hours_of_day || Array.from({length: 24}, (_,i) => i),
+          blocked_keywords: c.targeting?.brand_safety?.blocked_keywords || [],
+          blocked_domains: c.targeting?.brand_safety?.blocked_domains || [],
+          exclude_ugc: c.targeting?.brand_safety?.exclude_ugc || false,
+          exclude_live_streaming: c.targeting?.brand_safety?.exclude_live_streaming || false,
+          
+          // Creatives
+          creative_id: c.creative_id || "",
+          creative_ids: c.creative_ids || (c.creative_id ? [c.creative_id] : []),
+          
+          // Schedule
+          start_date: c.start_date?.split('T')[0] || "",
+          end_date: c.end_date?.split('T')[0] || "",
+          
+          // Frequency Capping
+          frequency_cap_enabled: c.frequency_cap?.enabled || false,
+          frequency_cap_count: c.frequency_cap?.max_impressions || 5,
+          frequency_cap_period: c.frequency_cap?.period || "day",
+          frequency_cap_type: c.frequency_cap?.type || "user",
+          frequency_cap_daily: c.frequency_cap?.daily_cap || 0,
+          frequency_cap_lifetime: c.frequency_cap?.lifetime_cap || 0,
+          
+          // Advanced
+          priority: c.priority || 5,
+          bid_shading_enabled: c.bid_shading?.enabled || false,
+          ml_prediction_enabled: c.ml_prediction?.enabled || false,
+          spo_enabled: c.spo?.enabled || false,
+          
+          // Measurement
+          conversion_tracking_enabled: c.conversion_tracking_enabled || false,
+          conversion_pixel_id: c.conversion_pixel_id || "",
+          attribution_model: c.attribution_model || "last_touch",
+          click_through_window: c.click_through_window || 30,
+          view_through_window: c.view_through_window || 1,
         }));
         
         setCompletedSteps(new Set([1, 2, 3, 4, 5, 6, 7, 8]));

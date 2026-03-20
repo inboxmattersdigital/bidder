@@ -186,9 +186,18 @@ class GeoTargeting(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
     countries: List[str] = Field(default_factory=list, description="ISO 3166-1 alpha-3 country codes")
+    countries_exclude: List[str] = Field(default_factory=list, description="Countries to exclude")
+    states: List[str] = Field(default_factory=list, description="State/province codes")
+    states_exclude: List[str] = Field(default_factory=list, description="States to exclude")
+    cities: List[str] = Field(default_factory=list, description="City names")
+    cities_exclude: List[str] = Field(default_factory=list, description="Cities to exclude")
     regions: List[str] = Field(default_factory=list)
-    cities: List[str] = Field(default_factory=list)
+    regions_exclude: List[str] = Field(default_factory=list)
+    pincodes: List[str] = Field(default_factory=list, description="Postal/ZIP codes")
+    pincodes_exclude: List[str] = Field(default_factory=list, description="Pincodes to exclude")
     lat_lon_radius: Optional[Dict[str, float]] = Field(default=None, description="{'lat': x, 'lon': y, 'radius_km': z}")
+    lat_long_targeting: bool = Field(default=False, description="Enable lat/long targeting")
+    lat_long_points: List[Dict] = Field(default_factory=list, description="List of lat/long points")
     latitude: Optional[float] = Field(default=None, description="Target latitude")
     longitude: Optional[float] = Field(default=None, description="Target longitude")
     radius_km: Optional[float] = Field(default=None, description="Radius in kilometers")
@@ -213,8 +222,12 @@ class InventoryTargeting(BaseModel):
     
     domain_whitelist: List[str] = Field(default_factory=list)
     domain_blacklist: List[str] = Field(default_factory=list)
+    domain_allowlist: List[str] = Field(default_factory=list)
+    domain_blocklist: List[str] = Field(default_factory=list)
     bundle_whitelist: List[str] = Field(default_factory=list)
     bundle_blacklist: List[str] = Field(default_factory=list)
+    app_allowlist: List[str] = Field(default_factory=list)
+    app_blocklist: List[str] = Field(default_factory=list)
     publisher_ids: List[str] = Field(default_factory=list)
     categories: List[str] = Field(default_factory=list, description="IAB categories")
 
@@ -256,6 +269,7 @@ class DemographicTargeting(BaseModel):
     genders: List[str] = Field(default_factory=list, description="male, female, unknown")
     income_segments: List[str] = Field(default_factory=list, description="low, medium, high, affluent")
     languages: List[str] = Field(default_factory=list, description="ISO 639-1 language codes")
+    languages_exclude: List[str] = Field(default_factory=list, description="Languages to exclude")
     education_levels: List[str] = Field(default_factory=list)
     parental_status: List[str] = Field(default_factory=list, description="parent, not_parent")
     marital_status: List[str] = Field(default_factory=list)
@@ -292,6 +306,12 @@ class PlacementViewability(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
     ad_positions: List[str] = Field(default_factory=list, description="above_fold, below_fold, sidebar, etc.")
+    display_include: List[str] = Field(default_factory=list)
+    display_exclude: List[str] = Field(default_factory=list)
+    incontent_include: List[str] = Field(default_factory=list)
+    incontent_exclude: List[str] = Field(default_factory=list)
+    native_include: List[str] = Field(default_factory=list)
+    native_exclude: List[str] = Field(default_factory=list)
     viewability_threshold: int = Field(default=50, description="Minimum viewability percentage")
     viewability_vendor: str = Field(default="any", description="moat, ias, doubleverify, any")
     video_viewability_threshold: int = Field(default=50)
@@ -315,11 +335,43 @@ class TechnicalTargeting(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
     browsers: List[str] = Field(default_factory=list, description="chrome, safari, firefox, edge, etc.")
+    browsers_include: List[str] = Field(default_factory=list)
+    browsers_exclude: List[str] = Field(default_factory=list)
     browser_versions: Dict[str, str] = Field(default_factory=dict, description="min versions")
     connection_speeds: List[str] = Field(default_factory=list, description="2g, 3g, 4g, 5g, wifi, ethernet")
     min_bandwidth_kbps: Optional[int] = None
     exclude_vpn: bool = Field(default=False)
     exclude_datacenter_ips: bool = Field(default=True)
+
+
+class TelecomTargeting(BaseModel):
+    """Telecom/carrier targeting"""
+    model_config = ConfigDict(extra="ignore")
+    
+    operators: List[str] = Field(default_factory=list, description="Telecom operator names")
+    mccs: List[str] = Field(default_factory=list, description="Mobile Country Codes")
+    mncs: List[str] = Field(default_factory=list, description="Mobile Network Codes")
+
+
+class SupplyTargeting(BaseModel):
+    """Supply source targeting"""
+    model_config = ConfigDict(extra="ignore")
+    
+    sources_include: List[str] = Field(default_factory=list)
+    sources_exclude: List[str] = Field(default_factory=list)
+
+
+class AudienceTargeting(BaseModel):
+    """Audience segment targeting"""
+    model_config = ConfigDict(extra="ignore")
+    
+    affinity_segments: List[str] = Field(default_factory=list)
+    in_market_segments: List[str] = Field(default_factory=list)
+    first_party_audiences: List[str] = Field(default_factory=list)
+    third_party_audiences: List[str] = Field(default_factory=list)
+    lookalike_enabled: bool = Field(default=False)
+    lookalike_expansion: int = Field(default=3, description="1-10 expansion level")
+    audience_exclusions: List[str] = Field(default_factory=list)
 
 
 class CampaignTargeting(BaseModel):
@@ -338,6 +390,9 @@ class CampaignTargeting(BaseModel):
     placement: PlacementViewability = Field(default_factory=PlacementViewability)
     time: TimeTargeting = Field(default_factory=TimeTargeting)
     technical: TechnicalTargeting = Field(default_factory=TechnicalTargeting)
+    telecom: TelecomTargeting = Field(default_factory=TelecomTargeting)
+    supply: SupplyTargeting = Field(default_factory=SupplyTargeting)
+    audiences: AudienceTargeting = Field(default_factory=AudienceTargeting)
 
 
 # ==================== CREATIVE MODELS ====================
@@ -1015,10 +1070,12 @@ class CampaignCreate(BaseModel):
     name: str
     bid_price: float
     bid_floor: float = 0.0
+    bid_pricing_type: str = "cpm"
     currency: str = "USD"
     priority: int = 1
     placements: List[str] = Field(default_factory=list)
     creative_id: str
+    creative_ids: List[str] = Field(default_factory=list)
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     bid_shading: BidShadingConfig = Field(default_factory=BidShadingConfig)
     frequency_cap: FrequencyCapConfig = Field(default_factory=FrequencyCapConfig)
@@ -1035,8 +1092,15 @@ class CampaignCreate(BaseModel):
     description: Optional[str] = None
     primary_goal: str = "brand_awareness"
     bidding_strategy: str = "manual"
+    business_product: Optional[str] = None
     inventory_sources: List[str] = Field(default_factory=lambda: ["open_exchange"])
     environments: List[str] = Field(default_factory=lambda: ["web", "app"])
+    # Measurement
+    conversion_tracking_enabled: bool = False
+    conversion_pixel_id: Optional[str] = None
+    attribution_model: str = "last_touch"
+    click_through_window: int = 30
+    view_through_window: int = 1
 
 
 class CampaignUpdate(BaseModel):
@@ -1044,10 +1108,12 @@ class CampaignUpdate(BaseModel):
     status: Optional[CampaignStatus] = None
     bid_price: Optional[float] = None
     bid_floor: Optional[float] = None
+    bid_pricing_type: Optional[str] = None
     currency: Optional[str] = None
     priority: Optional[int] = None
     placements: Optional[List[str]] = None
     creative_id: Optional[str] = None
+    creative_ids: Optional[List[str]] = None
     budget: Optional[BudgetConfig] = None
     bid_shading: Optional[BidShadingConfig] = None
     frequency_cap: Optional[FrequencyCapConfig] = None
@@ -1064,8 +1130,15 @@ class CampaignUpdate(BaseModel):
     description: Optional[str] = None
     primary_goal: Optional[str] = None
     bidding_strategy: Optional[str] = None
+    business_product: Optional[str] = None
     inventory_sources: Optional[List[str]] = None
     environments: Optional[List[str]] = None
+    # Measurement
+    conversion_tracking_enabled: Optional[bool] = None
+    conversion_pixel_id: Optional[str] = None
+    attribution_model: Optional[str] = None
+    click_through_window: Optional[int] = None
+    view_through_window: Optional[int] = None
 
 
 class CreativeCreate(BaseModel):
