@@ -737,7 +737,7 @@ export default function Creatives() {
           <h1 className="text-3xl font-bold text-[#F8FAFC]">Creatives</h1>
           <p className="text-sm text-[#94A3B8] mt-1">Manage ad creatives for your campaigns</p>
         </div>
-        <Link to="/creatives/editor">
+        <Link to="/creative-editor">
           <Button 
             className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white btn-press shadow-[0_0_10px_rgba(139,92,246,0.3)]"
             data-testid="create-creative-btn"
