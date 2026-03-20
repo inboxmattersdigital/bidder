@@ -83,7 +83,6 @@ async def create_creative(
         adomain=input.adomain,
         iurl=input.iurl,
         cat=input.cat,
-        adm=input.adm,  # Universal ADM field
         banner_data=input.banner_data,
         video_data=input.video_data,
         native_data=input.native_data,

@@ -87,9 +87,6 @@ export default function CreativeEditor() {
     name: "",
     clickUrl: "",
     cat: "",
-    // Custom ADM (Ad Markup) - overrides generated markup
-    customAdm: "",
-    useCustomAdm: false,
     // Banner
     imageUrl: "",
     backgroundColor: "#FFFFFF",
@@ -347,10 +344,6 @@ export default function CreativeEditor() {
           mimes: ["image/jpeg", "image/png", "image/gif"],
           ad_markup: generateBannerMarkup()
         };
-        // If custom ADM is enabled, use it instead
-        if (form.useCustomAdm && form.customAdm) {
-          payload.adm = form.customAdm;
-        }
       } else if (creativeType === "native") {
         payload.native_data = {
           title: form.nativeTitle,
@@ -360,10 +353,6 @@ export default function CreativeEditor() {
           cta_text: form.nativeCtaText || "Learn More",
           click_url: form.nativeClickUrl || form.clickUrl
         };
-        // If custom ADM is enabled, use it instead
-        if (form.useCustomAdm && form.customAdm) {
-          payload.adm = form.customAdm;
-        }
       } else if (creativeType === "video") {
         payload.video_data = {
           duration: form.videoDuration,
@@ -376,10 +365,6 @@ export default function CreativeEditor() {
           video_url: videoSourceType === "upload" ? form.videoUrl : null,
           source_type: videoSourceType
         };
-        // If custom ADM is enabled, use it instead of VAST
-        if (form.useCustomAdm && form.customAdm) {
-          payload.adm = form.customAdm;
-        }
       } else if (creativeType === "audio") {
         payload.audio_data = {
           duration: parseInt(form.audioDuration),
@@ -391,10 +376,6 @@ export default function CreativeEditor() {
           companion_width: form.companionBannerUrl ? parseInt(form.companionWidth) : null,
           companion_height: form.companionBannerUrl ? parseInt(form.companionHeight) : null
         };
-        // If custom ADM is enabled, use it instead
-        if (form.useCustomAdm && form.customAdm) {
-          payload.adm = form.customAdm;
-        }
       }
       
       await createCreative(payload);
@@ -1290,100 +1271,6 @@ export default function CreativeEditor() {
               </CardContent>
             </Card>
           )}
-
-          {/* Custom ADM (Ad Markup) Section */}
-          <Card className="surface-primary border-panel">
-            <CardHeader>
-              <CardTitle className="text-base text-[#F8FAFC] flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-[#8B5CF6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <path d="M10 12l-2 2 2 2"/>
-                    <path d="M14 12l2 2-2 2"/>
-                  </svg>
-                  Custom ADM (Ad Markup)
-                </span>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <span className="text-xs text-[#64748B] font-normal">Enable Custom ADM</span>
-                  <input
-                    type="checkbox"
-                    checked={form.useCustomAdm}
-                    onChange={(e) => updateField("useCustomAdm", e.target.checked)}
-                    className="w-4 h-4 rounded border-[#2D3B55] bg-[#0F172A] text-[#8B5CF6]"
-                  />
-                </label>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-xs text-[#64748B]">
-                Define custom ad markup (ADM) that will be passed directly in the bid response. 
-                When enabled, this overrides the auto-generated markup.
-              </p>
-              
-              {form.useCustomAdm && (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-[#94A3B8]">Ad Markup (HTML/XML/JSON)</Label>
-                    <Textarea
-                      value={form.customAdm}
-                      onChange={(e) => updateField("customAdm", e.target.value)}
-                      placeholder={creativeType === "video" 
-                        ? '<VAST version="4.0">...</VAST>' 
-                        : creativeType === "native"
-                        ? '{"native": {"ver": "1.2", "assets": [...]}}'
-                        : '<a href="${CLICK_URL}"><img src="..." /></a>'}
-                      className="surface-secondary border-[#2D3B55] text-[#F8FAFC] dark:bg-[#0F172A] dark:border-[#334155] font-mono text-sm min-h-[200px]"
-                    />
-                    <p className="text-xs text-[#64748B]">
-                      Supported macros: {`\${CLICK_URL}`}, {`\${AUCTION_PRICE}`}, {`\${TIMESTAMP}`}
-                    </p>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Copy current auto-generated markup to custom ADM
-                        if (creativeType === "banner") {
-                          const markup = `<a href="${form.clickUrl || '${CLICK_URL}'}" target="_blank"><img src="${form.imageUrl}" style="width:100%;height:100%;object-fit:contain;background:${form.backgroundColor}" /></a>`;
-                          updateField("customAdm", markup);
-                          toast.success("Generated banner markup copied to Custom ADM");
-                        } else if (creativeType === "video" && form.vastUrl) {
-                          updateField("customAdm", `<!-- VAST wrapper for ${form.vastUrl} -->\n<VAST version="${form.vastVersion}">\n  <Ad>\n    <Wrapper>\n      <VASTAdTagURI><![CDATA[${form.vastUrl}]]></VASTAdTagURI>\n    </Wrapper>\n  </Ad>\n</VAST>`);
-                          toast.success("Generated VAST wrapper copied to Custom ADM");
-                        }
-                      }}
-                      className="border-[#2D3B55] text-[#94A3B8] hover:bg-[#1E293B]"
-                    >
-                      <RefreshCw className="w-3 h-3 mr-1" />
-                      Copy Generated Markup
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateField("customAdm", "")}
-                      className="border-[#2D3B55] text-[#94A3B8] hover:bg-[#1E293B]"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </>
-              )}
-              
-              {!form.useCustomAdm && (
-                <div className="p-3 rounded-lg bg-[#0B1221] border border-[#1E293B]">
-                  <p className="text-sm text-[#64748B]">
-                    Using auto-generated ad markup based on creative type settings.
-                    Enable custom ADM to provide your own markup for the bid response.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           {/* Live Preview */}
           <Card className="surface-primary border-panel">

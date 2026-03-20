@@ -402,9 +402,6 @@ class Creative(BaseModel):
     cat: List[str] = Field(default_factory=list, description="IAB content categories")
     attr: List[int] = Field(default_factory=list, description="Creative attributes")
     
-    # Universal ADM field - passed directly in bid response if set
-    adm: Optional[str] = Field(default=None, description="Ad markup to be passed in bid response. If set, this overrides type-specific markup.")
-    
     # Type-specific data
     banner_data: Optional[BannerCreative] = None
     video_data: Optional[VideoCreative] = None
@@ -1077,7 +1074,6 @@ class CreativeCreate(BaseModel):
     adomain: List[str] = Field(default_factory=list)
     iurl: Optional[str] = None
     cat: List[str] = Field(default_factory=list)
-    adm: Optional[str] = Field(default=None, description="Universal ad markup for bid response")
     banner_data: Optional[BannerCreative] = None
     video_data: Optional[VideoCreative] = None
     native_data: Optional[NativeCreative] = None

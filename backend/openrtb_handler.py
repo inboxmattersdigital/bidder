@@ -413,13 +413,8 @@ class OpenRTBResponseBuilder:
         }
         
         # Add ad markup based on creative type
-        # Priority: Universal ADM > Type-specific markup
         creative_type = creative.get("type")
-        
-        # Check for universal ADM first
-        if creative.get("adm"):
-            bid["adm"] = creative["adm"]
-        elif creative_type == "banner" and creative.get("banner_data"):
+        if creative_type == "banner" and creative.get("banner_data"):
             bid["adm"] = creative["banner_data"].get("ad_markup", "")
             bid["w"] = creative["banner_data"].get("width")
             bid["h"] = creative["banner_data"].get("height")
@@ -431,11 +426,6 @@ class OpenRTBResponseBuilder:
                 bid["nurl"] = video_data["vast_url"]
         elif creative_type == "native" and creative.get("native_data"):
             bid["adm"] = self._build_native_response(creative["native_data"])
-        
-        # Add dimensions for banner if universal ADM is used
-        if creative.get("adm") and creative_type == "banner" and creative.get("banner_data"):
-            bid["w"] = creative["banner_data"].get("width")
-            bid["h"] = creative["banner_data"].get("height")
         
         # Handle mtype (2.6) vs ext.prebid.type (2.5)
         mtype_mapping = {"banner": 1, "video": 2, "audio": 3, "native": 4}
