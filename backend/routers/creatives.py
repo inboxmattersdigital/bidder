@@ -245,3 +245,72 @@ async def validate_creative(creative_data: dict):
         "issues": issues,
         "warnings": warnings
     }
+
+
+# Public Preview Endpoints (No Auth Required)
+@router.get("/creatives/{creative_id}/public")
+async def get_creative_public_preview(creative_id: str):
+    """Get creative for public preview (no auth required)"""
+    creative = await db.creatives.find_one({"id": creative_id}, {"_id": 0})
+    if not creative:
+        raise HTTPException(status_code=404, detail="Creative not found")
+    
+    # Return only safe fields for public preview
+    safe_fields = {
+        "id": creative.get("id"),
+        "name": creative.get("name"),
+        "type": creative.get("type"),
+        "format": creative.get("format"),
+        "js_tag_data": creative.get("js_tag_data"),
+        "js_tag": creative.get("js_tag"),
+        "banner_data": creative.get("banner_data"),
+        "video_data": creative.get("video_data"),
+        "native_data": creative.get("native_data"),
+        "audio_data": creative.get("audio_data"),
+        "approval_status": creative.get("approval_status"),
+        "approval_feedback": creative.get("approval_feedback"),
+    }
+    
+    return safe_fields
+
+
+from pydantic import BaseModel
+from datetime import datetime, timezone
+
+class ApprovalRequest(BaseModel):
+    status: str  # 'approved' or 'rejected'
+    feedback: Optional[str] = None
+
+
+@router.post("/creatives/{creative_id}/approval")
+async def submit_creative_approval(creative_id: str, request: ApprovalRequest):
+    """Submit approval/rejection for a creative (public endpoint)"""
+    creative = await db.creatives.find_one({"id": creative_id})
+    if not creative:
+        raise HTTPException(status_code=404, detail="Creative not found")
+    
+    # Update creative with approval status
+    update_data = {
+        "approval_status": request.status,
+        "approval_feedback": request.feedback,
+        "approval_date": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.creatives.update_one(
+        {"id": creative_id},
+        {"$set": update_data}
+    )
+    
+    # Log the approval action
+    await db.approval_logs.insert_one({
+        "creative_id": creative_id,
+        "creative_name": creative.get("name"),
+        "status": request.status,
+        "feedback": request.feedback,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "_id": None  # Will be auto-generated
+    })
+    
+    return {"success": True, "status": request.status}
+

@@ -31,6 +31,7 @@ import Attribution from "./pages/Attribution";
 import BidStream from "./pages/BidStream";
 import MediaPlanner from "./pages/MediaPlanner";
 import Settings from "./pages/Settings";
+import CreativePreviewPage from "./pages/CreativePreviewPage";
 import "./App.css";
 
 function App() {
@@ -52,6 +53,7 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/preview/:id" element={<CreativePreviewPage />} />
             
             {/* Protected routes */}
             <Route path="/" element={<Layout />}>

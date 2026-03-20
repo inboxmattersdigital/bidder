@@ -19,11 +19,16 @@ import {
   Layers,
   Volume2,
   ChevronDown,
-  Pencil
+  Pencil,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { Input } from "../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
   DropdownMenu,
@@ -131,6 +136,22 @@ function CreativeFormatBadge({ format }) {
 
 function CreativePreview({ creative, onClose }) {
   const [iframeKey, setIframeKey] = useState(0);
+  const [showLivePreview, setShowLivePreview] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showSharePanel, setShowSharePanel] = useState(false);
+  
+  // Generate shareable preview URL
+  const previewUrl = `${window.location.origin}/preview/${creative.id}`;
+  
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
   
   // Helper to check if URL is valid (not null, undefined, 'None', empty string, or expired blob URLs)
   const isValidUrl = (url) => {
@@ -455,74 +476,206 @@ function CreativePreview({ creative, onClose }) {
         const tagType = jsTagData.tag_type || "script";
         const isSecure = jsTagData.is_secure !== false;
         
+        // Generate HTML for live preview iframe
+        const livePreviewHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              html, body { 
+                width: 100%; 
+                height: 100%; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center;
+                background: #f5f5f5;
+                overflow: hidden;
+              }
+              .ad-container {
+                width: ${jsWidth}px;
+                height: ${jsHeight}px;
+                position: relative;
+                background: #fff;
+                border: 1px solid #ddd;
+                overflow: hidden;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="ad-container">
+              ${tagContent}
+            </div>
+          </body>
+          </html>
+        `;
+        
         return (
-          <div className="flex flex-col items-center gap-4 w-full max-w-lg">
-            {/* JS Tag Info Card */}
-            <div className="w-full p-6 bg-gradient-to-br from-[#F59E0B]/10 to-[#EF4444]/10 rounded-lg border border-[#2D3B55]">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-[#F59E0B]/20 flex items-center justify-center shrink-0">
-                  <Code className="w-6 h-6 text-[#F59E0B]" />
+          <div className="flex flex-col items-center gap-4 w-full">
+            {/* Header with badges */}
+            <div className="w-full flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#F59E0B]/20 flex items-center justify-center">
+                  <Code className="w-5 h-5 text-[#F59E0B]" />
                 </div>
-                <div className="flex-1">
+                <div>
                   <p className="text-sm text-[#F8FAFC] font-medium">Third Party JS Tag</p>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <div className="flex items-center gap-2 mt-1">
                     {vendor && (
-                      <Badge className="bg-[#F59E0B]/20 text-[#F59E0B] text-xs">
-                        {vendor}
-                      </Badge>
+                      <Badge className="bg-[#F59E0B]/20 text-[#F59E0B] text-xs">{vendor}</Badge>
                     )}
-                    <Badge className="bg-[#64748B]/20 text-[#94A3B8] text-xs">
-                      {tagType}
-                    </Badge>
+                    <Badge className="bg-[#64748B]/20 text-[#94A3B8] text-xs">{tagType}</Badge>
                     {isSecure && (
-                      <Badge className="bg-[#10B981]/20 text-[#10B981] text-xs">
-                        HTTPS
-                      </Badge>
+                      <Badge className="bg-[#10B981]/20 text-[#10B981] text-xs">HTTPS</Badge>
                     )}
                   </div>
                 </div>
               </div>
-              
-              {(jsWidth && jsHeight) && (
-                <p className="text-xs text-[#64748B] mb-3">
-                  Container Size: {jsWidth}x{jsHeight}px
-                </p>
-              )}
-              
-              {tagContent ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-[#64748B]">Tag Content:</p>
-                  <div className="p-3 bg-[#0F172A] rounded border border-[#2D3B55] overflow-hidden">
-                    <pre className="text-xs text-[#94A3B8] whitespace-pre-wrap break-all max-h-48 overflow-y-auto font-mono">
-                      {tagContent}
-                    </pre>
-                  </div>
-                </div>
-              ) : tagUrl ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-[#64748B]">Tag URL:</p>
-                  <div className="p-3 bg-[#0F172A] rounded border border-[#2D3B55]">
-                    <code className="text-xs text-[#3B82F6] font-mono break-all">
-                      {tagUrl}
-                    </code>
-                  </div>
-                  <a 
-                    href={tagUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs text-[#3B82F6] hover:underline"
-                  >
-                    Open in new tab →
-                  </a>
-                </div>
-              ) : (
-                <p className="text-xs text-[#64748B] text-center">No tag content configured</p>
-              )}
+              <Badge className="bg-[#3B82F6]/20 text-[#3B82F6]">{jsWidth}x{jsHeight}px</Badge>
             </div>
-            
-            <div className="flex gap-2">
-              <Badge className="bg-[#F59E0B]/20 text-[#F59E0B]">{jsWidth}x{jsHeight}</Badge>
-              <Badge className="bg-[#8B5CF6]/20 text-[#8B5CF6]">JS Tag</Badge>
+
+            {/* Live Preview Toggle */}
+            <div className="w-full flex gap-2">
+              <Button
+                variant={!showLivePreview ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowLivePreview(false)}
+                className={!showLivePreview ? "bg-[#3B82F6] text-white" : "border-[#2D3B55] text-[#94A3B8]"}
+              >
+                <Code className="w-4 h-4 mr-1" />
+                Tag Code
+              </Button>
+              <Button
+                variant={showLivePreview ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowLivePreview(true)}
+                className={showLivePreview ? "bg-[#10B981] text-white" : "border-[#2D3B55] text-[#94A3B8]"}
+              >
+                <Eye className="w-4 h-4 mr-1" />
+                Live Preview
+              </Button>
+            </div>
+
+            {/* Content Area */}
+            {!showLivePreview ? (
+              /* Tag Code View */
+              <div className="w-full">
+                {tagContent ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#64748B]">Tag Content:</p>
+                    <div className="p-4 bg-[#020408] rounded-lg border border-[#2D3B55] overflow-hidden">
+                      <pre className="text-xs text-[#94A3B8] whitespace-pre-wrap break-all max-h-64 overflow-y-auto font-mono">
+                        {tagContent}
+                      </pre>
+                    </div>
+                  </div>
+                ) : tagUrl ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#64748B]">Tag URL:</p>
+                    <div className="p-4 bg-[#020408] rounded-lg border border-[#2D3B55]">
+                      <code className="text-xs text-[#3B82F6] font-mono break-all">{tagUrl}</code>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#64748B] text-center py-8">No tag content configured</p>
+                )}
+              </div>
+            ) : (
+              /* Live Preview */
+              <div className="w-full space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-[#64748B]">Live Ad Preview (Simulated Environment)</p>
+                  <Badge className="bg-[#10B981]/20 text-[#10B981] text-xs animate-pulse">LIVE</Badge>
+                </div>
+                <div 
+                  className="mx-auto rounded-lg border-2 border-dashed border-[#3B82F6]/50 bg-[#0A0F1C] p-4 flex items-center justify-center"
+                  style={{ minHeight: Math.min(jsHeight + 40, 400) }}
+                >
+                  {tagContent ? (
+                    <iframe
+                      key={iframeKey}
+                      srcDoc={livePreviewHtml}
+                      title="JS Tag Live Preview"
+                      style={{ 
+                        width: Math.min(jsWidth + 20, 600), 
+                        height: Math.min(jsHeight + 20, 350),
+                        border: 'none',
+                        background: '#f5f5f5',
+                        borderRadius: '4px'
+                      }}
+                      sandbox="allow-scripts allow-same-origin"
+                    />
+                  ) : (
+                    <div className="text-center py-8">
+                      <Code className="w-12 h-12 text-[#64748B] mx-auto mb-3 opacity-50" />
+                      <p className="text-sm text-[#64748B]">No tag content to preview</p>
+                      <p className="text-xs text-[#475569] mt-1">Add tag code to see live preview</p>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-[#475569] text-center">
+                  Note: Some third-party tags may not render in preview due to security restrictions
+                </p>
+              </div>
+            )}
+
+            {/* Share for Approval Section */}
+            <div className="w-full pt-4 border-t border-[#2D3B55]">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSharePanel(!showSharePanel)}
+                className="w-full border-[#8B5CF6] text-[#8B5CF6] hover:bg-[#8B5CF6]/10"
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Share for Advertiser Approval
+              </Button>
+              
+              {showSharePanel && (
+                <div className="mt-3 p-4 surface-secondary rounded-lg border border-[#2D3B55] space-y-3">
+                  <p className="text-xs text-[#94A3B8]">Share this link with advertiser for approval:</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={previewUrl}
+                      readOnly
+                      className="surface-primary border-[#2D3B55] text-[#F8FAFC] text-xs font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => copyToClipboard(previewUrl)}
+                      className={copied ? "bg-[#10B981] text-white" : "bg-[#3B82F6] text-white"}
+                    >
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(previewUrl, '_blank')}
+                      className="flex-1 border-[#2D3B55] text-[#94A3B8] hover:text-[#F8FAFC]"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Open Preview Page
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const subject = encodeURIComponent(`Creative Approval Request: ${creative.name}`);
+                        const body = encodeURIComponent(`Hi,\n\nPlease review and approve this creative:\n\nCreative Name: ${creative.name}\nType: Third Party JS Tag\nVendor: ${vendor || 'N/A'}\nSize: ${jsWidth}x${jsHeight}\n\nPreview Link: ${previewUrl}\n\nBest regards`);
+                        window.open(`mailto:?subject=${subject}&body=${body}`);
+                      }}
+                      className="flex-1 border-[#2D3B55] text-[#94A3B8] hover:text-[#F8FAFC]"
+                    >
+                      <Share2 className="w-4 h-4 mr-1" />
+                      Email Link
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
