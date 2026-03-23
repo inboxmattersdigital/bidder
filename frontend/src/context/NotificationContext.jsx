@@ -15,7 +15,7 @@ export const useNotifications = () => {
 };
 
 export const NotificationProvider = ({ children }) => {
-  const { token, isAuthenticated, user, logout } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);

@@ -99,19 +99,21 @@ export function ScheduleStep({ form, updateField }) {
               <div className="space-y-2">
                 <Label className="text-slate-600">Max Impressions</Label>
                 <Input
-                  type="number"
-                  value={form.frequency_cap_count ?? ""}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={form.frequency_cap_count}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    updateField("frequency_cap_count", val === "" ? 1 : parseInt(val) || 1);
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    updateField("frequency_cap_count", val === "" ? "" : parseInt(val, 10));
                   }}
                   onBlur={(e) => {
-                    if (!e.target.value || parseInt(e.target.value) < 1) {
-                      updateField("frequency_cap_count", 1);
+                    const val = e.target.value;
+                    if (val === "" || parseInt(val, 10) < 1 || isNaN(parseInt(val, 10))) {
+                      updateField("frequency_cap_count", 5);
                     }
                   }}
                   className="surface-primary border-slate-200 text-slate-900"
-                  min={1}
                   data-testid="frequency-cap-count"
                 />
               </div>
@@ -149,30 +151,44 @@ export function ScheduleStep({ form, updateField }) {
                 <div className="space-y-2">
                   <Label className="text-slate-600">Daily Cap (per user)</Label>
                   <Input
-                    type="number"
-                    value={form.frequency_cap_daily ?? ""}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={form.frequency_cap_daily}
                     onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      updateField("frequency_cap_daily", val === "" ? "" : parseInt(val, 10));
+                    }}
+                    onBlur={(e) => {
                       const val = e.target.value;
-                      updateField("frequency_cap_daily", val === "" ? 0 : parseInt(val) || 0);
+                      if (val === "" || isNaN(parseInt(val, 10))) {
+                        updateField("frequency_cap_daily", 0);
+                      }
                     }}
                     className="surface-primary border-slate-200 text-slate-900"
-                    placeholder="Unlimited"
-                    min={0}
+                    placeholder="0 = Unlimited"
                     data-testid="frequency-cap-daily"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-slate-600">Lifetime Cap (per user)</Label>
                   <Input
-                    type="number"
-                    value={form.frequency_cap_lifetime ?? ""}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={form.frequency_cap_lifetime}
                     onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      updateField("frequency_cap_lifetime", val === "" ? "" : parseInt(val, 10));
+                    }}
+                    onBlur={(e) => {
                       const val = e.target.value;
-                      updateField("frequency_cap_lifetime", val === "" ? 0 : parseInt(val) || 0);
+                      if (val === "" || isNaN(parseInt(val, 10))) {
+                        updateField("frequency_cap_lifetime", 0);
+                      }
                     }}
                     className="surface-primary border-slate-200 text-slate-900"
-                    placeholder="Unlimited"
-                    min={0}
+                    placeholder="0 = Unlimited"
                     data-testid="frequency-cap-lifetime"
                   />
                 </div>

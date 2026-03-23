@@ -1,0 +1,59 @@
+{
+  "summary": "Bug fixes verified: 1) No postMessage errors during login/logout - response interceptor in api.js creates clean error objects, 2) Frequency capping fields (Max Impressions, Period, Cap Type, Daily Cap, Lifetime Cap) all accept and retain typed values correctly. Input type changed from 'number' to 'text' with inputMode='numeric' fixes the value persistence issue.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard", "issues": ["Minor: HTML nesting warning - <div> inside <p> tag in Badge component - does not affect functionality"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_35.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Response interceptor in api.js (lines 40-50) correctly creates plain error objects using JSON.parse(JSON.stringify()) to prevent postMessage cloning issues",
+    "AuthContext.jsx uses error?.message to avoid passing full error objects that could cause serialization issues",
+    "NotificationContext.jsx limits WebSocket reconnection to 3 attempts with exponential backoff",
+    "ScheduleStep.jsx frequency capping inputs use type='text' with inputMode='numeric' and pattern='[0-9]*' - this allows proper typing without immediate parseInt conversion",
+    "onChange handlers in ScheduleStep.jsx store raw values and only convert to int after filtering non-numeric characters"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only testing)",
+    "frontend": "100% (All bug fixes verified)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two bugs verified fixed: 1) postMessage errors no longer occur during login/logout - tested full login/logout cycle with console log monitoring, no 'Request object could not be cloned' errors found. 2) Frequency capping fields in Schedule & pacing step (step 6) of campaign wizard now accept and retain typed values correctly - tested Max Impressions (typed '15', retained as '15'), Period dropdown (changed to 'Per Week'), Cap Type dropdown (changed to 'Per Campaign'), Daily Cap (typed '10'), Lifetime Cap (typed '50'). All values persisted correctly.",
+  "features_verified": {
+    "postMessage_error_fix": {
+      "status": "VERIFIED",
+      "details": "No postMessage errors in console during login/logout. Response interceptor creates clean error objects.",
+      "tests_performed": [
+        "Login with valid credentials - no errors",
+        "Dashboard navigation - no errors",
+        "Logout - no errors, redirected to login page with success toast"
+      ]
+    },
+    "frequency_capping_fields": {
+      "status": "VERIFIED",
+      "fields_tested": [
+        {"field": "Max Impressions", "test": "Typed '15'", "result": "Value retained as '15'"},
+        {"field": "Period dropdown", "test": "Changed from 'Per Day' to 'Per Week'", "result": "Value retained"},
+        {"field": "Cap Type dropdown", "test": "Changed from 'Per User' to 'Per Campaign'", "result": "Value retained"},
+        {"field": "Daily Cap", "test": "Typed '10'", "result": "Value retained as '10'"},
+        {"field": "Lifetime Cap", "test": "Typed '50'", "result": "Value retained as '50'"}
+      ],
+      "fix_details": "Input type changed from 'number' to 'text' with inputMode='numeric' and pattern='[0-9]*'. onChange handlers filter non-numeric characters and store raw values."
+    }
+  },
+  "test_credentials": {
+    "super_admin": {"email": "superadmin@demo.com", "password": "demo123"}
+  }
+}

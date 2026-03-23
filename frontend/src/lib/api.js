@@ -37,13 +37,17 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
-    // Create a clean error object that can be cloned
-    const cleanError = {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    };
-    return Promise.reject(cleanError);
+    // Create a plain error object that can be safely serialized
+    // This prevents "Request object could not be cloned" postMessage errors
+    const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'An error occurred';
+    const errorStatus = error.response?.status || 0;
+    const errorData = error.response?.data ? JSON.parse(JSON.stringify(error.response.data)) : null;
+    
+    const plainError = new Error(errorMessage);
+    plainError.status = errorStatus;
+    plainError.data = errorData;
+    
+    return Promise.reject(plainError);
   }
 );
 

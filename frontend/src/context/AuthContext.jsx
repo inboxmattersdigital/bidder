@@ -63,7 +63,8 @@ export const AuthProvider = ({ children }) => {
           setToken(null);
         }
       } catch (error) {
-        console.error('Failed to load user:', error);
+        // Create plain error for logging to avoid postMessage issues
+        console.error('Failed to load user:', error?.message || 'Unknown error');
         localStorage.removeItem('auth_token');
         setToken(null);
       } finally {
@@ -97,8 +98,9 @@ export const AuthProvider = ({ children }) => {
       navigate('/');
       return data;
     } catch (error) {
-      toast.error(error.message);
-      throw error;
+      const errorMessage = error?.message || 'Login failed';
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -125,8 +127,9 @@ export const AuthProvider = ({ children }) => {
       navigate('/');
       return data;
     } catch (error) {
-      toast.error(error.message);
-      throw error;
+      const errorMessage = error?.message || 'Registration failed';
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -141,7 +144,7 @@ export const AuthProvider = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Logout error:', error?.message || 'Unknown error');
     } finally {
       localStorage.removeItem('auth_token');
       setToken(null);
@@ -166,7 +169,7 @@ export const AuthProvider = ({ children }) => {
         setUser(userData);
       }
     } catch (error) {
-      console.error('Failed to refresh user:', error);
+      console.error('Failed to refresh user:', error?.message || 'Unknown error');
     }
   };
 
