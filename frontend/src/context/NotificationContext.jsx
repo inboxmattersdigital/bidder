@@ -15,13 +15,15 @@ export const useNotifications = () => {
 };
 
 export const NotificationProvider = ({ children }) => {
-  const { token, isAuthenticated, user } = useAuth();
+  const { token, isAuthenticated, user, logout } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const pingIntervalRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 3;
 
   const addNotification = useCallback((notification) => {
     const newNotif = {
@@ -97,6 +99,7 @@ export const NotificationProvider = ({ children }) => {
       
       ws.onopen = () => {
         setIsConnected(true);
+        reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
         console.log('WebSocket connected');
         
         // Start ping interval to keep connection alive
@@ -120,24 +123,34 @@ export const NotificationProvider = ({ children }) => {
       
       ws.onclose = (event) => {
         setIsConnected(false);
-        console.log('WebSocket disconnected:', event.code);
+        console.log('WebSocket disconnected:', event.code, event.reason);
         
         // Clear ping interval
         if (pingIntervalRef.current) {
           clearInterval(pingIntervalRef.current);
         }
         
-        // Attempt to reconnect after 5 seconds if not a manual close
-        if (event.code !== 1000 && isAuthenticated) {
+        // Handle authentication failure - do not reconnect
+        if (event.code === 4001 || event.code === 403 || event.code === 1008) {
+          console.log('WebSocket authentication failed, not reconnecting');
+          reconnectAttemptsRef.current = maxReconnectAttempts; // Prevent reconnection
+          return;
+        }
+        
+        // Attempt to reconnect with exponential backoff, but limit attempts
+        if (event.code !== 1000 && isAuthenticated && reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(5000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+          reconnectAttemptsRef.current += 1;
+          console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`);
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('Attempting to reconnect...');
             connect();
-          }, 5000);
+          }, delay);
         }
       };
       
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
+        // Don't log out on WebSocket errors - the connection might just be unavailable
       };
       
       wsRef.current = ws;
@@ -158,6 +171,7 @@ export const NotificationProvider = ({ children }) => {
       wsRef.current = null;
     }
     setIsConnected(false);
+    reconnectAttemptsRef.current = 0;
   }, []);
 
   const markAsRead = useCallback((notificationId) => {

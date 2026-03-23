@@ -414,18 +414,57 @@ class OpenRTBResponseBuilder:
         
         # Add ad markup based on creative type
         creative_type = creative.get("type")
+        
+        # Build impression pixel HTML for injection into ad markup
+        impression_pixels_html = ""
+        impression_pixels = creative.get("impression_pixels", [])
+        if impression_pixels:
+            for pixel in impression_pixels:
+                if pixel.get("enabled", True) and pixel.get("url"):
+                    pixel_url = pixel.get("url", "")
+                    pixel_name = pixel.get("name", "pixel")
+                    impression_pixels_html += f'<img src="{pixel_url}" width="1" height="1" style="display:none;" alt="{pixel_name}" />'
+        
         if creative_type == "banner" and creative.get("banner_data"):
-            bid["adm"] = creative["banner_data"].get("ad_markup", "")
+            ad_markup = creative["banner_data"].get("ad_markup", "")
+            # Inject impression pixels into banner ad markup
+            if impression_pixels_html and ad_markup:
+                # Insert pixels at the end of the ad markup
+                ad_markup = ad_markup + impression_pixels_html
+            bid["adm"] = ad_markup
             bid["w"] = creative["banner_data"].get("width")
             bid["h"] = creative["banner_data"].get("height")
         elif creative_type == "video" and creative.get("video_data"):
             video_data = creative["video_data"]
             if video_data.get("vast_xml"):
-                bid["adm"] = video_data["vast_xml"]
+                vast_xml = video_data["vast_xml"]
+                # For VAST XML, inject impression pixels into Impression elements
+                if impression_pixels:
+                    import re
+                    impression_tags = ""
+                    for pixel in impression_pixels:
+                        if pixel.get("enabled", True) and pixel.get("url"):
+                            impression_tags += f'<Impression><![CDATA[{pixel.get("url")}]]></Impression>'
+                    # Insert after the first <InLine> tag if present
+                    if "<InLine>" in vast_xml and impression_tags:
+                        vast_xml = vast_xml.replace("<InLine>", f"<InLine>{impression_tags}", 1)
+                bid["adm"] = vast_xml
             elif video_data.get("vast_url"):
                 bid["nurl"] = video_data["vast_url"]
         elif creative_type == "native" and creative.get("native_data"):
-            bid["adm"] = self._build_native_response(creative["native_data"])
+            bid["adm"] = self._build_native_response(creative["native_data"], impression_pixels)
+        elif creative_type == "js_tag" and creative.get("js_tag_data"):
+            js_tag_data = creative["js_tag_data"]
+            # For JS tags, wrap in container with impression pixels
+            tag_content = js_tag_data.get("tag_content", "")
+            if tag_content:
+                bid["adm"] = tag_content + impression_pixels_html
+            elif js_tag_data.get("tag_url"):
+                # If tag URL, create script tag wrapper
+                tag_url = js_tag_data.get("tag_url")
+                bid["adm"] = f'<script src="{tag_url}"></script>{impression_pixels_html}'
+            bid["w"] = js_tag_data.get("width")
+            bid["h"] = js_tag_data.get("height")
         
         # Handle mtype (2.6) vs ext.prebid.type (2.5)
         mtype_mapping = {"banner": 1, "video": 2, "audio": 3, "native": 4}
@@ -462,7 +501,7 @@ class OpenRTBResponseBuilder:
             "seatbid": []
         }
     
-    def _build_native_response(self, native_data: Dict[str, Any]) -> str:
+    def _build_native_response(self, native_data: Dict[str, Any], impression_pixels: list = None) -> str:
         """Build native ad response JSON"""
         import json
         native_response = {
@@ -487,6 +526,15 @@ class OpenRTBResponseBuilder:
                 "id": 4,
                 "img": {"url": native_data["image_url"], "type": 3}
             })
+        
+        # Add impression trackers for native ads
+        if impression_pixels:
+            imptrackers = []
+            for pixel in impression_pixels:
+                if pixel.get("enabled", True) and pixel.get("url"):
+                    imptrackers.append(pixel.get("url"))
+            if imptrackers:
+                native_response["native"]["imptrackers"] = imptrackers
         
         return json.dumps(native_response)
 

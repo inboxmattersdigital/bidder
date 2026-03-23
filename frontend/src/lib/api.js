@@ -24,6 +24,29 @@ api.interceptors.request.use(
   }
 );
 
+// Add response interceptor to handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle 401 Unauthorized - token expired or invalid
+    if (error.response?.status === 401) {
+      // Clear invalid token
+      localStorage.removeItem('auth_token');
+      // Redirect to login if not already there
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+    // Create a clean error object that can be cloned
+    const cleanError = {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    };
+    return Promise.reject(cleanError);
+  }
+);
+
 // Dashboard
 export const getDashboardStats = () => api.get('/dashboard/stats');
 export const getChartData = () => api.get('/dashboard/chart-data');

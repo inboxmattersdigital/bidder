@@ -100,16 +100,25 @@ export function ScheduleStep({ form, updateField }) {
                 <Label className="text-slate-600">Max Impressions</Label>
                 <Input
                   type="number"
-                  value={form.frequency_cap_count}
-                  onChange={(e) => updateField("frequency_cap_count", parseInt(e.target.value) || 1)}
+                  value={form.frequency_cap_count ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateField("frequency_cap_count", val === "" ? 1 : parseInt(val) || 1);
+                  }}
+                  onBlur={(e) => {
+                    if (!e.target.value || parseInt(e.target.value) < 1) {
+                      updateField("frequency_cap_count", 1);
+                    }
+                  }}
                   className="surface-primary border-slate-200 text-slate-900"
                   min={1}
+                  data-testid="frequency-cap-count"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-600">Period</Label>
-                <Select value={form.frequency_cap_period} onValueChange={(v) => updateField("frequency_cap_period", v)}>
-                  <SelectTrigger className="surface-primary border-slate-200 text-slate-900">
+                <Select value={form.frequency_cap_period || "day"} onValueChange={(v) => updateField("frequency_cap_period", v)}>
+                  <SelectTrigger className="surface-primary border-slate-200 text-slate-900" data-testid="frequency-cap-period">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="surface-primary border-slate-200">
@@ -123,8 +132,8 @@ export function ScheduleStep({ form, updateField }) {
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-600">Cap Type</Label>
-                <Select value={form.frequency_cap_type} onValueChange={(v) => updateField("frequency_cap_type", v)}>
-                  <SelectTrigger className="surface-primary border-slate-200 text-slate-900">
+                <Select value={form.frequency_cap_type || "user"} onValueChange={(v) => updateField("frequency_cap_type", v)}>
+                  <SelectTrigger className="surface-primary border-slate-200 text-slate-900" data-testid="frequency-cap-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="surface-primary border-slate-200">
@@ -141,22 +150,30 @@ export function ScheduleStep({ form, updateField }) {
                   <Label className="text-slate-600">Daily Cap (per user)</Label>
                   <Input
                     type="number"
-                    value={form.frequency_cap_daily || ""}
-                    onChange={(e) => updateField("frequency_cap_daily", parseInt(e.target.value) || 0)}
+                    value={form.frequency_cap_daily ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateField("frequency_cap_daily", val === "" ? 0 : parseInt(val) || 0);
+                    }}
                     className="surface-primary border-slate-200 text-slate-900"
                     placeholder="Unlimited"
                     min={0}
+                    data-testid="frequency-cap-daily"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-slate-600">Lifetime Cap (per user)</Label>
                   <Input
                     type="number"
-                    value={form.frequency_cap_lifetime || ""}
-                    onChange={(e) => updateField("frequency_cap_lifetime", parseInt(e.target.value) || 0)}
+                    value={form.frequency_cap_lifetime ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateField("frequency_cap_lifetime", val === "" ? 0 : parseInt(val) || 0);
+                    }}
                     className="surface-primary border-slate-200 text-slate-900"
                     placeholder="Unlimited"
                     min={0}
+                    data-testid="frequency-cap-lifetime"
                   />
                 </div>
               </div>
