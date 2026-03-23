@@ -32,7 +32,7 @@ import {
   TabsTrigger,
 } from "../components/ui/tabs";
 import { toast } from "sonner";
-import { createCreative, updateCreative, getCreatives, uploadImage, uploadVideo, uploadAudio } from "../lib/api";
+import { createCreative, updateCreative, getCreatives, getCreative, uploadImage, uploadVideo, uploadAudio } from "../lib/api";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -149,10 +149,12 @@ export default function CreativeEditor() {
   const loadCreative = async () => {
     setLoading(true);
     try {
-      const response = await getCreatives();
-      const creative = response.data?.find(c => c.id === id);
+      // Use getCreative(id) for better efficiency
+      const response = await getCreative(id);
+      const creative = response.data;
       
       if (creative) {
+        console.log('Loaded creative:', creative.name, 'banner_data:', creative.banner_data);
         setCreativeType(creative.type || "banner");
         
         // Extract click URL from ad_markup if present (for banner)
@@ -204,11 +206,13 @@ export default function CreativeEditor() {
           jsTagIsSecure: creative.js_tag_data?.is_secure !== false,
         }));
         
-        // Set banner size
+        // Set banner size from loaded creative
         if (creative.banner_data?.width && creative.banner_data?.height) {
           const w = creative.banner_data.width;
           const h = creative.banner_data.height;
+          console.log('Setting banner size:', w, 'x', h);
           const standardSize = BANNER_SIZES.find(s => s.w === w && s.h === h);
+          console.log('Found standard size:', standardSize);
           if (standardSize) {
             setSelectedSize(standardSize);
           } else {
@@ -549,11 +553,13 @@ export default function CreativeEditor() {
 
   const renderPreview = () => {
     if (creativeType === "banner") {
+      const previewWidth = useCustomSize ? customWidth : selectedSize.w;
+      const previewHeight = useCustomSize ? customHeight : selectedSize.h;
       return (
         <div 
           style={{ 
-            width: selectedSize.w, 
-            height: selectedSize.h,
+            width: previewWidth, 
+            height: previewHeight,
             background: form.backgroundColor,
             overflow: "hidden"
           }}
@@ -1797,7 +1803,7 @@ export default function CreativeEditor() {
               </div>
               <div className="mt-3 flex items-center justify-between text-xs">
                 <span className="text-slate-500">
-                  {creativeType === "banner" ? `${selectedSize.w}x${selectedSize.h}` : creativeType}
+                  {creativeType === "banner" ? `${useCustomSize ? customWidth : selectedSize.w}x${useCustomSize ? customHeight : selectedSize.h}` : creativeType}
                 </span>
                 <Button 
                   variant="ghost" 
