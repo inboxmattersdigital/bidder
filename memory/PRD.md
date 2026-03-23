@@ -1,5 +1,7 @@
 # OpenRTB 2.5/2.6 Bidder with Campaign Manager - PRD
 
+## Application Name: Innoviedge DSP Platform
+
 ## Original Problem Statement
 Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid requests, manages campaigns with comprehensive targeting, and provides real-time bidding decisions.
 
@@ -8,6 +10,33 @@ Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid reque
 - **Frontend**: React + Tailwind + Shadcn
 - **Bidding Engine**: Real-time matching with targeting rules
 - **Real-time**: WebSocket for live bid stream
+
+## Bug Fixes (March 2026)
+
+### 1. WebSocket Reconnection Loop Fix
+- **Issue**: Platform was logging out frequently with "Failed to execute postMessage on Window: Request object could not be cloned" error
+- **Root Cause**: Infinite WebSocket reconnection attempts when token was invalid/expired
+- **Fix Applied**:
+  - Added response interceptor in `/app/frontend/src/lib/api.js` to handle 401/403 errors cleanly
+  - Limited WebSocket reconnection attempts to 3 with exponential backoff in `/app/frontend/src/context/NotificationContext.jsx`
+  - Clean error objects now prevent postMessage cloning issues
+
+### 2. Impression Pixel Integration in Bid Response
+- **Issue**: Impression pixels were not being included in the bid response when running campaigns
+- **Fix Applied**:
+  - Updated `/app/backend/openrtb_handler.py` to inject impression pixels into `adm` field
+  - Banner creatives: Appends 1x1 pixel `<img>` tags to ad markup
+  - Video creatives: Injects `<Impression>` tags into VAST XML
+  - Native creatives: Adds `imptrackers` array to native response
+  - JS Tag creatives: Appends pixel tags to tag content
+
+### 3. Frequency Capping Input Fields Fix
+- **Issue**: Unable to change field values in frequency capping section during campaign create/update
+- **Fix Applied**:
+  - Updated `/app/frontend/src/pages/CampaignWizard/steps/ScheduleStep.jsx`
+  - Changed `value={form.frequency_cap_count}` to `value={form.frequency_cap_count ?? ""}`
+  - Improved onChange handlers to properly handle empty values and partial input
+  - Added `data-testid` attributes for all frequency capping fields
 
 ## Implemented Features
 
