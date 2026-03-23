@@ -1,0 +1,52 @@
+{
+  "summary": "Bug fix verified: Creative size matching now correctly selects creatives based on requested impression dimensions. Before fix, the system always returned the first creative (300x250) regardless of requested size. After fix, bid requests for 728x90 return 728x90 creative, 300x250 returns 300x250, and 320x480 returns 320x480.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_creative_size_matching.py",
+    "/app/test_reports/pytest/pytest_creative_size_matching.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix correctly implemented: _get_active_campaigns() now uses find() instead of find_one() to load ALL creatives for each campaign",
+    "_find_best_matching_creative() function properly checks both banner.w/h and banner.format array for size matching",
+    "Fallback behavior is correct: when no exact match found, returns first available creative of matching type",
+    "Logging added for debugging: 'Looking for creative matching sizes' and 'Exact size match' messages help trace matching logic"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_creative_size_matching.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "N/A (backend only testing)"
+  },
+  "seed_data_creation": "Updated existing campaign (Demo 230326) with creative_ids array containing 3 different size creatives: 320x480, 728x90, 300x250",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Creative size matching bug fix verified. Campaign f95a0193-6729-4042-9583-7fdd7953c5f8 now has creative_ids: ['527bbac3-464d-4f07-b61e-2c4d82965cde' (320x480), '47753d0e-2594-4ae1-a67e-74a331ec10b0' (728x90), '83e140ef-1a16-42bf-be5c-e977d0500953' (300x250)]. Campaign has geo targeting for PHL - bid requests must include device.geo.country='PHL' to get bids.",
+  "features_verified": {
+    "creative_size_matching": {
+      "status": "VERIFIED",
+      "tests_passed": [
+        {"test": "728x90 request returns 728x90 creative", "result": "PASS - Creative ID: 47753d0e-2594-4ae1-a67e-74a331ec10b0"},
+        {"test": "300x250 request returns 300x250 creative", "result": "PASS - Creative ID: 83e140ef-1a16-42bf-be5c-e977d0500953"},
+        {"test": "320x480 request returns 320x480 creative", "result": "PASS - Creative ID: 527bbac3-464d-4f07-b61e-2c4d82965cde"},
+        {"test": "Format array (banner.format) parsing works", "result": "PASS - 728x90 via format array returns correct creative"},
+        {"test": "Unavailable size returns fallback", "result": "PASS - 160x600 request returns 300x250 fallback"}
+      ],
+      "root_cause": "Code was using find_one() to get only the FIRST creative for each campaign, regardless of dimensions",
+      "fix_applied": "Changed to find() to load ALL creatives, added _find_best_matching_creative() function that checks impression's banner.w/h and banner.format array to find exact size match"
+    }
+  },
+  "test_credentials": {
+    "super_admin": {"email": "superadmin@demo.com", "password": "demo123"}
+  },
+  "rca_of_the_issue": "Root cause: The _get_active_campaigns() method was using find_one() which only returned the first creative document for each campaign. This meant that even if a campaign had multiple creatives with different sizes (300x250, 728x90, 320x480), only the first one was loaded and used for all bid responses. Fix: Changed find_one() to find() to load all creatives, and added _find_best_matching_creative() function that iterates through all creatives and matches dimensions against the impression's requested size (from banner.w/h or banner.format array)."
+}

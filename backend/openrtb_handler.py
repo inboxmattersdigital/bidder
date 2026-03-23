@@ -928,14 +928,17 @@ class BiddingEngine:
             logger.info(f"Campaign {campaign['name']}: creative_ids={creative_ids}")
             
             if creative_ids:
-                # Get first matching creative
-                creative = await self.db.creatives.find_one(
+                # Get ALL creatives for this campaign (not just the first one)
+                creatives_cursor = self.db.creatives.find(
                     {"id": {"$in": creative_ids}},
                     {"_id": 0}
                 )
-                if creative:
-                    campaign["_creative"] = creative
-                    logger.info(f"  -> Loaded creative: {creative['name']} ({creative['type']})")
+                creatives_list = await creatives_cursor.to_list(length=100)
+                
+                if creatives_list:
+                    campaign["_creatives"] = creatives_list  # Store all creatives
+                    campaign["_creative"] = creatives_list[0]  # Keep backwards compatibility
+                    logger.info(f"  -> Loaded {len(creatives_list)} creatives: {[c['name'] for c in creatives_list]}")
                 else:
                     logger.warning(f"  -> No creative found for IDs: {creative_ids}")
         
@@ -953,14 +956,22 @@ class BiddingEngine:
         matches = []
         
         for campaign in campaigns:
-            creative = campaign.get("_creative")
-            if not creative:
-                logger.debug(f"Campaign {campaign['name']}: no creative loaded")
-                continue
+            # Get all creatives for this campaign
+            creatives = campaign.get("_creatives", [])
+            if not creatives:
+                # Fallback to single creative for backwards compatibility
+                single_creative = campaign.get("_creative")
+                if single_creative:
+                    creatives = [single_creative]
+                else:
+                    logger.debug(f"Campaign {campaign['name']}: no creative loaded")
+                    continue
             
-            # Check creative type matches impression
-            if not self._creative_matches_impression(creative, imp):
-                logger.info(f"Campaign {campaign['name']}: creative type mismatch")
+            # Find the best matching creative for this impression
+            matching_creative = self._find_best_matching_creative(creatives, imp)
+            
+            if not matching_creative:
+                logger.info(f"Campaign {campaign['name']}: no creative matches impression dimensions")
                 continue
             
             # Check all targeting rules
@@ -1010,10 +1021,105 @@ class BiddingEngine:
             
             # Calculate match score
             score = campaign.get("priority", 1) * campaign.get("bid_price", 0)
-            logger.info(f"Campaign {campaign['name']}: MATCHED with score {score}")
-            matches.append((campaign, creative, score))
+            logger.info(f"Campaign {campaign['name']}: MATCHED with creative {matching_creative.get('name')} ({matching_creative.get('banner_data', {}).get('width', 'N/A')}x{matching_creative.get('banner_data', {}).get('height', 'N/A')}) score {score}")
+            matches.append((campaign, matching_creative, score))
         
         return matches
+    
+    def _find_best_matching_creative(self, creatives: List[Dict[str, Any]], imp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Find the best matching creative for an impression based on dimensions and type"""
+        imp_banner = imp.get("banner", {})
+        imp_video = imp.get("video", {})
+        imp_native = imp.get("native")
+        
+        # Get requested dimensions
+        requested_width = imp_banner.get("w")
+        requested_height = imp_banner.get("h")
+        
+        # Also check format array for multiple sizes
+        formats = imp_banner.get("format", [])
+        if formats:
+            # Build list of acceptable sizes from format array
+            acceptable_sizes = [(f.get("w"), f.get("h")) for f in formats if f.get("w") and f.get("h")]
+        elif requested_width and requested_height:
+            acceptable_sizes = [(requested_width, requested_height)]
+        else:
+            acceptable_sizes = []  # No size requirement
+        
+        logger.info(f"Looking for creative matching sizes: {acceptable_sizes} (requested: {requested_width}x{requested_height})")
+        
+        # First, try exact matches
+        for creative in creatives:
+            creative_type = creative.get("type")
+            
+            # Match by creative type
+            if creative_type == "banner" and imp_banner:
+                banner_data = creative.get("banner_data", {})
+                creative_width = banner_data.get("width")
+                creative_height = banner_data.get("height")
+                
+                # If no size requirement, accept any banner
+                if not acceptable_sizes:
+                    logger.info(f"  -> No size requirement, accepting creative: {creative.get('name')} ({creative_width}x{creative_height})")
+                    return creative
+                
+                # Check for exact match
+                if (creative_width, creative_height) in acceptable_sizes:
+                    logger.info(f"  -> Exact size match: {creative.get('name')} ({creative_width}x{creative_height})")
+                    return creative
+                    
+            elif creative_type == "js_tag" and imp_banner:
+                # JS tags can serve as banner ads
+                js_data = creative.get("js_tag_data", {})
+                creative_width = js_data.get("width")
+                creative_height = js_data.get("height")
+                
+                if not acceptable_sizes:
+                    logger.info(f"  -> No size requirement, accepting JS tag: {creative.get('name')} ({creative_width}x{creative_height})")
+                    return creative
+                
+                if (creative_width, creative_height) in acceptable_sizes:
+                    logger.info(f"  -> Exact JS tag size match: {creative.get('name')} ({creative_width}x{creative_height})")
+                    return creative
+                    
+            elif creative_type == "video" and imp_video:
+                if self._creative_matches_impression(creative, imp):
+                    logger.info(f"  -> Video match: {creative.get('name')}")
+                    return creative
+                    
+            elif creative_type == "native" and imp_native:
+                logger.info(f"  -> Native match: {creative.get('name')}")
+                return creative
+        
+        # If no exact match found and there are size requirements, log which sizes we have
+        if acceptable_sizes:
+            available_sizes = []
+            for c in creatives:
+                if c.get("type") == "banner":
+                    bd = c.get("banner_data", {})
+                    available_sizes.append(f"{c.get('name')}:{bd.get('width')}x{bd.get('height')}")
+                elif c.get("type") == "js_tag":
+                    jd = c.get("js_tag_data", {})
+                    available_sizes.append(f"{c.get('name')}:{jd.get('width')}x{jd.get('height')}")
+            logger.info(f"  -> No matching size found. Available: {available_sizes}, Requested: {acceptable_sizes}")
+        
+        # Fallback: return first creative of matching type
+        for creative in creatives:
+            creative_type = creative.get("type")
+            if creative_type == "banner" and imp_banner:
+                logger.info(f"  -> Fallback to first banner: {creative.get('name')}")
+                return creative
+            elif creative_type == "js_tag" and imp_banner:
+                logger.info(f"  -> Fallback to first JS tag: {creative.get('name')}")
+                return creative
+            elif creative_type == "video" and imp_video:
+                logger.info(f"  -> Fallback to first video: {creative.get('name')}")
+                return creative
+            elif creative_type == "native" and imp_native:
+                logger.info(f"  -> Fallback to first native: {creative.get('name')}")
+                return creative
+        
+        return None
     
     def _creative_matches_impression(self, creative: Dict[str, Any], imp: Dict[str, Any]) -> bool:
         """Check if creative type matches impression format"""
