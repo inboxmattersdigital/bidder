@@ -99,6 +99,13 @@ Build a Demand-Side Platform (DSP) Bidder that handles OpenRTB 2.5/2.6 bid reque
 - `${DEVICE_IFA}`, `${GEO_COUNTRY}`, `${GEO_CITY}` - User data
 - `${TIMESTAMP}`, `${CACHEBUSTER}` - Utility values
 
+**Macro Testing (March 2026):**
+- Verified end-to-end macro replacement in live bid responses
+- Test Input: `?auction=${AUCTION_ID}&price=${AUCTION_PRICE}&city=${GEO_CITY}...`
+- Test Output: `?auction=macro-test-123&price=0.02&city=Manila...`
+- All 12 tested macros replaced correctly with actual bid context values
+- Macros applied to impression pixels injected into ad markup (adm field)
+
 ## Implemented Features
 
 ### Core Bidding (Phases 1-3)
