@@ -101,6 +101,131 @@ OPENRTB_MACROS = {
 }
 
 
+def _extract_bid_context(bid_request: Dict[str, Any], creative: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract common context data from bid request."""
+    imp = bid_request.get("imp", [{}])[0] if bid_request.get("imp") else {}
+    site = bid_request.get("site", {})
+    app = bid_request.get("app", {})
+    device = bid_request.get("device", {})
+    geo = device.get("geo", {})
+    user = bid_request.get("user", {})
+    publisher = site.get("publisher", {}) or app.get("publisher", {})
+    
+    # Get banner/video dimensions
+    banner = imp.get("banner", {})
+    video = imp.get("video", {})
+    creative_width = creative.get("banner_data", {}).get("width") or banner.get("w") or video.get("w") or ""
+    creative_height = creative.get("banner_data", {}).get("height") or banner.get("h") or video.get("h") or ""
+    
+    return {
+        "imp": imp, "site": site, "app": app, "device": device,
+        "geo": geo, "user": user, "publisher": publisher,
+        "creative_width": creative_width, "creative_height": creative_height
+    }
+
+
+def _build_auction_macros(bid_request: Dict, bid_response: Dict, imp: Dict, creative: Dict, price_str: str, price_b64: str, price_hash: str) -> Dict[str, str]:
+    """Build auction-related macro replacements."""
+    seat_id = ""
+    if bid_response.get("seatbid"):
+        seat_id = bid_response.get("seatbid", [{}])[0].get("seat", "")
+    
+    currency = bid_request.get("cur", ["USD"])
+    if isinstance(currency, list):
+        currency = currency[0] if currency else "USD"
+    
+    return {
+        "${AUCTION_ID}": bid_request.get("id", ""),
+        "${AUCTION_BID_ID}": bid_response.get("id", ""),
+        "${AUCTION_IMP_ID}": imp.get("id", ""),
+        "${AUCTION_SEAT_ID}": seat_id,
+        "${AUCTION_AD_ID}": creative.get("id", ""),
+        "${AUCTION_PRICE}": price_str,
+        "${AUCTION_PRICE:B64}": price_b64,
+        "${AUCTION_PRICE:HASH}": price_hash,
+        "${AUCTION_CURRENCY}": currency,
+        "${AUCTION_MBR}": str(imp.get("bidfloor", "")),
+        "${AUCTION_LOSS}": "",
+    }
+
+
+def _build_entity_macros(creative: Dict, campaign: Dict, site: Dict, app: Dict, publisher: Dict, creative_width, creative_height) -> Dict[str, str]:
+    """Build creative, campaign, site, app, publisher macro replacements."""
+    return {
+        # Creative Macros
+        "${CREATIVE_ID}": creative.get("id", ""),
+        "${CREATIVE_NAME}": creative.get("name", ""),
+        "${CREATIVE_WIDTH}": str(creative_width),
+        "${CREATIVE_HEIGHT}": str(creative_height),
+        # Campaign Macros
+        "${CAMPAIGN_ID}": campaign.get("id", ""),
+        "${CAMPAIGN_NAME}": campaign.get("name", ""),
+        # Site Macros
+        "${SITE_ID}": site.get("id", ""),
+        "${SITE_NAME}": site.get("name", ""),
+        "${SITE_DOMAIN}": site.get("domain", ""),
+        "${SITE_PAGE}": site.get("page", ""),
+        "${SITE_REF}": site.get("ref", ""),
+        # App Macros
+        "${APP_ID}": app.get("id", ""),
+        "${APP_NAME}": app.get("name", ""),
+        "${APP_BUNDLE}": app.get("bundle", ""),
+        "${APP_STORE_URL}": app.get("storeurl", ""),
+        # Publisher Macros
+        "${PUBLISHER_ID}": publisher.get("id", ""),
+        "${PUBLISHER_NAME}": publisher.get("name", ""),
+    }
+
+
+def _build_device_geo_user_macros(device: Dict, geo: Dict, user: Dict, bid_request: Dict) -> Dict[str, str]:
+    """Build device, geo, user, and SSP macro replacements."""
+    return {
+        # Device Macros
+        "${DEVICE_IP}": device.get("ip", ""),
+        "${DEVICE_UA}": device.get("ua", ""),
+        "${DEVICE_IFA}": device.get("ifa", ""),
+        "${DEVICE_MAKE}": device.get("make", ""),
+        "${DEVICE_MODEL}": device.get("model", ""),
+        "${DEVICE_OS}": device.get("os", ""),
+        "${DEVICE_OSV}": device.get("osv", ""),
+        "${DEVICE_TYPE}": str(device.get("devicetype", "")),
+        "${DEVICE_LANGUAGE}": device.get("language", ""),
+        "${DEVICE_CARRIER}": device.get("carrier", ""),
+        "${DEVICE_CONNECTION}": str(device.get("connectiontype", "")),
+        # Geo Macros
+        "${GEO_COUNTRY}": geo.get("country", ""),
+        "${GEO_REGION}": geo.get("region", ""),
+        "${GEO_CITY}": geo.get("city", ""),
+        "${GEO_ZIP}": geo.get("zip", ""),
+        "${GEO_LAT}": str(geo.get("lat", "")),
+        "${GEO_LON}": str(geo.get("lon", "")),
+        "${GEO_METRO}": geo.get("metro", ""),
+        # User Macros
+        "${USER_ID}": user.get("id", ""),
+        "${USER_BUYERUID}": user.get("buyeruid", ""),
+        "${USER_GENDER}": user.get("gender", ""),
+        "${USER_YOB}": str(user.get("yob", "")),
+        "${USER_KEYWORDS}": user.get("keywords", ""),
+        # SSP Macros
+        "${SSP_ID}": bid_request.get("ext", {}).get("ssp_id", ""),
+        "${SSP_NAME}": bid_request.get("ext", {}).get("ssp_name", ""),
+    }
+
+
+def _build_utility_macros(timestamp: int, timestamp_ms: int, now, cachebuster: int, random_str: str, click_url: str) -> Dict[str, str]:
+    """Build timestamp, random, and click tracking macro replacements."""
+    return {
+        "${TIMESTAMP}": str(timestamp),
+        "${TIMESTAMP_MS}": str(timestamp_ms),
+        "${DATE}": now.strftime("%Y-%m-%d"),
+        "${TIME}": now.strftime("%H:%M:%S"),
+        "${CACHEBUSTER}": str(cachebuster),
+        "${RANDOM}": random_str,
+        "${CLICK_URL}": urllib.parse.quote(click_url or "", safe=""),
+        "${CLICK_URL_UNESC}": click_url or "",
+    }
+
+
 def replace_macros(
     url: str,
     bid_request: Dict[str, Any],
@@ -128,25 +253,11 @@ def replace_macros(
     if not url:
         return url
     
-    import time
     import secrets
-    import string
     from datetime import datetime, timezone
     
-    # Extract data from bid request
-    imp = bid_request.get("imp", [{}])[0] if bid_request.get("imp") else {}
-    site = bid_request.get("site", {})
-    app = bid_request.get("app", {})
-    device = bid_request.get("device", {})
-    geo = device.get("geo", {})
-    user = bid_request.get("user", {})
-    publisher = site.get("publisher", {}) or app.get("publisher", {})
-    
-    # Get banner/video dimensions
-    banner = imp.get("banner", {})
-    video = imp.get("video", {})
-    creative_width = creative.get("banner_data", {}).get("width") or banner.get("w") or video.get("w") or ""
-    creative_height = creative.get("banner_data", {}).get("height") or banner.get("h") or video.get("h") or ""
+    # Extract context
+    ctx = _extract_bid_context(bid_request, creative)
     
     # Generate timestamps
     now = datetime.now(timezone.utc)
@@ -162,95 +273,21 @@ def replace_macros(
     price_b64 = base64.b64encode(price_str.encode()).decode()
     price_hash = hashlib.sha256(price_str.encode()).hexdigest()[:16]
     
-    # Macro replacement mapping
-    replacements = {
-        # Auction Macros
-        "${AUCTION_ID}": bid_request.get("id", ""),
-        "${AUCTION_BID_ID}": bid_response.get("id", ""),
-        "${AUCTION_IMP_ID}": imp.get("id", ""),
-        "${AUCTION_SEAT_ID}": bid_response.get("seatbid", [{}])[0].get("seat", "") if bid_response.get("seatbid") else "",
-        "${AUCTION_AD_ID}": creative.get("id", ""),
-        "${AUCTION_PRICE}": price_str,
-        "${AUCTION_PRICE:B64}": price_b64,
-        "${AUCTION_PRICE:HASH}": price_hash,
-        "${AUCTION_CURRENCY}": bid_request.get("cur", ["USD"])[0] if isinstance(bid_request.get("cur"), list) else bid_request.get("cur", "USD"),
-        "${AUCTION_MBR}": str(imp.get("bidfloor", "")),
-        "${AUCTION_LOSS}": "",
-        
-        # Creative Macros
-        "${CREATIVE_ID}": creative.get("id", ""),
-        "${CREATIVE_NAME}": creative.get("name", ""),
-        "${CREATIVE_WIDTH}": str(creative_width),
-        "${CREATIVE_HEIGHT}": str(creative_height),
-        
-        # Campaign Macros
-        "${CAMPAIGN_ID}": campaign.get("id", ""),
-        "${CAMPAIGN_NAME}": campaign.get("name", ""),
-        
-        # Site Macros
-        "${SITE_ID}": site.get("id", ""),
-        "${SITE_NAME}": site.get("name", ""),
-        "${SITE_DOMAIN}": site.get("domain", ""),
-        "${SITE_PAGE}": site.get("page", ""),
-        "${SITE_REF}": site.get("ref", ""),
-        
-        # App Macros
-        "${APP_ID}": app.get("id", ""),
-        "${APP_NAME}": app.get("name", ""),
-        "${APP_BUNDLE}": app.get("bundle", ""),
-        "${APP_STORE_URL}": app.get("storeurl", ""),
-        
-        # Publisher Macros
-        "${PUBLISHER_ID}": publisher.get("id", ""),
-        "${PUBLISHER_NAME}": publisher.get("name", ""),
-        
-        # Device Macros
-        "${DEVICE_IP}": device.get("ip", ""),
-        "${DEVICE_UA}": device.get("ua", ""),
-        "${DEVICE_IFA}": device.get("ifa", ""),
-        "${DEVICE_MAKE}": device.get("make", ""),
-        "${DEVICE_MODEL}": device.get("model", ""),
-        "${DEVICE_OS}": device.get("os", ""),
-        "${DEVICE_OSV}": device.get("osv", ""),
-        "${DEVICE_TYPE}": str(device.get("devicetype", "")),
-        "${DEVICE_LANGUAGE}": device.get("language", ""),
-        "${DEVICE_CARRIER}": device.get("carrier", ""),
-        "${DEVICE_CONNECTION}": str(device.get("connectiontype", "")),
-        
-        # Geo Macros
-        "${GEO_COUNTRY}": geo.get("country", ""),
-        "${GEO_REGION}": geo.get("region", ""),
-        "${GEO_CITY}": geo.get("city", ""),
-        "${GEO_ZIP}": geo.get("zip", ""),
-        "${GEO_LAT}": str(geo.get("lat", "")),
-        "${GEO_LON}": str(geo.get("lon", "")),
-        "${GEO_METRO}": geo.get("metro", ""),
-        
-        # User Macros
-        "${USER_ID}": user.get("id", ""),
-        "${USER_BUYERUID}": user.get("buyeruid", ""),
-        "${USER_GENDER}": user.get("gender", ""),
-        "${USER_YOB}": str(user.get("yob", "")),
-        "${USER_KEYWORDS}": user.get("keywords", ""),
-        
-        # SSP Macros
-        "${SSP_ID}": bid_request.get("ext", {}).get("ssp_id", ""),
-        "${SSP_NAME}": bid_request.get("ext", {}).get("ssp_name", ""),
-        
-        # Timestamp Macros
-        "${TIMESTAMP}": str(timestamp),
-        "${TIMESTAMP_MS}": str(timestamp_ms),
-        "${DATE}": now.strftime("%Y-%m-%d"),
-        "${TIME}": now.strftime("%H:%M:%S"),
-        
-        # Random/Cache Buster
-        "${CACHEBUSTER}": str(cachebuster),
-        "${RANDOM}": random_str,
-        
-        # Click Tracking
-        "${CLICK_URL}": urllib.parse.quote(click_url or "", safe=""),
-        "${CLICK_URL_UNESC}": click_url or "",
-    }
+    # Build replacement mapping from helper functions
+    replacements = {}
+    replacements.update(_build_auction_macros(
+        bid_request, bid_response, ctx["imp"], creative, price_str, price_b64, price_hash
+    ))
+    replacements.update(_build_entity_macros(
+        creative, campaign, ctx["site"], ctx["app"], ctx["publisher"],
+        ctx["creative_width"], ctx["creative_height"]
+    ))
+    replacements.update(_build_device_geo_user_macros(
+        ctx["device"], ctx["geo"], ctx["user"], bid_request
+    ))
+    replacements.update(_build_utility_macros(
+        timestamp, timestamp_ms, now, cachebuster, random_str, click_url
+    ))
     
     # Perform replacements
     result = url
@@ -1138,7 +1175,7 @@ class BiddingEngine:
         
         # Extract features
         device = parsed.get("device", {})
-        summary = self._create_request_summary(parsed)
+        # Note: _create_request_summary could be used for logging/analysis if needed
         
         adjustments = []
         feature_weights = ml_config.get("feature_weights", {})

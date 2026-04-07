@@ -63,8 +63,8 @@ export default function BidStream() {
         let data;
         try {
           data = JSON.parse(event.data);
-        } catch (e) {
-          console.warn("Non-JSON message received:", event.data);
+        } catch {
+          // Non-JSON message, skip
           return;
         }
         

@@ -790,3 +790,68 @@ Fraud | Audiences | Attribution | Migration
 ├── CampaignWizard.jsx    # Enhanced 8-step Campaign Creation
 └── ... (existing pages)
 ```
+
+
+## Code Quality Improvements (April 2026)
+
+### Critical Fixes Applied
+
+#### 1. Circular Import Dependency FIXED
+- **Issue**: `routers/auth.py` ↔ `routers/email_service.py` circular import
+- **Fix**: Created `/app/backend/services/notification_preferences.py` module
+  - Moved `should_send_notification()` and `get_budget_thresholds()` functions
+  - Updated `email_service.py` to import from services module
+
+#### 2. Insecure Random Generation FIXED
+- **Location**: `openrtb_handler.py` macro replacement
+- **Fix**: Replaced `random.randint()` with `secrets.randbelow()` for cachebuster and `secrets.token_urlsafe()` for random strings
+
+#### 3. Hardcoded Secrets FIXED
+- **Location**: `routers/email_router.py`
+- **Fix**: 
+  - Added `IS_DEVELOPMENT` environment check
+  - Disabled test email endpoint in production
+  - Replaced hardcoded test tokens with `secrets.token_urlsafe(32)`
+
+#### 4. React Hook Dependencies FIXED (6 files)
+- `Dashboard.jsx`: Wrapped `fetchData` with `useCallback`
+- `Campaigns.jsx`: Wrapped `fetchCampaigns` with `useCallback`
+- `Creatives.jsx`: Wrapped `fetchCreatives` with `useCallback`
+- `Pacing.jsx`: Wrapped `fetchData` with `useCallback`
+- `Reports.jsx`: Wrapped `fetchData` with `useCallback`
+- `AdPerformanceReport.jsx`: Wrapped `fetchInitialData` with `useCallback`
+
+#### 5. Array Index as Key Anti-Pattern FIXED
+- `CreativeEditor.jsx`: Changed `key={idx}` to stable keys (`key={img.url}`, `key={m.macro}`)
+- `TargetingStep.jsx`: Changed `key={idx}` to `key={tierGroup.tier}-${tierGroup.state}`
+
+#### 6. Empty Catch Block FIXED
+- `Register.jsx`: Added proper error logging in catch block
+
+#### 7. Console Statement Cleanup
+- Created `/app/frontend/src/lib/logger.js` utility for production-safe logging
+- Removed debug `console.log` statements from:
+  - `CreativeEditor.jsx`
+  - `NotificationContext.jsx`
+  - `BidStream.jsx`
+  - `CreativeForm.jsx`
+  - `Creatives.jsx`
+- Kept only essential `console.error` statements for error tracking
+
+#### 8. Complex Function Refactoring - `openrtb_handler.py`
+- Refactored `replace_macros()` into smaller helper functions:
+  - `_extract_bid_context()` - Extract common context data
+  - `_build_auction_macros()` - Auction-related macros
+  - `_build_entity_macros()` - Creative, campaign, site, app, publisher macros
+  - `_build_device_geo_user_macros()` - Device, geo, user, SSP macros
+  - `_build_utility_macros()` - Timestamp, random, click tracking macros
+
+### Remaining Items (Future)
+- [ ] Split large components: `CreativeEditor.jsx` (1,903 lines), `AdminPanel.jsx` (1,528 lines)
+- [ ] Further refactor `build_response()` and `process_bid_request()` in `openrtb_handler.py`
+- [ ] Implement httpOnly cookies for token storage (security enhancement)
+
+### New Files Created
+- `/app/backend/services/__init__.py`
+- `/app/backend/services/notification_preferences.py`
+- `/app/frontend/src/lib/logger.js`

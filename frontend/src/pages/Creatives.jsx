@@ -149,8 +149,8 @@ function CreativePreview({ creative, onClose }) {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+    } catch {
+      // Clipboard write failed silently
     }
   };
   

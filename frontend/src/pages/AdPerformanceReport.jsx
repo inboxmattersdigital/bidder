@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   Download, FileSpreadsheet, BarChart3, RefreshCw, Calendar, Filter, Eye, Video,
   MousePointerClick, Users, Target, Layers, Globe, CheckCircle, Loader2,
@@ -186,12 +186,7 @@ export default function AdPerformanceReport() {
   const [newTemplateName, setNewTemplateName] = useState("");
   const [newTemplateDesc, setNewTemplateDesc] = useState("");
 
-  // Load campaigns and creatives on mount
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
+  const fetchInitialData = useCallback(async () => {
     try {
       const [campaignsRes, creativesRes, templatesRes] = await Promise.all([
         getCampaigns(),
@@ -201,12 +196,17 @@ export default function AdPerformanceReport() {
       setCampaigns(campaignsRes.data || []);
       setCreatives(creativesRes.data || []);
       setTemplates(templatesRes.data || { built_in: [], custom: [] });
-    } catch (error) {
-      console.error("Failed to load data:", error);
+    } catch {
+      // Failed to load initial data
     } finally {
       setLoadingTemplates(false);
     }
-  };
+  }, []);
+
+  // Load campaigns and creatives on mount
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const toggleDimension = (dimId) => {
     if (selectedDimensions.includes(dimId)) {
@@ -297,9 +297,8 @@ export default function AdPerformanceReport() {
       setFilterDate("all");  // Reset date filter when generating new report
       setActiveTab("preview");
       toast.success("Report generated successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to generate report");
-      console.error(error);
     } finally {
       setLoading(false);
     }

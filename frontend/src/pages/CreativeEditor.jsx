@@ -159,7 +159,6 @@ export default function CreativeEditor() {
       const creative = response.data;
       
       if (creative) {
-        console.log('Loaded creative:', creative.name, 'banner_data:', creative.banner_data);
         setCreativeType(creative.type || "banner");
         
         // Extract click URL from ad_markup if present (for banner)
@@ -215,9 +214,7 @@ export default function CreativeEditor() {
         if (creative.banner_data?.width && creative.banner_data?.height) {
           const w = creative.banner_data.width;
           const h = creative.banner_data.height;
-          console.log('Setting banner size:', w, 'x', h);
           const standardSize = BANNER_SIZES.find(s => s.w === w && s.h === h);
-          console.log('Found standard size:', standardSize);
           if (standardSize) {
             setSelectedSize(standardSize);
           } else {

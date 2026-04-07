@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { 
   BarChart3, 
   TrendingUp, 
@@ -86,7 +86,7 @@ export default function Reports() {
     };
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const { startDate, endDate } = getDateRange();
@@ -105,17 +105,16 @@ export default function Reports() {
       } else {
         setCampaignReport(null);
       }
-    } catch (error) {
-      console.error("Failed to fetch reports:", error);
+    } catch {
       toast.error("Failed to load report data");
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, selectedCampaign]);
 
   useEffect(() => {
     fetchData();
-  }, [dateRange, selectedCampaign]);
+  }, [fetchData]);
 
   const formatNumber = (num) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;

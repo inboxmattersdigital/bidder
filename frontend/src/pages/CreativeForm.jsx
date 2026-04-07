@@ -157,7 +157,6 @@ export default function CreativeForm() {
       }
     } catch (error) {
       toast.error("Failed to upload video");
-      console.error(error);
     } finally {
       setUploading(false);
     }
@@ -184,7 +183,6 @@ export default function CreativeForm() {
       toast.success("Audio uploaded successfully");
     } catch (error) {
       toast.error("Failed to upload audio");
-      console.error(error);
     } finally {
       setAudioUploading(false);
     }
@@ -203,7 +201,6 @@ export default function CreativeForm() {
       toast.success(`${isIcon ? 'Icon' : 'Image'} uploaded successfully`);
     } catch (error) {
       toast.error(`Failed to upload ${isIcon ? 'icon' : 'image'}`);
-      console.error(error);
     } finally {
       isIcon ? setNativeIconUploading(false) : setNativeImageUploading(false);
     }

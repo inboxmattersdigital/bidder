@@ -100,7 +100,6 @@ export const NotificationProvider = ({ children }) => {
       ws.onopen = () => {
         setIsConnected(true);
         reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
-        console.log('WebSocket connected');
         
         // Start ping interval to keep connection alive
         pingIntervalRef.current = setInterval(() => {
@@ -116,14 +115,13 @@ export const NotificationProvider = ({ children }) => {
         try {
           const notification = JSON.parse(event.data);
           addNotification(notification);
-        } catch (e) {
-          console.error('Failed to parse notification:', e);
+        } catch {
+          // Non-JSON message, ignore
         }
       };
       
       ws.onclose = (event) => {
         setIsConnected(false);
-        console.log('WebSocket disconnected:', event.code, event.reason);
         
         // Clear ping interval
         if (pingIntervalRef.current) {
@@ -132,7 +130,6 @@ export const NotificationProvider = ({ children }) => {
         
         // Handle authentication failure - do not reconnect
         if (event.code === 4001 || event.code === 403 || event.code === 1008) {
-          console.log('WebSocket authentication failed, not reconnecting');
           reconnectAttemptsRef.current = maxReconnectAttempts; // Prevent reconnection
           return;
         }
@@ -141,21 +138,19 @@ export const NotificationProvider = ({ children }) => {
         if (event.code !== 1000 && isAuthenticated && reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = Math.min(5000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
           reconnectAttemptsRef.current += 1;
-          console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`);
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, delay);
         }
       };
       
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      ws.onerror = () => {
         // Don't log out on WebSocket errors - the connection might just be unavailable
       };
       
       wsRef.current = ws;
-    } catch (error) {
-      console.error('Failed to create WebSocket:', error);
+    } catch {
+      // Failed to create WebSocket connection
     }
   }, [token, isAuthenticated, addNotification]);
 

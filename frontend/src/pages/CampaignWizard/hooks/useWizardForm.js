@@ -236,8 +236,8 @@ export function useWizardForm({ id, isEdit, fromMediaPlan, planData }) {
         target_geo: form.geo_countries,
       });
       setForecast(res.data);
-    } catch (error) {
-      console.error("Forecast error:", error);
+    } catch {
+      // Forecast API error - non-critical, silently fail
     }
   }, [form.total_budget, form.primary_goal, form.geo_countries]);
 
